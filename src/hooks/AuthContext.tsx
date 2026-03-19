@@ -6,16 +6,16 @@ interface AuthContextData {
   user: any;
   isGuest: boolean; // <-- NEW
   loading: boolean;
-  login: (username: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   register: (
     email: string,
     password: string,
     firstName: string,
     lastName: string,
-    userType: string,
   ) => Promise<void>;
   logout: () => Promise<void>;
-  continueAsGuest: () => void; // <-- NEW
+  setUser: (user: any) => void;
+  continueAsGuest: () => void;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
@@ -43,15 +43,27 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadStorageData();
   }, []);
 
-  const login = async (username: string, password: string) => {
+  const login = async (email: string, password: string) => {
     try {
-      const response = await api.post("/auth/login/", { username, password });
-      const { token, user_data } = response.data;
+      // The variables now perfectly match the JSON keys Django expects
+      const payload = {
+        email: email,
+        password: password,
+      };
 
-      await SecureStore.setItemAsync("userToken", token);
-      setUser(user_data);
-      setIsGuest(false); // Turn off guest mode on login
+      const response = await api.post("/auth/login/", payload);
+
+      // Extract the data matching your Django views.py response
+      const { tokens, user_id, email: userEmail } = response.data;
+
+      // Save the specific access token
+      await SecureStore.setItemAsync("userToken", tokens.access);
+
+      // Save the user globally
+      setUser({ id: user_id, email: userEmail });
+      setIsGuest(false);
     } catch (error) {
+      console.error("Login Error:", error);
       throw error;
     }
   };
@@ -61,21 +73,21 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     password: string,
     firstName: string,
     lastName: string,
-    userType: string,
   ) => {
     try {
-      // ... your existing payload logic
       const payload = {
-        email,
+        email: email,
         username: email,
-        password,
+        password: password,
         first_name: firstName,
         last_name: lastName,
-        user_type: userType,
+        user_type: "Regular",
       };
+
       const response = await api.post("/auth/register/", payload);
       return response.data;
     } catch (error) {
+      console.error("Registration Error:", error);
       throw error;
     }
   };
@@ -101,6 +113,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         login,
         register,
         logout,
+        setUser,
         continueAsGuest,
       }}
     >

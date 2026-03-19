@@ -13,12 +13,11 @@ import {
   View,
 } from "react-native";
 
-// Import the Auth Context we created
-import { useAuth } from "../../../hooks/AuthContext"; // Adjust path if needed
+import { useAuth } from "../../../hooks/AuthContext";
 
 const AuthScreen = () => {
   const router = useRouter();
-  const { login, register } = useAuth(); // Assuming you add register to your AuthContext
+  const { login, register, continueAsGuest } = useAuth();
 
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -30,10 +29,6 @@ const AuthScreen = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-
-  // New state for Django UserProfile matching
-  const [userType, setUserType] = useState("Regular");
-  const userTypes = ["Regular", "Student", "Senior", "PWD"];
 
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
@@ -79,29 +74,38 @@ const AuthScreen = () => {
 
     try {
       if (isLogin) {
-        // --- LOGIN FLOW ---
         await login(email, password);
-        // If AuthContext doesn't handle navigation automatically, keep this:
         router.replace("/(tabs)");
       } else {
-        // --- REGISTRATION FLOW ---
-        // Pass the extra fields needed for your Django extended UserProfile
-        await register(email, password, firstName, lastName, userType);
+        // Only sending the 4 core fields now!
+        await register(email, password, firstName, lastName);
 
         Alert.alert(
-          "Success",
-          "Your account has been created! You can now log in.",
-          [{ text: "OK", onPress: () => toggleMode("login") }],
+          "Code Sent!",
+          "Check your email for the verification code.",
+          [
+            {
+              text: "OK",
+              onPress: () =>
+                router.push({ pathname: "/otp", params: { email: email } }),
+            },
+          ],
         );
       }
     } catch (error: any) {
       if (isLogin) {
-        setPasswordError(error.response?.data?.detail || "Invalid credentials");
+        // Look for 'error' first (which your custom view uses), then 'detail' (default DRF)
+        const errorMessage =
+          error.response?.data?.error ||
+          error.response?.data?.detail ||
+          "Invalid credentials";
+        setPasswordError(errorMessage);
       } else {
-        setEmailError(
+        const errorMessage =
+          error.response?.data?.error ||
           error.response?.data?.email?.[0] ||
-            "Registration failed. Email may exist.",
-        );
+          "Registration failed. Email may exist.";
+        setEmailError(errorMessage);
       }
     } finally {
       setIsLoading(false);
@@ -109,22 +113,21 @@ const AuthScreen = () => {
   };
 
   const handleGuestMode = () => {
-    router.replace("/");
+    continueAsGuest();
+    router.replace("/(tabs)");
   };
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior="height">
       <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.closeBtn}>
-          <MaterialIcons name="close" size={24} color="#0F172A" />
-        </TouchableOpacity>
         <Text style={styles.logoText}>fair</Text>
         <View style={{ width: 24 }} />
       </View>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.tabContainer}>
           <TouchableOpacity
@@ -158,76 +161,38 @@ const AuthScreen = () => {
         </View>
         <View style={styles.formContainer}>
           {!isLogin && (
-            <>
-              <View style={styles.row}>
-                <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                  <Text style={styles.label}>First Name</Text>
-                  <View style={styles.inputWrapper}>
-                    <MaterialIcons
-                      name="person-outline"
-                      size={20}
-                      color="#94A3B8"
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      style={styles.inputWithIcon}
-                      placeholder="Juan"
-                      placeholderTextColor="#94A3B8"
-                      value={firstName}
-                      onChangeText={setFirstName}
-                    />
-                  </View>
-                </View>
-                <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                  <Text style={styles.label}>Last Name</Text>
-                  <View style={styles.inputWrapper}>
-                    <TextInput
-                      style={[styles.inputWithIcon, { paddingLeft: 16 }]}
-                      placeholder="Dela Cruz"
-                      placeholderTextColor="#94A3B8"
-                      value={lastName}
-                      onChangeText={setLastName}
-                    />
-                  </View>
+            <View style={styles.row}>
+              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+                <Text style={styles.label}>First Name</Text>
+                <View style={styles.inputWrapper}>
+                  <MaterialIcons
+                    name="person-outline"
+                    size={20}
+                    color="#94A3B8"
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    style={styles.inputWithIcon}
+                    placeholder="Juan"
+                    placeholderTextColor="#94A3B8"
+                    value={firstName}
+                    onChangeText={setFirstName}
+                  />
                 </View>
               </View>
-
-              {/* NEW: User Type Selection */}
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Passenger Type</Text>
-                <ScrollView
-                  horizontal
-                  showsHorizontalScrollIndicator={false}
-                  style={styles.typeContainer}
-                >
-                  {userTypes.map((type) => (
-                    <TouchableOpacity
-                      key={type}
-                      style={[
-                        styles.typeChip,
-                        userType === type && styles.typeChipActive,
-                      ]}
-                      onPress={() => setUserType(type)}
-                    >
-                      <Text
-                        style={[
-                          styles.typeChipText,
-                          userType === type && styles.typeChipTextActive,
-                        ]}
-                      >
-                        {type}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-                {userType !== "Regular" && (
-                  <Text style={styles.helperText}>
-                    You will need to upload your valid ID (e.g., CCA Student ID,
-                    Senior ID) later to verify your discount.
-                  </Text>
-                )}
+              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                <Text style={styles.label}>Last Name</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={[styles.inputWithIcon, { paddingLeft: 16 }]}
+                    placeholder="Dela Cruz"
+                    placeholderTextColor="#94A3B8"
+                    value={lastName}
+                    onChangeText={setLastName}
+                  />
+                </View>
               </View>
-            </>
+            </View>
           )}
 
           <View style={styles.inputGroup}>
@@ -351,7 +316,10 @@ const AuthScreen = () => {
             </View>
           )}
           {isLogin && (
-            <TouchableOpacity style={styles.forgotPassword}>
+            <TouchableOpacity
+              style={styles.forgotPassword}
+              onPress={() => router.push("/forgot-password")}
+            >
               <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
             </TouchableOpacity>
           )}
@@ -421,12 +389,11 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "space-between",
+    justifyContent: "center",
     paddingTop: 50,
     paddingHorizontal: 20,
     paddingBottom: 16,
   },
-  closeBtn: { padding: 4, marginLeft: -4 },
   logoText: {
     color: "#D32F2F",
     fontSize: 26,
@@ -459,25 +426,6 @@ const styles = StyleSheet.create({
   row: { flexDirection: "row", justifyContent: "space-between" },
   inputGroup: { marginBottom: 20 },
   label: { fontSize: 14, fontWeight: "700", color: "#0F172A", marginBottom: 8 },
-
-  // NEW STYLES FOR PASSENGER TYPE CHIPS
-  typeContainer: { flexDirection: "row", marginBottom: 4 },
-  typeChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#F1F5F9",
-    marginRight: 8,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  typeChipActive: {
-    backgroundColor: "#FEF2F2",
-    borderColor: "#D32F2F",
-  },
-  typeChipText: { color: "#64748B", fontWeight: "600", fontSize: 14 },
-  typeChipTextActive: { color: "#D32F2F" },
-
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
