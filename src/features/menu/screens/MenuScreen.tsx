@@ -1,3 +1,4 @@
+import { useAuth } from "@/src/hooks/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -55,13 +56,32 @@ const MenuItem: React.FC<MenuItemProps> = ({
 const ProfileScreen = () => {
   const router = useRouter();
 
-  const handleLogout = () => {
+  // 1. Pull BOTH isGuest and logout from AuthContext
+  const { user, isGuest, logout } = useAuth();
+
+  const handleExit = () => {
+    // If they are a guest, don't ask for confirmation. Just route them to Auth.
+    if (isGuest) {
+      logout();
+      router.replace("/auth");
+      return;
+    }
+
+    // If they are a registered user, show the standard confirmation alert.
     Alert.alert("Log Out", "Are you sure you want to log out of Fair?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Log Out",
         style: "destructive",
-        onPress: () => console.log("Logged out"),
+        onPress: async () => {
+          try {
+            await logout();
+            // Layout guard handles the redirect automatically!
+          } catch (error) {
+            console.error("Logout failed", error);
+            Alert.alert("Error", "Failed to log out. Please try again.");
+          }
+        },
       },
     ]);
   };
@@ -86,24 +106,35 @@ const ProfileScreen = () => {
       >
         {/* PROFILE CARD */}
         <TouchableOpacity style={styles.profileCard} activeOpacity={0.9}>
-          {/* Simulated Avatar - Using a solid color circle for the demo if image isn't available */}
           <View style={styles.avatarContainer}>
             <MaterialIcons name="person" size={40} color="#94A3B8" />
           </View>
 
           <View style={styles.profileInfo}>
-            <Text style={styles.profileName}>Bastengot</Text>
+            {/* DYNAMIC PROFILE NAME */}
+            <Text style={styles.profileName}>
+              {isGuest
+                ? "Guest User"
+                : user?.first_name
+                  ? `${user?.first_name} ${user?.last_name}`
+                  : user?.email?.split("@")[0] || "Fair User"}
+            </Text>
 
-            {/* Dynamic User Type Badge based on your ERD */}
-            <View style={styles.verifiedBadge}>
-              <MaterialIcons
-                name="verified"
-                size={12}
-                color="#E53935"
-                style={{ marginRight: 4 }}
-              />
-              <Text style={styles.verifiedText}>Verified Student - CCA</Text>
-            </View>
+            {isGuest ? (
+              <Text style={styles.guestSubtitle}>
+                Sign in to save preferences
+              </Text>
+            ) : (
+              <View style={styles.verifiedBadge}>
+                <MaterialIcons
+                  name="verified"
+                  size={12}
+                  color="#E53935"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.verifiedText}>Verified Student - CCA</Text>
+              </View>
+            )}
           </View>
 
           <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
@@ -116,7 +147,10 @@ const ProfileScreen = () => {
             icon="location-on"
             title="Saved Places"
             subtitle="Home, CCA Campus, Nepo Mall"
-            onPress={() => {}}
+            onPress={() => {
+              if (isGuest)
+                Alert.alert("Guest Mode", "Please sign in to save locations.");
+            }}
           />
         </View>
 
@@ -166,28 +200,29 @@ const ProfileScreen = () => {
           />
         </View>
 
+        {/* 3. DYNAMIC LOGOUT / LOGIN BUTTON */}
         <TouchableOpacity
-          style={{
-            backgroundColor: "#0F172A",
-            padding: 16,
-            margin: 20,
-            borderRadius: 8,
-            alignItems: "center",
-          }}
-          onPress={() => router.push("/auth")}
-        >
-          <Text style={{ color: "#FFFFFF", fontWeight: "bold" }}>
-            TEST AUTH SCREEN
-          </Text>
-        </TouchableOpacity>
-
-        {/* LOGOUT BUTTON */}
-        <TouchableOpacity
-          style={styles.logoutButton}
+          style={[
+            styles.exitBtn,
+            isGuest ? styles.guestExitBtn : styles.logoutBtn,
+          ]}
           activeOpacity={0.7}
-          onPress={handleLogout}
+          onPress={handleExit}
         >
-          <Text style={styles.logoutText}>Log Out</Text>
+          <MaterialIcons
+            name={isGuest ? "person-add" : "logout"}
+            size={20}
+            color={isGuest ? "#0F172A" : "#E53935"}
+            style={{ marginRight: 8 }}
+          />
+          <Text
+            style={[
+              styles.exitBtnText,
+              isGuest ? styles.guestExitText : styles.logoutText,
+            ]}
+          >
+            {isGuest ? "Sign In / Create Account" : "Log Out"}
+          </Text>
         </TouchableOpacity>
 
         {/* FOOTER METADATA */}
@@ -269,6 +304,10 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     marginBottom: 4,
   },
+  guestSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+  },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -299,7 +338,7 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     marginBottom: 24,
   },
-  divider: { height: 1, backgroundColor: "#F1F5F9", marginLeft: 56 }, // Aligns the line with the text, skipping the icon
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginLeft: 56 },
 
   // Menu Item
   menuItem: { flexDirection: "row", alignItems: "center", padding: 16 },
@@ -319,19 +358,27 @@ const styles = StyleSheet.create({
   },
   menuItemSubtitle: { fontSize: 12, color: "#64748B" },
 
-  // Logout Button
-  logoutButton: {
+  // Dynamic Exit Button Base
+  exitBtn: {
+    flexDirection: "row",
     width: "100%",
     paddingVertical: 16,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E53935",
-    backgroundColor: "#FFFFFF",
     alignItems: "center",
+    justifyContent: "center",
     marginTop: 8,
     marginBottom: 24,
   },
-  logoutText: { color: "#E53935", fontSize: 16, fontWeight: "bold" },
+  exitBtnText: { fontSize: 16, fontWeight: "bold" },
+
+  // Logout Specific Styles
+  logoutBtn: { backgroundColor: "#FFFFFF", borderColor: "#E53935" },
+  logoutText: { color: "#E53935" },
+
+  // Guest Specific Styles
+  guestExitBtn: { backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" },
+  guestExitText: { color: "#0F172A" },
 
   // Footer Metadata
   footerData: { alignItems: "center", marginBottom: 20 },
