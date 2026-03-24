@@ -135,7 +135,7 @@ const HomeScreen: React.FC = () => {
               destination={destination}
               apikey={GOOGLE_API_KEY}
               strokeWidth={6}
-              strokeColor="#E53935"
+              strokeColor="#D32F2F"
               optimizeWaypoints={true}
               onReady={handleRouteReady}
               onError={(errorMessage) =>
@@ -174,24 +174,43 @@ const HomeScreen: React.FC = () => {
       {/* 4. FLOATING TRIP INFO */}
       {tripDistance && tripDuration && (
         <View style={styles.tripInfoCard}>
-          <View style={styles.infoRow}>
-            <MaterialIcons name="schedule" size={20} color="#475569" />
-            <Text style={styles.infoText}>
-              <Text style={styles.infoHighlight}>
-                {Math.ceil(tripDuration)} min
-              </Text>{" "}
-              arrival
-            </Text>
+          {/* Time Block */}
+          <View style={styles.infoBlock}>
+            <View style={styles.infoIconWrapper}>
+              <MaterialCommunityIcons
+                name="clock-fast"
+                size={20}
+                color="#D32F2F"
+              />
+            </View>
+            <View>
+              <Text style={styles.infoValue}>
+                {Math.ceil(tripDuration)}{" "}
+                <Text style={styles.infoUnit}>min</Text>
+              </Text>
+              <Text style={styles.infoLabel}>EST. TIME</Text>
+            </View>
           </View>
+
+          {/* Subtle Divider */}
           <View style={styles.infoDivider} />
-          <View style={styles.infoRow}>
-            <MaterialIcons name="straighten" size={20} color="#475569" />
-            <Text style={styles.infoText}>
-              <Text style={styles.infoHighlight}>
-                {tripDistance.toFixed(1)} km
-              </Text>{" "}
-              total
-            </Text>
+
+          {/* Distance Block */}
+          <View style={styles.infoBlock}>
+            <View style={styles.infoIconWrapper}>
+              <MaterialCommunityIcons
+                name="map-marker-distance"
+                size={20}
+                color="#D32F2F"
+              />
+            </View>
+            <View>
+              <Text style={styles.infoValue}>
+                {tripDistance.toFixed(1)}{" "}
+                <Text style={styles.infoUnit}>km</Text>
+              </Text>
+              <Text style={styles.infoLabel}>DISTANCE</Text>
+            </View>
           </View>
         </View>
       )}
@@ -208,7 +227,7 @@ const HomeScreen: React.FC = () => {
         >
           <MaterialCommunityIcons
             name="navigation-outline"
-            size={28}
+            size={26}
             color="#FFFFFF"
           />
           <Text style={styles.primaryButtonText}>
@@ -380,7 +399,7 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     backgroundColor: "#FFFFFF",
     borderWidth: 5,
-    borderColor: "#E53935",
+    borderColor: "#D32F2F",
     elevation: 4,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -391,13 +410,13 @@ const styles = StyleSheet.create({
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     borderWidth: 3,
     borderColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
     elevation: 6,
-    shadowColor: "#E53935",
+    shadowColor: "#D32F2F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -461,13 +480,13 @@ const styles = StyleSheet.create({
   },
   primaryButton: {
     height: 64,
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     borderRadius: 12,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     elevation: 6,
-    shadowColor: "#E53935",
+    shadowColor: "#D32F2F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.3,
     shadowRadius: 6,
@@ -482,26 +501,60 @@ const styles = StyleSheet.create({
   },
   tripInfoCard: {
     position: "absolute",
-    bottom: 95,
+    bottom: 100, // Lifted slightly to give the main button more breathing room
     left: 16,
     right: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 12,
+    borderRadius: 16, // Softer, more modern curves
     flexDirection: "row",
-    justifyContent: "space-evenly",
     alignItems: "center",
-    paddingVertical: 12,
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+    elevation: 12,
+    shadowColor: "#0F172A", // Dark slate shadow instead of pure black
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.08, // Very soft, ambient shadow
+    shadowRadius: 16,
     zIndex: 10,
   },
-  infoRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  infoDivider: { width: 1, height: 24, backgroundColor: "#E2E8F0" },
-  infoText: { fontSize: 14, color: "#64748B", fontWeight: "500" },
-  infoHighlight: { color: "#0F172A", fontWeight: "bold", fontSize: 15 },
+  infoBlock: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  infoIconWrapper: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "#FFF1F2", // The exact soft pink/red from your bottom tabs
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  infoValue: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.5, // Pulls the numbers slightly tighter together
+  },
+  infoUnit: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  infoLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  infoDivider: {
+    width: 1,
+    height: 36,
+    backgroundColor: "#F1F5F9", // Very subtle gray line
+  },
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -544,7 +597,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tripCardActive: {
-    borderColor: "#E53935",
+    borderColor: "#D32F2F",
     backgroundColor: "#FEF2F2",
     borderWidth: 1.5,
   },
@@ -556,7 +609,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginRight: 16,
   },
-  iconActiveBg: { backgroundColor: "#E53935" },
+  iconActiveBg: { backgroundColor: "#D32F2F" },
   iconInactiveBg: { backgroundColor: "#F1F5F9" },
   cardTextContent: { flex: 1 },
   cardHeaderRow: {
@@ -572,7 +625,7 @@ const styles = StyleSheet.create({
   },
   cardSubtext: { fontSize: 13, color: "#64748B" },
   badgeRed: {
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
@@ -597,7 +650,7 @@ const styles = StyleSheet.create({
   },
   cardPrice: { fontSize: 18, fontWeight: "900", color: "#0F172A" },
   confirmSheetButton: {
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     borderRadius: 12,
     height: 56,
     justifyContent: "center",

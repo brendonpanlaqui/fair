@@ -23,7 +23,7 @@ interface ReportRecord {
   passenger_comments: string;
   status: "Pending" | "Investigating" | "Resolved";
   filed_at: string;
-  admin_response?: string; // <-- Added based on Architectural Feedback
+  admin_response?: string;
 }
 
 // 2. INITIAL MOCK DATA
@@ -97,11 +97,10 @@ const ReportScreen = () => {
       case "Resolved":
         return "#10B981"; // Green
       default:
-        return "#64748B";
+        return "#64748B"; // Slate
     }
   };
 
-  // SIMULATE FORM SUBMISSION FOR THESIS DEMO
   const handleSubmitReport = () => {
     if (!newComments) {
       Alert.alert("Required", "Please provide details about the incident.");
@@ -120,13 +119,11 @@ const ReportScreen = () => {
         filed_at: new Date().toISOString(),
       };
 
-      // Add to top of list
       setReports([newTicket, ...reports]);
       setIsSubmitting(false);
       setIsFormVisible(false);
       setNewComments("");
 
-      // Clear URL params so it doesn't auto-open again
       router.setParams({ tripId: "", bodyNumber: "" });
 
       Alert.alert(
@@ -136,9 +133,6 @@ const ReportScreen = () => {
     }, 1500);
   };
 
-  // ==========================================
-  // UI: LIST CARD
-  // ==========================================
   const renderTicketCard = ({ item }: { item: ReportRecord }) => (
     <TouchableOpacity
       style={styles.card}
@@ -188,35 +182,51 @@ const ReportScreen = () => {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* BRAND RED HEADER */}
-      <View style={styles.header}>
+      {/* 1. BRAND RED HEADER (Centered like History Screen) */}
+      <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Support Center</Text>
         <Text style={styles.headerSubtitle}>Track and file complaints</Text>
       </View>
 
-      {/* FAB (Floating Action Button) to manually create a report */}
-      <TouchableOpacity
-        style={styles.fab}
-        activeOpacity={0.9}
-        onPress={() => {
-          setNewTripId("");
-          setNewBodyNumber("");
-          setIsFormVisible(true);
-        }}
-      >
-        <MaterialIcons name="add" size={28} color="#FFFFFF" />
-      </TouchableOpacity>
+      {/* 2. THE OVERLAPPING ACTION PILL (Replaces the FAB) */}
+      <View style={styles.actionWrapper}>
+        <TouchableOpacity
+          style={styles.actionPill}
+          activeOpacity={0.9}
+          onPress={() => {
+            setNewTripId("");
+            setNewBodyNumber("");
+            setIsFormVisible(true);
+          }}
+        >
+          <MaterialIcons name="add-circle" size={22} color="#D32F2F" />
+          <Text style={styles.actionPillText}>FILE NEW REPORT</Text>
+        </TouchableOpacity>
+      </View>
 
+      {/* 3. THE LIST */}
       <FlatList
         data={reports}
         keyExtractor={(item) => item.report_id}
         renderItem={renderTicketCard}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        ListEmptyComponent={() => (
+          <View style={styles.emptyStateContainer}>
+            <View style={styles.emptyStateIconCircle}>
+              <MaterialIcons name="gavel" size={40} color="#94A3B8" />
+            </View>
+            <Text style={styles.emptyStateTitle}>No reports filed</Text>
+            <Text style={styles.emptyStateSubtitle}>
+              If you experience overcharging or unsafe driving, file a report
+              here.
+            </Text>
+          </View>
+        )}
       />
 
       {/* ========================================== */}
-      {/* 1. TICKET DETAILS MODAL (READ-ONLY) */}
+      {/* 4. TICKET DETAILS MODAL (READ-ONLY) */}
       {/* ========================================== */}
       <Modal
         visible={selectedReport !== null}
@@ -255,6 +265,57 @@ const ReportScreen = () => {
                 </Text>
               </View>
 
+              <View
+                style={[
+                  styles.detailRow,
+                  {
+                    paddingBottom: 16,
+                    borderBottomWidth: 1,
+                    borderBottomColor: "#F1F5F9",
+                    marginBottom: 16,
+                  },
+                ]}
+              >
+                <Text style={styles.detailLabel}>EVIDENCE LEVEL</Text>
+                {selectedReport.trip_id !== "Manual Entry" ? (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialIcons
+                      name="verified-user"
+                      size={16}
+                      color="#10B981"
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "900",
+                        color: "#10B981",
+                        marginLeft: 4,
+                      }}
+                    >
+                      VERIFIED APP TRIP
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialIcons
+                      name="report-problem"
+                      size={16}
+                      color="#F59E0B"
+                    />
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: "900",
+                        color: "#F59E0B",
+                        marginLeft: 4,
+                      }}
+                    >
+                      MANUAL REPORT
+                    </Text>
+                  </View>
+                )}
+              </View>
+
               <View style={styles.detailRow}>
                 <Text style={styles.detailLabel}>TICKET ID</Text>
                 <Text style={styles.detailValue}>
@@ -287,16 +348,10 @@ const ReportScreen = () => {
                 </Text>
               </View>
 
-              {/* RENDER ADMIN RESPONSE IF IT EXISTS */}
+              {/* ADMIN RESPONSE */}
               {selectedReport.admin_response ? (
                 <View style={styles.adminBox}>
-                  <View
-                    style={{
-                      flexDirection: "row",
-                      alignItems: "center",
-                      marginBottom: 8,
-                    }}
-                  >
+                  <View style={styles.adminBoxHeader}>
                     <MaterialIcons
                       name="admin-panel-settings"
                       size={16}
@@ -320,7 +375,7 @@ const ReportScreen = () => {
       </Modal>
 
       {/* ========================================== */}
-      {/* 2. NEW REPORT FORM MODAL */}
+      {/* 5. NEW REPORT FORM MODAL */}
       {/* ========================================== */}
       <Modal
         visible={isFormVisible}
@@ -333,17 +388,15 @@ const ReportScreen = () => {
       >
         <View style={styles.fullModalContainer}>
           <View style={styles.fullModalHeader}>
-            {/* UPDATED CLOSE BUTTON: Clears the URL parameters! */}
             <TouchableOpacity
               onPress={() => {
                 setIsFormVisible(false);
-                router.setParams({ tripId: "", bodyNumber: "" }); // <-- THE FIX
+                router.setParams({ tripId: "", bodyNumber: "" });
               }}
               style={{ padding: 4 }}
             >
               <MaterialIcons name="close" size={28} color="#0F172A" />
             </TouchableOpacity>
-
             <Text style={styles.fullModalTitle}>File a Complaint</Text>
             <View style={{ width: 28 }} />
           </View>
@@ -358,13 +411,48 @@ const ReportScreen = () => {
             </View>
 
             <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>TRICYCLE BODY NUMBER</Text>
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={styles.inputLabel}>TRICYCLE BODY NUMBER</Text>
+                {/* 🚀 Show a badge if it's auto-filled from history */}
+                {newTripId !== "" && (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialIcons name="verified" size={14} color="#10B981" />
+                    <Text
+                      style={{
+                        fontSize: 10,
+                        color: "#10B981",
+                        fontWeight: "bold",
+                        marginLeft: 4,
+                      }}
+                    >
+                      AUTO-LINKED
+                    </Text>
+                  </View>
+                )}
+              </View>
+
               <TextInput
-                style={styles.input}
+                // 🚀 Change style if it's locked
+                style={[
+                  styles.input,
+                  newTripId !== "" && {
+                    backgroundColor: "#E2E8F0",
+                    color: "#64748B",
+                  },
+                ]}
                 value={newBodyNumber}
                 onChangeText={setNewBodyNumber}
                 placeholder="e.g. 0406"
                 keyboardType="number-pad"
+                placeholderTextColor="#94A3B8"
+                editable={newTripId === ""} // 🚀 LOCKS THE FIELD if there is a trip ID
               />
             </View>
 
@@ -402,6 +490,7 @@ const ReportScreen = () => {
                 value={newComments}
                 onChangeText={setNewComments}
                 placeholder="Describe what happened..."
+                placeholderTextColor="#94A3B8"
                 multiline={true}
                 numberOfLines={5}
                 textAlignVertical="top"
@@ -412,7 +501,7 @@ const ReportScreen = () => {
               <MaterialIcons
                 name="add-a-photo"
                 size={20}
-                color="#E53935"
+                color="#D32F2F"
                 style={{ marginRight: 8 }}
               />
               <Text style={styles.evidenceBtnText}>
@@ -455,57 +544,75 @@ const ReportScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
-  // BRAND RED HEADER
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: "#E53935",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  // 1. BRAND RED HEADER (Matches History Screen)
+  redHeaderBackground: {
+    backgroundColor: "#D32F2F", // Brand Crimson Red
+    paddingTop: 65,
+    paddingHorizontal: 24,
+    paddingBottom: 45,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    alignItems: "center",
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    textAlign: "center",
   },
-  headerSubtitle: { fontSize: 13, color: "#FFCDD2", marginTop: 4 },
+  headerSubtitle: {
+    fontSize: 15,
+    color: "#FECACA",
+    marginTop: 4,
+    textAlign: "center",
+  },
 
-  fab: {
-    position: "absolute",
-    bottom: 24,
-    right: 24,
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    backgroundColor: "#0F172A",
-    justifyContent: "center",
+  // 2. THE OVERLAPPING ACTION PILL
+  actionWrapper: {
     alignItems: "center",
-    elevation: 6,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    marginTop: -28, // Pulls the pill up to overlap the border
     zIndex: 10,
   },
+  actionPill: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 28, // Fully rounded
+    alignItems: "center",
+    elevation: 8,
+    shadowColor: "#0F172A", // Soft slate shadow
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+  },
+  actionPillText: {
+    color: "#D32F2F",
+    fontSize: 14,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+    marginLeft: 8,
+  },
 
-  listContent: { padding: 16, paddingBottom: 100 },
+  // 3. THE LIST
+  listContent: {
+    paddingTop: 24,
+    paddingHorizontal: 16,
+    paddingBottom: 100,
+  },
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
-    marginBottom: 12,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    marginBottom: 16,
+    elevation: 4,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "#F8FAFC",
   },
   cardHeader: {
     flexDirection: "row",
@@ -516,7 +623,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
   ticketId: {
     fontSize: 13,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#64748B",
     letterSpacing: 0.5,
   },
@@ -528,19 +635,21 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   statusDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  statusText: { fontSize: 11, fontWeight: "bold", letterSpacing: 0.5 },
+  statusText: { fontSize: 11, fontWeight: "900", letterSpacing: 0.5 },
 
   violationText: {
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "900",
     color: "#0F172A",
-    marginBottom: 4,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   commentsText: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#475569",
     fontStyle: "italic",
     marginBottom: 16,
+    lineHeight: 20,
   },
 
   cardFooter: {
@@ -551,8 +660,37 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
     paddingTop: 12,
   },
-  bodyNumberText: { fontSize: 13, fontWeight: "bold", color: "#334155" },
-  dateText: { fontSize: 12, color: "#94A3B8" },
+  bodyNumberText: { fontSize: 13, fontWeight: "800", color: "#334155" },
+  dateText: { fontSize: 12, color: "#94A3B8", fontWeight: "600" },
+
+  // EMPTY STATE
+  emptyStateContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingTop: 40,
+    paddingHorizontal: 32,
+  },
+  emptyStateIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#E2E8F0",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  emptyStateTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
+    marginBottom: 8,
+  },
+  emptyStateSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+  },
 
   // --- TICKET DETAILS MODAL ---
   modalOverlay: {
@@ -562,8 +700,8 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: 40,
     maxHeight: "85%",
@@ -582,13 +720,18 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 20,
   },
-  modalTitle: { fontSize: 20, fontWeight: "900", color: "#0F172A" },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
   statusBanner: {
     paddingVertical: 10,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   statusBannerText: { fontSize: 12, fontWeight: "900", letterSpacing: 1 },
   detailRow: {
@@ -598,42 +741,47 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "800",
     color: "#94A3B8",
     letterSpacing: 0.5,
   },
-  detailValue: { fontSize: 14, fontWeight: "600", color: "#0F172A" },
-  detailValueRed: { fontSize: 14, fontWeight: "900", color: "#E53935" },
+  detailValue: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  detailValueRed: { fontSize: 14, fontWeight: "900", color: "#D32F2F" },
   commentBox: {
     backgroundColor: "#F8FAFC",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#F1F5F9",
   },
   commentBoxText: {
     fontSize: 14,
     color: "#334155",
     marginTop: 8,
     fontStyle: "italic",
-    lineHeight: 20,
+    lineHeight: 22,
   },
   adminBox: {
     backgroundColor: "#ECFDF5",
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     marginTop: 16,
     borderWidth: 1,
     borderColor: "#A7F3D0",
   },
+  adminBoxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   adminBoxTitle: {
     fontSize: 12,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#059669",
     letterSpacing: 0.5,
   },
-  adminBoxText: { fontSize: 14, color: "#065F46", lineHeight: 20 },
+  adminBoxText: { fontSize: 14, color: "#065F46", lineHeight: 22 },
   pendingText: {
     fontSize: 13,
     color: "#94A3B8",
@@ -649,33 +797,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 45,
+    paddingTop: 55, // Ensure status bar clearance
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "#F1F5F9",
   },
-  fullModalTitle: { fontSize: 18, fontWeight: "bold", color: "#0F172A" },
-  formContent: { flex: 1, padding: 20 },
+  fullModalTitle: { fontSize: 18, fontWeight: "900", color: "#0F172A" },
+  formContent: { flex: 1, padding: 24 },
   warningBanner: {
     flexDirection: "row",
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "#FFF1F2", // Match your active tabs
     padding: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#FECACA",
+    borderColor: "#FFE4E6",
     marginBottom: 24,
   },
   warningText: {
     flex: 1,
     fontSize: 12,
-    color: "#991B1B",
+    color: "#BE123C", // Deeper red for text
     marginLeft: 12,
     lineHeight: 18,
+    fontWeight: "500",
   },
   formGroup: { marginBottom: 24 },
   inputLabel: {
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#94A3B8",
     marginBottom: 8,
     letterSpacing: 0.5,
@@ -684,7 +833,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     height: 56,
     fontSize: 16,
@@ -692,21 +841,21 @@ const styles = StyleSheet.create({
   },
   chipContainer: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
   chip: {
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC",
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
     borderWidth: 1,
     borderColor: "#E2E8F0",
   },
-  chipActive: { backgroundColor: "#FEF2F2", borderColor: "#E53935" },
-  chipText: { fontSize: 13, fontWeight: "600", color: "#64748B" },
-  chipTextActive: { color: "#E53935" },
+  chipActive: { backgroundColor: "#FFF1F2", borderColor: "#D32F2F" },
+  chipText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
+  chipTextActive: { color: "#D32F2F", fontWeight: "800" },
   textArea: {
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 12,
+    borderRadius: 16,
     paddingHorizontal: 16,
     paddingTop: 16,
     paddingBottom: 16,
@@ -718,37 +867,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "#FFF1F2",
     paddingVertical: 16,
-    borderRadius: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#FECACA",
+    borderColor: "#FFE4E6",
     borderStyle: "dashed",
   },
-  evidenceBtnText: { fontSize: 14, fontWeight: "bold", color: "#E53935" },
+  evidenceBtnText: { fontSize: 14, fontWeight: "800", color: "#D32F2F" },
   formFooter: {
-    padding: 20,
+    padding: 24,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
+    borderTopColor: "#F1F5F9",
     backgroundColor: "#FFFFFF",
   },
   submitButton: {
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     flexDirection: "row",
-    borderRadius: 12,
+    borderRadius: 16,
     height: 56,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
-    shadowColor: "#E53935",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    elevation: 8,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
   submitButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
 });

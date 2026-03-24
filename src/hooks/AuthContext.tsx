@@ -29,9 +29,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     const loadStorageData = async () => {
       try {
         const token = await SecureStore.getItemAsync("userToken");
-        if (token) {
+        const storedUser = await SecureStore.getItemAsync("userData"); // NEW
+
+        if (token && storedUser) {
+          setUser(JSON.parse(storedUser));
+          setIsGuest(false);
+        } else if (token) {
           setUser({ token });
-          setIsGuest(false); // Make sure guest mode is off if they have a token
+          setIsGuest(false);
         }
       } catch (error) {
         console.error("Failed to load token", error);
@@ -53,14 +58,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const response = await api.post("/auth/login/", payload);
 
-      // Extract the data matching your Django views.py response
-      const { tokens, user_id, email: userEmail } = response.data;
+      // Extract the data
+      const {
+        tokens,
+        user_id,
+        email: userEmail,
+        first_name: userfirstName,
+        last_name: userlastName,
+      } = response.data;
 
-      // Save the specific access token
       await SecureStore.setItemAsync("userToken", tokens.access);
 
-      // Save the user globally
-      setUser({ id: user_id, email: userEmail });
+      // Create the user object
+      const userData = {
+        id: user_id,
+        email: userEmail,
+        first_name: userfirstName,
+        last_name: userlastName,
+      };
+
+      // Save it to state AND to the secure vault
+      setUser(userData);
+      await SecureStore.setItemAsync("userData", JSON.stringify(userData)); // NEW
+
       setIsGuest(false);
     } catch (error) {
       console.error("Login Error:", error);
