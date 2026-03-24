@@ -3,16 +3,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
@@ -72,19 +72,37 @@ const OTPScreen = () => {
         otp: code,
       });
 
-      const { tokens, user_id, email: userEmail } = response.data;
+      // 2. Grab EVERYTHING from the backend, including the newly added names!
+      const {
+        tokens,
+        user_id,
+        email: userEmail,
+        first_name,
+        last_name,
+      } = response.data;
 
-      // 2. Securely store the JWT access token
+      // 3. Securely store the JWT access token
       if (tokens && tokens.access) {
         await SecureStore.setItemAsync("userToken", tokens.access);
       }
 
-      // 3. Auto-Login the user globally! (This works now)
+      // 4. Package the user data
+      const userData = {
+        id: user_id,
+        email: userEmail,
+        first_name: first_name,
+        last_name: last_name,
+      };
+
+      // 5. Save it to the vault so it survives app restarts!
+      await SecureStore.setItemAsync("userData", JSON.stringify(userData));
+
+      // 6. Auto-Login the user globally
       if (typeof setUser === "function") {
-        setUser({ id: user_id, email: userEmail });
+        setUser(userData);
       }
 
-      // 4. Slide directly to the Map Dashboard
+      // 7. Slide directly to the Map Dashboard
       router.replace("/(tabs)");
     } catch (error: any) {
       console.error("❌ OTP CRASH:", error);

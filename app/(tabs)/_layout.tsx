@@ -1,36 +1,42 @@
-import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import React from "react";
-
-import { HapticTab } from "@/src/components/ui/haptic-tab";
-import { useColorScheme } from "@/src/hooks/use-color-scheme";
-import { StyleSheet } from "react-native";
+import { StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { HapticTab } from "@/src/components/ui/haptic-tab";
+
 export default function TabLayout() {
-  const colorScheme = useColorScheme();
   const insets = useSafeAreaInsets();
 
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#E53935",
-        tabBarInactiveTintColor: "#000000",
+        tabBarActiveTintColor: "#D32F2F", // Brand Red
+        tabBarInactiveTintColor: "#94A3B8", // Slate Gray
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: "#ffffff",
-          height: 60 + Math.max(insets.bottom, 10),
-          paddingBottom: Math.max(insets.bottom, 10),
+          // DESIGN TWEAK 1: Increased base height to 70 for premium breathing room
+          height: 70 + (insets.bottom > 0 ? insets.bottom : 12),
+          paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
           paddingTop: 10,
-          borderTopWidth: StyleSheet.hairlineWidth,
-          borderTopColor: "#e0e0e0",
-          elevation: 0,
+          borderTopWidth: 1,
+          borderTopColor: "#F1F5F9", // Softer, less aggressive border line
+          // DESIGN TWEAK 2: Softer, wider shadow spread for a "floating" feel
+          elevation: 16,
+          shadowColor: "#0F172A",
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.04,
+          shadowRadius: 12,
         },
         tabBarLabelStyle: {
-          fontSize: 10,
-          marginTop: 4,
-          fontWeight: "500",
+          // DESIGN TWEAK 3: Slightly larger font with letter spacing for high legibility
+          fontSize: 11,
+          marginTop: 6,
+          fontWeight: "700",
+          letterSpacing: 0.5,
         },
       }}
     >
@@ -39,11 +45,15 @@ export default function TabLayout() {
         options={{
           title: "HOME",
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
-              name={focused ? "home" : "home-outline"}
-              color={color}
-              size={30}
-            />
+            <View style={focused ? styles.activePill : styles.inactivePill}>
+              <MaterialCommunityIcons
+                name={
+                  focused ? "map-marker-radius" : "map-marker-radius-outline"
+                }
+                color={color}
+                size={24} // Slightly smaller icon to let the pill background breathe
+              />
+            </View>
           ),
         }}
       />
@@ -51,8 +61,14 @@ export default function TabLayout() {
         name="history"
         options={{
           title: "HISTORY",
-          tabBarIcon: ({ color }) => (
-            <MaterialCommunityIcons name="history" color={color} size={30} />
+          tabBarIcon: ({ color, focused }) => (
+            <View style={focused ? styles.activePill : styles.inactivePill}>
+              <MaterialCommunityIcons
+                name={focused ? "receipt-text" : "receipt-text-outline"}
+                color={color}
+                size={24}
+              />
+            </View>
           ),
         }}
       />
@@ -61,11 +77,13 @@ export default function TabLayout() {
         options={{
           title: "REPORT",
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
-              name={focused ? "file-document" : "file-document-outline"}
-              color={color}
-              size={30}
-            />
+            <View style={focused ? styles.activePill : styles.inactivePill}>
+              <MaterialCommunityIcons
+                name={focused ? "alert-circle" : "alert-circle-outline"}
+                color={color}
+                size={24}
+              />
+            </View>
           ),
         }}
       />
@@ -74,14 +92,35 @@ export default function TabLayout() {
         options={{
           title: "MENU",
           tabBarIcon: ({ color, focused }) => (
-            <MaterialCommunityIcons
-              name={focused ? "menu" : "menu"}
-              color={color}
-              size={30}
-            />
+            <View style={focused ? styles.activePill : styles.inactivePill}>
+              <MaterialCommunityIcons
+                name={focused ? "view-grid" : "view-grid-outline"}
+                color={color}
+                size={24}
+              />
+            </View>
           ),
         }}
       />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  activePill: {
+    // DESIGN TWEAK 4: Wider pill shape (60x32) creates a more elegant horizontal oval
+    width: 60,
+    height: 32,
+    backgroundColor: "#FFF1F2", // A softer, more premium "Tailwind Rose 50" tint
+    borderRadius: 16,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  inactivePill: {
+    width: 60,
+    height: 32,
+    backgroundColor: "transparent",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+});

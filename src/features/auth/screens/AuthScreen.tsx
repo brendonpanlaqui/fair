@@ -1,5 +1,6 @@
 import { AntDesign, MaterialIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -12,7 +13,6 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-
 import { useAuth } from "../../../hooks/AuthContext";
 
 const AuthScreen = () => {
@@ -77,7 +77,6 @@ const AuthScreen = () => {
         await login(email, password);
         router.replace("/(tabs)");
       } else {
-        // Only sending the 4 core fields now!
         await register(email, password, firstName, lastName);
 
         Alert.alert(
@@ -94,7 +93,6 @@ const AuthScreen = () => {
       }
     } catch (error: any) {
       if (isLogin) {
-        // Look for 'error' first (which your custom view uses), then 'detail' (default DRF)
         const errorMessage =
           error.response?.data?.error ||
           error.response?.data?.detail ||
@@ -119,16 +117,19 @@ const AuthScreen = () => {
 
   return (
     <KeyboardAvoidingView style={styles.container} behavior="height">
+      <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
-      <View style={styles.header}>
-        <Text style={styles.logoText}>fair</Text>
-        <View style={{ width: 24 }} />
-      </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* 🚀 Header moved INSIDE the ScrollView */}
+        <View style={styles.header}>
+          <Text style={styles.logoText}>fair</Text>
+        </View>
+
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, isLogin && styles.activeTab]}
@@ -387,20 +388,19 @@ const AuthScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#FFFFFF" },
   header: {
-    flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 50,
-    paddingHorizontal: 20,
-    paddingBottom: 16,
+    paddingTop: 60, // 🚀 Gives space for the status bar so it doesn't overlap
+    paddingBottom: 24, // 🚀 Breathing room between logo and the tabs
   },
   logoText: {
     color: "#D32F2F",
-    fontSize: 26,
+    fontSize: 32,
     fontWeight: "900",
     fontStyle: "italic",
     letterSpacing: -1,
   },
+  // Removed top padding from scrollContent since the header is now handling it
   scrollContent: { paddingHorizontal: 24, paddingBottom: 40, flexGrow: 1 },
   tabContainer: {
     flexDirection: "row",

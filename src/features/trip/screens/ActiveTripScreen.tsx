@@ -1,12 +1,11 @@
 import { Stack } from "expo-router";
 import React from "react";
 import { StyleSheet, View } from "react-native";
-import { useActiveTrip } from "../hooks/useActiveTrip";
-
 import { ActiveTripDashboard } from "../components/active/ActiveTripDashboard";
 import { ActiveTripHeader } from "../components/active/ActiveTripHeader";
 import { ActiveTripMap } from "../components/active/ActiveTripMap";
 import { DeviationModal } from "../components/active/DeviationModal";
+import { useActiveTrip } from "../hooks/useActiveTrip";
 
 const ActiveTripScreen = () => {
   const tripData = useActiveTrip();

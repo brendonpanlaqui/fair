@@ -114,7 +114,7 @@ const HistoryScreen = () => {
                 styles.modeText,
                 item.trip_mode === "DIRECT"
                   ? { color: "#0369A1" }
-                  : { color: "#B91C1C" },
+                  : { color: "#D32F2F" },
               ]}
             >
               {item.trip_mode}
@@ -141,7 +141,7 @@ const HistoryScreen = () => {
         </View>
         <View style={styles.routeLine} />
         <View style={styles.routeContainer}>
-          <MaterialIcons name="location-on" size={14} color="#E53935" />
+          <MaterialIcons name="location-on" size={14} color="#D32F2F" />
           <Text style={styles.routeText} numberOfLines={1}>
             {item.destination_name}
           </Text>
@@ -172,18 +172,19 @@ const HistoryScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* 🚀 Changed back to Light because it sits on the Crimson Red background */}
       <StatusBar style="light" />
 
-      {/* BRAND RED HEADER */}
-      <View style={styles.header}>
+      {/* 1. THE RED HEADER ANCHOR */}
+      <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Ride History</Text>
         <Text style={styles.headerSubtitle}>
           Digital receipts and audit trail
         </Text>
       </View>
 
-      {/* BRANDED FILTERS */}
-      <View style={styles.filterContainer}>
+      {/* 2. THE OVERLAPPING FILTER PILL (Mirrors your Home Screen Search Bar) */}
+      <View style={styles.filterWrapper}>
         {["All", "Completed", "Cancelled"].map((tab) => (
           <TouchableOpacity
             key={tab}
@@ -203,6 +204,7 @@ const HistoryScreen = () => {
         ))}
       </View>
 
+      {/* 3. THE LIST */}
       <FlatList
         data={filteredData}
         keyExtractor={(item) => item.trip_id}
@@ -211,6 +213,7 @@ const HistoryScreen = () => {
         showsVerticalScrollIndicator={false}
       />
 
+      {/* RECEIPT MODAL */}
       <Modal
         visible={selectedTrip !== null}
         animationType="slide"
@@ -252,7 +255,7 @@ const HistoryScreen = () => {
                   destination={selectedTrip.dest_coords}
                   apikey={GOOGLE_API_KEY}
                   strokeWidth={4}
-                  strokeColor="#E53935"
+                  strokeColor="#D32F2F"
                 />
               </MapView>
 
@@ -279,7 +282,7 @@ const HistoryScreen = () => {
                   <MaterialIcons
                     name="sports-motorsports"
                     size={24}
-                    color="#E53935"
+                    color="#D32F2F"
                   />
                 </View>
                 <View>
@@ -359,7 +362,6 @@ const HistoryScreen = () => {
                   <MaterialIcons name="gavel" size={20} color="#D32F2F" />
                 </TouchableOpacity>
 
-                {/* BRAND RED PDF EXPORT BUTTON */}
                 <TouchableOpacity
                   style={styles.pdfBtn}
                   activeOpacity={0.9}
@@ -388,51 +390,75 @@ const HistoryScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
-  // BRAND RED HEADER
-  header: {
-    paddingTop: 60,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: "#E53935",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  // 1. BRAND RED HEADER
+  redHeaderBackground: {
+    backgroundColor: "#D32F2F",
+    paddingTop: 65,
+    paddingHorizontal: 24,
+    paddingBottom: 45,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+    alignItems: "center", // 🚀 THIS CENTERS EVERYTHING
   },
   headerTitle: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "900",
     color: "#FFFFFF",
-    letterSpacing: -0.5,
+    letterSpacing: -1,
+    textAlign: "center", // 🚀 Centers the text itself
   },
-  headerSubtitle: { fontSize: 13, color: "#FFCDD2", marginTop: 4 },
+  headerSubtitle: {
+    fontSize: 15,
+    color: "#FECACA",
+    marginTop: 4,
+    textAlign: "center", // 🚀 Centers the subtitle
+  },
 
-  filterContainer: { flexDirection: "row", padding: 16, gap: 8 },
-  filterTab: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+  // 2. THE OVERLAPPING FILTER PILL
+  filterWrapper: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    marginHorizontal: 16,
+    marginTop: -28, // 🚀 Pulls the pill up so it rests on the red/gray border
     borderRadius: 20,
-    backgroundColor: "#E2E8F0",
+    padding: 6, // Inner padding for the tabs
+    elevation: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
   },
-  filterTabActive: { backgroundColor: "#E53935" }, // BRAND RED TAB
-  filterText: { fontSize: 13, fontWeight: "600", color: "#64748B" },
-  filterTextActive: { color: "#FFFFFF" },
+  filterTab: {
+    flex: 1, // Makes the 3 tabs spread evenly
+    paddingVertical: 12,
+    borderRadius: 14,
+    alignItems: "center",
+  },
+  filterTabActive: {
+    backgroundColor: "#FFF1F2", // Soft pink/red background matching bottom navigation
+  },
+  filterText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
+  filterTextActive: { color: "#D32F2F", fontWeight: "800" }, // Brand Red text
 
-  listContent: { paddingHorizontal: 16, paddingBottom: 100 },
+  // 3. THE LIST
+  listContent: {
+    paddingTop: 24, // Space between the filter pill and the first card
+    paddingHorizontal: 16,
+    paddingBottom: 100,
+  },
 
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
+    elevation: 4,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "#F8FAFC",
   },
   cardHeader: {
     flexDirection: "row",
@@ -443,7 +469,7 @@ const styles = StyleSheet.create({
   headerLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
   modeBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
   badgeDirect: { backgroundColor: "#E0F2FE" },
-  badgeSpecial: { backgroundColor: "#FEE2E2" },
+  badgeSpecial: { backgroundColor: "#FFF1F2" },
   modeText: { fontSize: 10, fontWeight: "900", letterSpacing: 0.5 },
   bodyNumberText: { fontSize: 15, fontWeight: "900", color: "#0F172A" },
   statusText: { fontSize: 12, fontWeight: "bold", color: "#10B981" },
@@ -453,6 +479,8 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
   routeContainer: { flexDirection: "row", alignItems: "center" },
   routeText: {
@@ -460,7 +488,7 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#334155",
     marginLeft: 8,
-    fontWeight: "500",
+    fontWeight: "600",
   },
   routeLine: {
     width: 2,
@@ -478,10 +506,10 @@ const styles = StyleSheet.create({
   dateText: {
     fontSize: 12,
     color: "#64748B",
-    fontWeight: "600",
+    fontWeight: "700",
     marginBottom: 2,
   },
-  distanceText: { fontSize: 11, color: "#94A3B8", fontWeight: "500" },
+  distanceText: { fontSize: 11, color: "#94A3B8", fontWeight: "600" },
   priceText: {
     fontSize: 22,
     fontWeight: "900",
@@ -489,24 +517,24 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // --- MODAL STYLES ---
+  // --- MODAL STYLES (Kept identical to the premium tweaks) ---
   modalContainer: { flex: 1, backgroundColor: "#F8FAFC" },
   mapSection: { height: "35%", width: "100%", position: "relative" },
   mapBackButton: {
     position: "absolute",
     top: 50,
     left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: "#FFFFFF",
     justifyContent: "center",
     alignItems: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    elevation: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
   },
 
   originMarker: {
@@ -521,7 +549,7 @@ const styles = StyleSheet.create({
     width: 20,
     height: 20,
     borderRadius: 10,
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     borderWidth: 3,
     borderColor: "#FFFFFF",
     justifyContent: "center",
@@ -538,14 +566,14 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#FFFFFF",
     marginTop: -24,
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
     padding: 24,
-    elevation: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 10,
+    elevation: 20,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 20,
   },
   receiptDragHandle: {
     width: 40,
@@ -566,9 +594,9 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
     color: "#0F172A",
-    letterSpacing: 0.5,
+    letterSpacing: -0.5,
   },
-  receiptDate: { fontSize: 13, color: "#64748B", fontWeight: "600" },
+  receiptDate: { fontSize: 13, color: "#64748B", fontWeight: "700" },
 
   driverMetaRow: {
     flexDirection: "row",
@@ -579,18 +607,23 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
   },
-  receiptBodyNum: { fontSize: 18, fontWeight: "900", color: "#0F172A" },
+  receiptBodyNum: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
   receiptMode: {
-    fontSize: 12,
-    color: "#E53935",
-    fontWeight: "bold",
+    fontSize: 11,
+    color: "#D32F2F",
+    fontWeight: "900",
     letterSpacing: 0.5,
-    marginTop: 2,
+    marginTop: 4,
   },
 
   receiptDivider: {
@@ -610,7 +643,7 @@ const styles = StyleSheet.create({
   },
   breakdownTitle: {
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#94A3B8",
     letterSpacing: 1,
     marginBottom: 16,
@@ -620,10 +653,10 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     marginBottom: 12,
   },
-  fareLabel: { fontSize: 14, color: "#475569" },
-  fareValue: { fontSize: 14, fontWeight: "600", color: "#0F172A" },
-  fareLabelDiscount: { fontSize: 14, color: "#10B981", fontWeight: "600" },
-  fareValueDiscount: { fontSize: 14, fontWeight: "bold", color: "#10B981" },
+  fareLabel: { fontSize: 14, color: "#475569", fontWeight: "500" },
+  fareValue: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
+  fareLabelDiscount: { fontSize: 14, color: "#10B981", fontWeight: "700" },
+  fareValueDiscount: { fontSize: 14, fontWeight: "800", color: "#10B981" },
 
   receiptThickDivider: {
     width: "100%",
@@ -631,44 +664,53 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
     marginVertical: 12,
   },
-  totalLabel: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
+  totalLabel: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
   totalValue: {
     fontSize: 24,
     fontWeight: "900",
-    color: "#E53935",
-    letterSpacing: -0.5,
+    color: "#D32F2F",
+    letterSpacing: -1,
   },
 
-  receiptActions: { flexDirection: "row", gap: 12, marginTop: 20 },
+  receiptActions: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+    paddingBottom: 20,
+  },
   reportBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
-    backgroundColor: "#FEF2F2",
+    width: 60,
+    height: 60,
+    borderRadius: 16,
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#FECACA",
+    borderColor: "#FFE4E6",
   },
 
-  // BRAND RED PDF BUTTON
   pdfBtn: {
     flex: 1,
     flexDirection: "row",
-    backgroundColor: "#E53935",
-    borderRadius: 12,
+    backgroundColor: "#D32F2F",
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 4,
-    shadowColor: "#E53935",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    elevation: 8,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
   pdfBtnText: {
     color: "#FFFFFF",
     fontSize: 15,
-    fontWeight: "bold",
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
 });
