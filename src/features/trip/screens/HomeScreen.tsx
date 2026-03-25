@@ -94,6 +94,34 @@ const HomeScreen: React.FC = () => {
     }, 100);
   };
 
+  const handleCenterLocation = () => {
+    if (currentLocation && mapRef.current) {
+      mapRef.current.animateCamera(
+        {
+          center: {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+          },
+          zoom: 16,
+        },
+        { duration: 800 },
+      );
+    } else {
+      Alert.alert("Location Unavailable", "Still searching for GPS signal...");
+    }
+  };
+
+  const handleClearRoute = () => {
+    // 1. Clear all route data
+    setDestination(null);
+    setCalculatedFare(null);
+    setTripDistance(null);
+    setTripDuration(null);
+
+    // 2. Smoothly fly the camera back to the user's physical location
+    handleCenterLocation();
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
@@ -118,7 +146,11 @@ const HomeScreen: React.FC = () => {
           showsMyLocationButton={false}
           showsCompass={false}
         >
-          <Marker coordinate={mapCenter} anchor={{ x: 0.5, y: 0.5 }}>
+          <Marker
+            coordinate={mapCenter}
+            anchor={{ x: 0.5, y: 0.5 }}
+            flat={true}
+          >
             <View style={styles.originMarker} />
           </Marker>
 
@@ -150,25 +182,19 @@ const HomeScreen: React.FC = () => {
       <MapHeader
         googleApiKey={GOOGLE_API_KEY}
         onPlaceSelected={handlePlaceSelected}
+        hasDestination={destination !== null}
+        onClear={handleClearRoute}
       />
 
       {/* 3. RIGHT CONTROLS */}
       <View style={styles.rightControls}>
-        <TouchableOpacity style={styles.roundButton} activeOpacity={0.8}>
-          <MaterialIcons name="my-location" size={24} color="#475569" />
+        <TouchableOpacity
+          style={styles.roundButton}
+          activeOpacity={0.8}
+          onPress={handleCenterLocation}
+        >
+          <MaterialIcons name="my-location" size={24} color="#0F172A" />
         </TouchableOpacity>
-
-        <View style={styles.zoomControls}>
-          <TouchableOpacity
-            style={[styles.zoomButton, styles.zoomBorder]}
-            activeOpacity={0.7}
-          >
-            <MaterialIcons name="add" size={24} color="#475569" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.zoomButton} activeOpacity={0.7}>
-            <MaterialIcons name="remove" size={24} color="#475569" />
-          </TouchableOpacity>
-        </View>
       </View>
 
       {/* 4. FLOATING TRIP INFO */}
@@ -307,7 +333,7 @@ const HomeScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* SPECIAL CARD - UPDATED COPY & ICON */}
+            {/* SPECIAL CARD */}
             <TouchableOpacity
               style={[
                 styles.tripCard,
@@ -324,7 +350,6 @@ const HomeScreen: React.FC = () => {
                     : styles.iconInactiveBg,
                 ]}
               >
-                {/* Changed icon from 'speed' to 'alt-route' to signify stopovers */}
                 <MaterialIcons
                   name="alt-route"
                   size={24}
@@ -380,6 +405,9 @@ const HomeScreen: React.FC = () => {
                 CONFIRM {selectedMode} RIDE
               </Text>
             </TouchableOpacity>
+            <Text style={styles.legalMicrocopy}>
+              Fare computed based on Angeles City Ordinance No. 723.
+            </Text>
           </View>
         </View>
       </Modal>
@@ -398,13 +426,8 @@ const styles = StyleSheet.create({
     height: 22,
     borderRadius: 11,
     backgroundColor: "#FFFFFF",
-    borderWidth: 5,
+    borderWidth: 6,
     borderColor: "#D32F2F",
-    elevation: 4,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
   },
   destinationMarker: {
     width: 26,
@@ -430,8 +453,7 @@ const styles = StyleSheet.create({
   rightControls: {
     position: "absolute",
     right: 16,
-    bottom: 120,
-    gap: 12,
+    bottom: 100,
     zIndex: 10,
   },
   roundButton: {
@@ -450,26 +472,6 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     marginBottom: 12,
   },
-  zoomControls: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 12,
-    overflow: "hidden",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-  },
-  zoomButton: {
-    width: 48,
-    height: 48,
-    justifyContent: "center",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  zoomBorder: { borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   bottomButtonsContainer: {
     position: "absolute",
     bottom: 20,
@@ -499,21 +501,28 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginLeft: 12,
   },
+  legalMicrocopy: {
+    textAlign: "center",
+    fontSize: 10,
+    color: "#94A3B8",
+    marginTop: 12,
+    letterSpacing: 0.5,
+  },
   tripInfoCard: {
     position: "absolute",
-    bottom: 100, // Lifted slightly to give the main button more breathing room
+    bottom: 100,
     left: 16,
     right: 16,
     backgroundColor: "#FFFFFF",
-    borderRadius: 16, // Softer, more modern curves
+    borderRadius: 16,
     flexDirection: "row",
     alignItems: "center",
     paddingVertical: 16,
     paddingHorizontal: 12,
     elevation: 12,
-    shadowColor: "#0F172A", // Dark slate shadow instead of pure black
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.08, // Very soft, ambient shadow
+    shadowOpacity: 0.08,
     shadowRadius: 16,
     zIndex: 10,
   },
@@ -528,7 +537,7 @@ const styles = StyleSheet.create({
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: "#FFF1F2", // The exact soft pink/red from your bottom tabs
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -536,7 +545,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: "900",
     color: "#0F172A",
-    letterSpacing: -0.5, // Pulls the numbers slightly tighter together
+    letterSpacing: -0.5,
   },
   infoUnit: {
     fontSize: 14,
@@ -553,7 +562,7 @@ const styles = StyleSheet.create({
   infoDivider: {
     width: 1,
     height: 36,
-    backgroundColor: "#F1F5F9", // Very subtle gray line
+    backgroundColor: "#F1F5F9",
   },
   modalOverlay: {
     flex: 1,
