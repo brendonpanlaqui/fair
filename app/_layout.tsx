@@ -61,10 +61,14 @@ const InitialLayout = () => {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="otp" options={{ headerShown: false }} />
-
-        {/* 2. THE ROUTER NEEDS TO KNOW THIS SCREEN EXISTS */}
+        <Stack.Screen
+          name="verify-id"
+          options={{
+            presentation: "modal",
+            headerShown: false,
+          }}
+        />{" "}
         <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-
         <Stack.Screen
           name="start-trip"
           options={{

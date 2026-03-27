@@ -81,15 +81,29 @@ const ProfileScreen = () => {
     ]);
   };
 
+  const handleApplyDiscount = () => {
+    if (isGuest) {
+      Alert.alert(
+        "Account Required",
+        "You must create an account to submit your ID and apply for Student, Senior, or PWD discounts.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Create Account", onPress: handleExit },
+        ],
+      );
+    } else {
+      router.push("/verify-id");
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* Light status bar because it sits on the Crimson Red header */}
       <StatusBar style="light" />
 
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
-        bounces={false} // Prevents the red header from pulling down weirdly on iOS
+        bounces={false}
       >
         {/* 1. SCROLLABLE RED HEADER */}
         <View style={styles.redHeaderBackground}>
@@ -133,9 +147,7 @@ const ProfileScreen = () => {
                     color="#D32F2F"
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={styles.verifiedText}>
-                    Verified Student - CCA
-                  </Text>
+                  <Text style={styles.verifiedText}>Verified User</Text>
                 </View>
               )}
             </View>
@@ -145,6 +157,33 @@ const ProfileScreen = () => {
         </View>
 
         <View style={styles.menuContent}>
+          {/* SECTION: FARE DISCOUNTS */}
+          <Text style={styles.sectionLabel}>FARE DISCOUNTS</Text>
+          <View style={styles.discountCard}>
+            <View style={styles.discountHeaderRow}>
+              <View style={styles.warningIconBox}>
+                <MaterialIcons name="warning" size={22} color="#D97706" />
+              </View>
+              <View style={styles.discountTextWrapper}>
+                <Text style={styles.discountTitle}>Regular Fares Active</Text>
+                <Text style={styles.discountSubtitle}>
+                  Verify your ID to unlock the LGU-mandated 20%
+                  Student/Senior/PWD discount.
+                </Text>
+
+                <TouchableOpacity
+                  style={styles.applyDiscountBtn}
+                  activeOpacity={0.8}
+                  onPress={handleApplyDiscount}
+                >
+                  <Text style={styles.applyDiscountBtnText}>
+                    Apply for Discount
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+
           {/* SECTION: RIDE PREFERENCES */}
           <Text style={styles.sectionLabel}>RIDE PREFERENCES</Text>
           <View style={styles.sectionContainer}>
@@ -275,7 +314,7 @@ const styles = StyleSheet.create({
   bellButton: {
     position: "absolute",
     right: 24,
-    top: 65, // Aligned with the title
+    top: 65,
     padding: 4,
   },
   notificationDot: {
@@ -285,14 +324,14 @@ const styles = StyleSheet.create({
     width: 12,
     height: 12,
     borderRadius: 6,
-    backgroundColor: "#10B981", // Green dot pops better on the red background
+    backgroundColor: "#10B981",
     borderWidth: 2,
     borderColor: "#D32F2F",
   },
 
   // 2. OVERLAPPING PROFILE CARD
   profileCardWrapper: {
-    marginTop: -40, // Pulls the card up over the red header border
+    marginTop: -40,
     paddingHorizontal: 16,
     zIndex: 10,
   },
@@ -314,7 +353,7 @@ const styles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: "#FFF1F2", // Soft red background matching the theme
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
@@ -354,6 +393,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 8,
     marginLeft: 8,
+    textTransform: "uppercase",
   },
   sectionContainer: {
     backgroundColor: "#FFFFFF",
@@ -370,13 +410,68 @@ const styles = StyleSheet.create({
   },
   divider: { height: 1, backgroundColor: "#F1F5F9", marginLeft: 64 },
 
+  // NEW: FARE DISCOUNT CARD (Matches your image exactly)
+  discountCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    padding: 16,
+    marginBottom: 24,
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
+  },
+  discountHeaderRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  warningIconBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#FEF3C7", // Pale yellow matching the image
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 16,
+  },
+  discountTextWrapper: {
+    flex: 1,
+  },
+  discountTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0F172A", // Dark slate color
+    marginBottom: 4,
+  },
+  discountSubtitle: {
+    fontSize: 13,
+    color: "#64748B",
+    lineHeight: 18,
+    marginBottom: 16, // Space before the button
+  },
+  applyDiscountBtn: {
+    backgroundColor: "#C62828", // Deep red matching the image
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  applyDiscountBtnText: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "bold",
+  },
+
   // Menu Item
   menuItem: { flexDirection: "row", alignItems: "center", padding: 16 },
   menuItemIconBg: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: "#FFF1F2", // Soft red circles for icons
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,

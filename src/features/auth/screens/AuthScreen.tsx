@@ -152,7 +152,7 @@ const AuthScreen = () => {
         </View>
         <View style={styles.titleContainer}>
           <Text style={styles.title}>
-            {isLogin ? "Welcome back" : "Create an account"}
+            {isLogin ? "Welcome Back" : "Create an account"}
           </Text>
           <Text style={styles.subtitle}>
             {isLogin
