@@ -1,6 +1,14 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import {
+  Alert,
+  Linking,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface Props {
   bodyNumber: string;
@@ -8,37 +16,76 @@ interface Props {
   onBack: () => void;
 }
 
-export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => (
-  <View style={styles.topOverlay}>
-    <View style={styles.header}>
-      <TouchableOpacity style={styles.iconButton} onPress={onBack}>
-        <MaterialIcons name="arrow-back-ios" size={20} color="#0F172A" />
-      </TouchableOpacity>
-      <Text style={styles.headerTitle}>Body #{bodyNumber}</Text>
-      <TouchableOpacity style={styles.sosButton} activeOpacity={0.8}>
-        <MaterialIcons name="security" size={14} color="#DC2626" />
-        <Text style={styles.sosText}>SOS</Text>
-      </TouchableOpacity>
-    </View>
+export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
+  // --- NEW: Native SOS Handler ---
+  const handleSOS = () => {
+    // We use a native Alert to prevent accidental dials
+    Alert.alert(
+      "EMERGENCY SOS",
+      "Which hotline do you need to call?",
+      [
+        {
+          text: "Angeles City Police (122)",
+          onPress: () =>
+            Linking.openURL(
+              Platform.OS === "android" ? "tel:122" : "telprompt:122",
+            ),
+        },
+        {
+          text: "National Emergency (911)",
+          onPress: () =>
+            Linking.openURL(
+              Platform.OS === "android" ? "tel:911" : "telprompt:911",
+            ),
+        },
+        {
+          text: "Cancel",
+          style: "cancel",
+        },
+      ],
+      { cancelable: true },
+    );
+  };
 
-    <View style={styles.fareCard}>
-      <Text style={styles.fareLabel}>CURRENT FARE</Text>
-      <View style={styles.fareValueContainer}>
-        <Text style={styles.fareCurrency}>PHP</Text>
-        <Text style={styles.fareValue}>{fixedFare}.00</Text>
+  return (
+    <View style={styles.topOverlay}>
+      <View style={styles.header}>
+        <TouchableOpacity style={styles.iconButton} onPress={onBack}>
+          <MaterialIcons name="arrow-back-ios" size={20} color="#0F172A" />
+        </TouchableOpacity>
+
+        <Text style={styles.headerTitle}>Body #{bodyNumber}</Text>
+
+        {/* NEW: Attached the handleSOS function */}
+        <TouchableOpacity
+          style={styles.sosButton}
+          activeOpacity={0.7}
+          onPress={handleSOS}
+        >
+          <MaterialIcons name="security" size={14} color="#DC2626" />
+          <Text style={styles.sosText}>SOS</Text>
+        </TouchableOpacity>
       </View>
-      <View style={styles.verifiedBadge}>
-        <MaterialIcons
-          name="verified"
-          size={12}
-          color="#10B981"
-          style={{ marginRight: 4 }}
-        />
-        <Text style={styles.verifiedText}>Verified Rate</Text>
+
+      <View style={styles.fareCard}>
+        <Text style={styles.fareLabel}>CURRENT FARE</Text>
+        <View style={styles.fareValueContainer}>
+          <Text style={styles.fareCurrency}>PHP</Text>
+          <Text style={styles.fareValue}>{fixedFare}.00</Text>
+        </View>
+        <View style={styles.verifiedBadge}>
+          <MaterialIcons
+            name="verified"
+            size={12}
+            color="#10B981"
+            style={{ marginRight: 4 }}
+          />
+          <Text style={styles.verifiedText}>Verified Rate</Text>
+        </View>
       </View>
     </View>
-  </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   topOverlay: {
