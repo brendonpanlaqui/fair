@@ -61,14 +61,19 @@ const InitialLayout = () => {
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="auth" options={{ headerShown: false }} />
         <Stack.Screen name="otp" options={{ headerShown: false }} />
+        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
         <Stack.Screen
           name="verify-id"
-          options={{
-            presentation: "modal",
-            headerShown: false,
-          }}
-        />{" "}
-        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
+          options={{ presentation: "modal", headerShown: false }}
+        />
+        <Stack.Screen name="ordinance" options={{ headerShown: false }} />
+        <Stack.Screen
+          name="dispute-guidelines"
+          options={{ headerShown: false }}
+        />
+        <Stack.Screen name="saved-places" options={{ headerShown: false }} />
+        <Stack.Screen name="help-support" options={{ headerShown: false }} />
+        <Stack.Screen name="give-feedback" options={{ headerShown: false }} />
         <Stack.Screen
           name="start-trip"
           options={{
