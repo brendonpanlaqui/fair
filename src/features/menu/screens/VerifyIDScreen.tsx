@@ -4,14 +4,14 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const ID_TYPES = [
@@ -40,7 +40,7 @@ export default function VerifyIdScreen() {
             return;
           }
           const result = await ImagePicker.launchCameraAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ["images"],
             quality: 0.8,
           });
           if (!result.canceled && result.assets[0].uri) {
@@ -52,7 +52,7 @@ export default function VerifyIdScreen() {
         text: "Choose from Gallery",
         onPress: async () => {
           const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
+            mediaTypes: ["images"],
             quality: 0.8,
           });
           if (!result.canceled && result.assets[0].uri) {

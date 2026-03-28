@@ -19,7 +19,6 @@ interface MenuItemProps {
   icon: keyof typeof MaterialIcons.glyphMap;
   title: string;
   subtitle?: string;
-  isExternalLink?: boolean;
   onPress: () => void;
 }
 
@@ -27,7 +26,6 @@ const MenuItem: React.FC<MenuItemProps> = ({
   icon,
   title,
   subtitle,
-  isExternalLink,
   onPress,
 }) => (
   <TouchableOpacity
@@ -42,20 +40,16 @@ const MenuItem: React.FC<MenuItemProps> = ({
       <Text style={styles.menuItemTitle}>{title}</Text>
       {subtitle && <Text style={styles.menuItemSubtitle}>{subtitle}</Text>}
     </View>
-    <MaterialIcons
-      name={isExternalLink ? "open-in-new" : "chevron-right"}
-      size={24}
-      color="#CBD5E1"
-    />
+    <MaterialIcons name="chevron-right" size={24} color="#CBD5E1" />
   </TouchableOpacity>
 );
 
-// ==========================================
-// MAIN SCREEN COMPONENT
-// ==========================================
-const ProfileScreen = () => {
+export default function ProfileScreen() {
   const router = useRouter();
   const { user, isGuest, logout } = useAuth();
+
+  // MOCK STATE: In a real app, this comes from Django (e.g., user.is_id_verified)
+  const isIdVerified = false;
 
   const handleExit = () => {
     if (isGuest) {
@@ -63,7 +57,6 @@ const ProfileScreen = () => {
       router.replace("/auth");
       return;
     }
-
     Alert.alert("Log Out", "Are you sure you want to log out of Fair?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -73,8 +66,7 @@ const ProfileScreen = () => {
           try {
             await logout();
           } catch (error) {
-            console.error("Logout failed", error);
-            Alert.alert("Error", "Failed to log out. Please try again.");
+            Alert.alert("Error", "Failed to log out.");
           }
         },
       },
@@ -85,7 +77,7 @@ const ProfileScreen = () => {
     if (isGuest) {
       Alert.alert(
         "Account Required",
-        "You must create an account to submit your ID and apply for Student, Senior, or PWD discounts.",
+        "You must create an account to submit your ID for LGU discounts.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Create Account", onPress: handleExit },
@@ -105,10 +97,9 @@ const ProfileScreen = () => {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* 1. SCROLLABLE RED HEADER */}
+        {/* 1. RED HEADER */}
         <View style={styles.redHeaderBackground}>
           <Text style={styles.headerTitle}>Menu</Text>
-
           <TouchableOpacity style={styles.bellButton}>
             <MaterialIcons
               name="notifications-none"
@@ -125,7 +116,6 @@ const ProfileScreen = () => {
             <View style={styles.avatarContainer}>
               <MaterialIcons name="person" size={36} color="#D32F2F" />
             </View>
-
             <View style={styles.profileInfo}>
               <Text style={styles.profileName}>
                 {isGuest
@@ -135,11 +125,16 @@ const ProfileScreen = () => {
                     : user?.email?.split("@")[0] || "Fair User"}
               </Text>
 
-              {isGuest ? (
+              {/* SMART VERIFICATION LOGIC */}
+              {isGuest && (
                 <Text style={styles.guestSubtitle}>
                   Sign in to save preferences
                 </Text>
-              ) : (
+              )}
+              {!isGuest && !isIdVerified && (
+                <Text style={styles.guestSubtitle}>Standard Account</Text>
+              )}
+              {!isGuest && isIdVerified && (
                 <View style={styles.verifiedBadge}>
                   <MaterialIcons
                     name="verified"
@@ -151,38 +146,41 @@ const ProfileScreen = () => {
                 </View>
               )}
             </View>
-
-            <MaterialIcons name="chevron-right" size={28} color="#CBD5E1" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.menuContent}>
-          {/* SECTION: FARE DISCOUNTS */}
-          <Text style={styles.sectionLabel}>FARE DISCOUNTS</Text>
-          <View style={styles.discountCard}>
-            <View style={styles.discountHeaderRow}>
-              <View style={styles.warningIconBox}>
-                <MaterialIcons name="warning" size={22} color="#D97706" />
+          {/* SMART BANNER: Only shows if they haven't verified their ID */}
+          {(!isIdVerified || isGuest) && (
+            <>
+              <Text style={styles.sectionLabel}>FARE DISCOUNTS</Text>
+              <View style={styles.discountCard}>
+                <View style={styles.discountHeaderRow}>
+                  <View style={styles.warningIconBox}>
+                    <MaterialIcons name="warning" size={22} color="#D97706" />
+                  </View>
+                  <View style={styles.discountTextWrapper}>
+                    <Text style={styles.discountTitle}>
+                      Regular Fares Active
+                    </Text>
+                    <Text style={styles.discountSubtitle}>
+                      Verify your ID to unlock the LGU-mandated 20%
+                      Student/Senior/PWD discount.
+                    </Text>
+                    <TouchableOpacity
+                      style={styles.applyDiscountBtn}
+                      activeOpacity={0.8}
+                      onPress={handleApplyDiscount}
+                    >
+                      <Text style={styles.applyDiscountBtnText}>
+                        Apply for Discount
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
               </View>
-              <View style={styles.discountTextWrapper}>
-                <Text style={styles.discountTitle}>Regular Fares Active</Text>
-                <Text style={styles.discountSubtitle}>
-                  Verify your ID to unlock the LGU-mandated 20%
-                  Student/Senior/PWD discount.
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.applyDiscountBtn}
-                  activeOpacity={0.8}
-                  onPress={handleApplyDiscount}
-                >
-                  <Text style={styles.applyDiscountBtnText}>
-                    Apply for Discount
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
+            </>
+          )}
 
           {/* SECTION: RIDE PREFERENCES */}
           <Text style={styles.sectionLabel}>RIDE PREFERENCES</Text>
@@ -197,53 +195,26 @@ const ProfileScreen = () => {
                     "Guest Mode",
                     "Please sign in to save locations.",
                   );
+                else router.push("/saved-places");
               }}
             />
           </View>
 
-          {/* SECTION: LGU TRANSPARENCY & LEGAL */}
-          <Text style={styles.sectionLabel}>LGU TRANSPARENCY & LEGAL</Text>
+          {/* SECTION: CONSOLIDATED LEGAL & SUPPORT */}
+          <Text style={styles.sectionLabel}>LEGAL & SUPPORT</Text>
           <View style={styles.sectionContainer}>
             <MenuItem
               icon="gavel"
               title="View Ordinance No. 723"
-              subtitle="Official tricycle fare guide"
-              isExternalLink={true}
-              onPress={() =>
-                Alert.alert("External Link", "Opening PDF viewer...")
-              }
+              subtitle="Official tricycle fare matrix guide"
+              onPress={() => router.push("/ordinance")}
             />
             <View style={styles.divider} />
             <MenuItem
-              icon="security"
-              title="Dispute Guidelines"
-              subtitle="How to report overcharging"
-              onPress={() => {}}
-            />
-          </View>
-
-          {/* SECTION: ACCOUNT & SETTINGS */}
-          <Text style={styles.sectionLabel}>ACCOUNT & SETTINGS</Text>
-          <View style={styles.sectionContainer}>
-            <MenuItem
-              icon="settings"
-              title="App Settings"
-              subtitle="GPS Accuracy, Theme, Language"
-              onPress={() => {}}
-            />
-            <View style={styles.divider} />
-            <MenuItem
-              icon="help-outline"
+              icon="headset-mic"
               title="Help & Support"
-              subtitle="FAQs and contact support"
-              onPress={() => {}}
-            />
-            <View style={styles.divider} />
-            <MenuItem
-              icon="rate-review"
-              title="Give Feedback"
-              subtitle="Help us improve Fair App"
-              onPress={() => {}}
+              subtitle="FAQs, Contact, and App Feedback"
+              onPress={() => router.push("/help-support")}
             />
           </View>
 
@@ -283,7 +254,7 @@ const ProfileScreen = () => {
       </ScrollView>
     </View>
   );
-};
+}
 
 // ==========================================
 // STYLES
@@ -291,13 +262,11 @@ const ProfileScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   scrollContent: { paddingBottom: 40 },
-
-  // 1. BRAND RED HEADER
   redHeaderBackground: {
-    backgroundColor: "#D32F2F", // Brand Crimson
-    paddingTop: 65, // Status bar clearance
+    backgroundColor: "#D32F2F",
+    paddingTop: 65,
     paddingHorizontal: 24,
-    paddingBottom: 60, // Extra space for the overlap
+    paddingBottom: 60,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     flexDirection: "row",
@@ -311,12 +280,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: -1,
   },
-  bellButton: {
-    position: "absolute",
-    right: 24,
-    top: 65,
-    padding: 4,
-  },
+  bellButton: { position: "absolute", right: 24, top: 65, padding: 4 },
   notificationDot: {
     position: "absolute",
     top: 4,
@@ -328,13 +292,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#D32F2F",
   },
-
-  // 2. OVERLAPPING PROFILE CARD
-  profileCardWrapper: {
-    marginTop: -40,
-    paddingHorizontal: 16,
-    zIndex: 10,
-  },
+  profileCardWrapper: { marginTop: -40, paddingHorizontal: 16, zIndex: 10 },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -366,10 +324,7 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
     marginBottom: 4,
   },
-  guestSubtitle: {
-    fontSize: 14,
-    color: "#64748B",
-  },
+  guestSubtitle: { fontSize: 14, color: "#64748B" },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -382,10 +337,7 @@ const styles = StyleSheet.create({
     borderColor: "#FFE4E6",
   },
   verifiedText: { color: "#D32F2F", fontSize: 11, fontWeight: "800" },
-
   menuContent: { paddingHorizontal: 16, paddingTop: 24 },
-
-  // Sections
   sectionLabel: {
     fontSize: 11,
     fontWeight: "900",
@@ -409,8 +361,6 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
   },
   divider: { height: 1, backgroundColor: "#F1F5F9", marginLeft: 64 },
-
-  // NEW: FARE DISCOUNT CARD (Matches your image exactly)
   discountCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 20,
@@ -424,48 +374,37 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 8,
   },
-  discountHeaderRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+  discountHeaderRow: { flexDirection: "row", alignItems: "flex-start" },
   warningIconBox: {
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: "#FEF3C7", // Pale yellow matching the image
+    backgroundColor: "#FEF3C7",
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
   },
-  discountTextWrapper: {
-    flex: 1,
-  },
+  discountTextWrapper: { flex: 1 },
   discountTitle: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#0F172A", // Dark slate color
+    color: "#0F172A",
     marginBottom: 4,
   },
   discountSubtitle: {
     fontSize: 13,
     color: "#64748B",
     lineHeight: 18,
-    marginBottom: 16, // Space before the button
+    marginBottom: 16,
   },
   applyDiscountBtn: {
-    backgroundColor: "#C62828", // Deep red matching the image
+    backgroundColor: "#C62828",
     paddingVertical: 12,
     borderRadius: 8,
     alignItems: "center",
     justifyContent: "center",
   },
-  applyDiscountBtnText: {
-    color: "#FFFFFF",
-    fontSize: 14,
-    fontWeight: "bold",
-  },
-
-  // Menu Item
+  applyDiscountBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
   menuItem: { flexDirection: "row", alignItems: "center", padding: 16 },
   menuItemIconBg: {
     width: 40,
@@ -484,8 +423,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   menuItemSubtitle: { fontSize: 13, color: "#64748B", fontWeight: "500" },
-
-  // Dynamic Exit Button Base
   exitBtn: {
     flexDirection: "row",
     width: "100%",
@@ -499,8 +436,6 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   exitBtnText: { fontSize: 16, fontWeight: "900", letterSpacing: 0.5 },
-
-  // Logout Specific Styles
   logoutBtn: {
     backgroundColor: "#FFFFFF",
     borderColor: "#FECACA",
@@ -510,8 +445,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   logoutText: { color: "#D32F2F" },
-
-  // Guest Specific Styles
   guestExitBtn: {
     backgroundColor: "#FFFFFF",
     borderColor: "#E2E8F0",
@@ -521,8 +454,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   guestExitText: { color: "#0F172A" },
-
-  // Footer Metadata
   footerData: { alignItems: "center", marginBottom: 20 },
   versionText: {
     fontSize: 11,
@@ -533,5 +464,3 @@ const styles = StyleSheet.create({
   },
   creditText: { fontSize: 11, color: "#CBD5E1", fontWeight: "600" },
 });
-
-export default ProfileScreen;
