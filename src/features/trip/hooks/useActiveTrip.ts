@@ -2,6 +2,8 @@ import { getShortestDistanceToRoute } from "@/src/utils/routeDeviation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert } from "react-native";
+import { useAuth } from "../../../hooks/AuthContext"; // 🚀 2. Import Auth
+import { api } from "../../../services/api"; // 🚀 1. Import your API
 import { useLocationTracking } from "./useLocationTracking";
 
 const DEVIATION_THRESHOLD_METERS = 100;
@@ -9,6 +11,7 @@ const DEVIATION_THRESHOLD_METERS = 100;
 export const useActiveTrip = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useAuth(); // 🚀 3. Grab the logged-in user
 
   // 1. Extract & Parse Data
   const fixedFare = params.fixedFare ? Number(params.fixedFare) : 0;
@@ -16,6 +19,11 @@ export const useActiveTrip = () => {
     ? Number(params.lockedDistance)
     : 0;
   const bodyNumber = (params.bodyNumber as string) || "888";
+
+  // 🚀 Extract these new parameters (Make sure you are passing them from the booking screen!)
+  const originName = (params.originName as string) || "Unknown Origin";
+  const destName = (params.destName as string) || "Unknown Destination";
+  const matrixId = params.matrixId ? Number(params.matrixId) : 1;
 
   const destLat = params.destLat ? Number(params.destLat) : null;
   const destLng = params.destLng ? Number(params.destLng) : null;
@@ -63,37 +71,78 @@ export const useActiveTrip = () => {
       {
         text: "End Trip",
         style: "destructive",
-        onPress: () => {
-          // Format current date and time
-          const now = new Date();
-          const dateStr = now.toLocaleDateString("en-US", {
-            month: "short",
-            day: "numeric",
-            year: "numeric",
-          });
-          const timeStr = now.toLocaleTimeString("en-US", {
-            hour: "2-digit",
-            minute: "2-digit",
-          });
+        onPress: async () => {
+          // 🚀 Make this async!
+          try {
+            // Calculate base vs succeeding
+            const base = 35;
+            const succeeding = Math.max(0, fixedFare - base);
+            const generatedTripId = `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
 
-          // Calculate mockup breakdown (Base is 35, the rest is succeeding)
-          const base = 35;
-          const succeeding = Math.max(0, fixedFare - base);
+            // 🚀 4. BUILD THE PAYLOAD FOR DJANGO
+            const payload = {
+              trip_id: generatedTripId,
+              user: user?.id || null,
+              tricycle: bodyNumber,
+              fare_matrix: matrixId,
+              trip_mode: parsedStopovers.length > 0 ? "Special" : "Direct",
+              origin_address: originName,
+              destination_address: destName,
+              total_distance_km: lockedDistance,
+              computed_fare: fixedFare,
+              actual_fare_charged: fixedFare,
+              discount_applied: 0.0, // You can add logic to calculate this if user is Student/PWD
+              status: "Completed",
+              origin_lat: routeCoordinates[0]?.latitude || mapCenter.latitude,
+              origin_lng: routeCoordinates[0]?.longitude || mapCenter.longitude,
+              dest_lat: destLat,
+              dest_lng: destLng,
+            };
 
-          router.replace({
-            pathname: "/trip-receipt",
-            params: {
-              totalFare: fixedFare,
-              baseFare: base,
-              succeedingFare: succeeding,
-              distance: lockedDistance.toFixed(1),
-              duration: `${estimatedMinutes} mins`,
-              date: dateStr,
-              time: timeStr,
-              bodyNumber: bodyNumber,
-              discountType: "Student", // We'll make this dynamic later based on the Profile!
-            },
-          });
+            // 🚀 5. SEND TO BACKEND
+            await api.post("/trips/submit/", payload);
+
+            // Format current date and time for the UI
+            const now = new Date();
+            const dateStr = now.toLocaleDateString("en-US", {
+              month: "short",
+              day: "numeric",
+              year: "numeric",
+            });
+            const timeStr = now.toLocaleTimeString("en-US", {
+              hour: "2-digit",
+              minute: "2-digit",
+            });
+
+            // 🚀 6. NAVIGATE TO RECEIPT (Passing the generated ID)
+            router.replace({
+              pathname: "/trip-receipt",
+              params: {
+                tripId: generatedTripId, // Pass the ID so the receipt matches the database
+                totalFare: fixedFare,
+                baseFare: base,
+                succeedingFare: succeeding,
+                distance: lockedDistance.toFixed(1),
+                duration: `${estimatedMinutes} mins`,
+                date: dateStr,
+                time: timeStr,
+                bodyNumber: bodyNumber,
+                discountType: "Regular",
+              },
+            });
+          } catch (error: any) {
+            // 🚀 THIS WILL PRINT THE EXACT DJANGO ERROR TO YOUR TERMINAL
+            console.log("\n--- DJANGO REJECTED THE TRIP ---");
+            console.log(
+              JSON.stringify(error.response?.data || error.message, null, 2),
+            );
+            console.log("--------------------------------\n");
+
+            Alert.alert(
+              "Sync Failed",
+              "Check your Expo terminal to see exactly what Django rejected!",
+            );
+          }
         },
       },
     ]);
@@ -123,10 +172,10 @@ export const useActiveTrip = () => {
         setDeviationCount((prev) => prev + 1);
         if (deviationCount >= 3) {
           setIsDeviationWarningVisible(true);
-          setDeviationCount(0); // Reset for next time
+          setDeviationCount(0);
         }
       } else {
-        setDeviationCount(0); // Corrected course
+        setDeviationCount(0);
       }
     }
   }, [currentLocation, routeCoordinates, isDeviationWarningVisible]);

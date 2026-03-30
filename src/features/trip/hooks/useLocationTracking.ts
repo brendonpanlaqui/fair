@@ -7,26 +7,43 @@ export const useLocationTracking = () => {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchInitialLocation = async () => {
-      // 1. Request Android Permissions
+    let locationSubscription: Location.LocationSubscription | null = null;
+
+    const startTracking = async () => {
+      // 1. Request Permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permission to access location was denied");
         return;
       }
 
-      // 2. Just get the current location ONCE for the map origin
       try {
-        const location = await Location.getCurrentPositionAsync({
-          accuracy: Location.Accuracy.Balanced,
-        });
-        setCurrentLocation(location.coords);
+        // 2. Continuously WATCH the position instead of just getting it once
+        locationSubscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High, // 🚀 High accuracy needed for strict deviation checking
+            timeInterval: 3000, // 🚀 Update every 3 seconds
+            distanceInterval: 5, // 🚀 Or update every 5 meters moved
+          },
+          (location) => {
+            // Every time the phone moves 5 meters or 3 seconds pass, this runs!
+            setCurrentLocation(location.coords);
+          },
+        );
       } catch (error) {
-        setErrorMsg("Failed to fetch location");
+        setErrorMsg("Failed to start location tracking");
       }
     };
 
-    fetchInitialLocation();
+    startTracking();
+
+    // 3. CRITICAL: Cleanup function.
+    // This stops the GPS from draining the battery after the user clicks "End Trip"
+    return () => {
+      if (locationSubscription) {
+        locationSubscription.remove();
+      }
+    };
   }, []);
 
   return {

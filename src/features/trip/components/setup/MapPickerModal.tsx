@@ -1,14 +1,15 @@
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialIcons } from "@expo/vector-icons";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Animated,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
 
@@ -31,6 +32,9 @@ export const MapPickerModal = ({
   onClose,
   onConfirm,
 }: Props) => {
+  const mapRef = useRef<MapView>(null);
+  const liftAnim = useRef(new Animated.Value(0)).current; // 🚀 For pin animation
+
   const [region, setRegion] = useState<Region>({
     latitude: initialLat,
     longitude: initialLng,
@@ -41,7 +45,21 @@ export const MapPickerModal = ({
   const [addressName, setAddressName] = useState("Move map to select location");
   const [isFetchingAddress, setIsFetchingAddress] = useState(false);
 
-  // Reverse Geocoding: Turns Lat/Lng into a readable street address
+  // 🚀 SYNC: Forces map to current location when visible changes
+  useEffect(() => {
+    if (visible && mapRef.current) {
+      mapRef.current.animateToRegion(
+        {
+          latitude: initialLat,
+          longitude: initialLng,
+          latitudeDelta: 0.005,
+          longitudeDelta: 0.005,
+        },
+        600,
+      );
+    }
+  }, [visible, initialLat, initialLng]);
+
   const fetchAddressName = async (lat: number, lng: number) => {
     setIsFetchingAddress(true);
     try {
@@ -50,7 +68,6 @@ export const MapPickerModal = ({
       );
       const data = await response.json();
       if (data.results && data.results.length > 0) {
-        // Grab the most relevant street-level address
         setAddressName(data.results[0].formatted_address.split(",")[0]);
       } else {
         setAddressName("Unknown Location");
@@ -62,9 +79,35 @@ export const MapPickerModal = ({
     }
   };
 
+  const handleRegionChange = () => {
+    // 🚀 UX: Lift the pin when map starts moving
+    Animated.spring(liftAnim, {
+      toValue: -15,
+      useNativeDriver: true,
+    }).start();
+  };
+
   const handleRegionChangeComplete = (newRegion: Region) => {
+    // 🚀 UX: Drop the pin when movement stops
+    Animated.spring(liftAnim, {
+      toValue: 0,
+      useNativeDriver: true,
+    }).start();
+
     setRegion(newRegion);
     fetchAddressName(newRegion.latitude, newRegion.longitude);
+  };
+
+  const snapToCurrent = () => {
+    mapRef.current?.animateToRegion(
+      {
+        latitude: initialLat,
+        longitude: initialLng,
+        latitudeDelta: 0.005,
+        longitudeDelta: 0.005,
+      },
+      600,
+    );
   };
 
   const handleConfirm = () => {
@@ -84,73 +127,81 @@ export const MapPickerModal = ({
         {/* HEADER */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.backBtn}>
-            <MaterialIcons name="close" size={28} color="#0F172A" />
+            <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
           </TouchableOpacity>
           <Text style={styles.headerTitle}>
             Pin {target === "stopover" ? "Stopover" : "Destination"}
           </Text>
-          <View style={{ width: 28 }} />
+          <View style={{ width: 40 }} />
         </View>
 
-        {/* MAP CONTAINER */}
+        {/* MAP AREA */}
         <View style={styles.mapContainer}>
           <MapView
+            ref={mapRef}
             provider={PROVIDER_GOOGLE}
             style={StyleSheet.absoluteFillObject}
             initialRegion={region}
+            onRegionChange={handleRegionChange}
             onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation={true}
-            showsMyLocationButton={true}
+            showsMyLocationButton={false}
           />
 
-          {/* FIXED CENTER PIN (PointerEvents="none" lets touches pass through to the map) */}
+          {/* 🚀 SNAP TO ME BUTTON */}
+          <TouchableOpacity
+            style={styles.myLocationBtn}
+            onPress={snapToCurrent}
+          >
+            <MaterialIcons name="my-location" size={24} color="#0F172A" />
+          </TouchableOpacity>
+
+          {/* 🚀 ANIMATED CENTER PIN */}
           <View style={styles.centerPinContainer} pointerEvents="none">
-            <View style={styles.tooltip}>
-              <Text style={styles.tooltipText}>Set Location Here</Text>
-            </View>
-            <MaterialIcons
-              name="location-pin"
-              size={48}
-              color="#E53935"
-              style={styles.pinIcon}
-            />
+            <Animated.View
+              style={[
+                styles.pinWrapper,
+                { transform: [{ translateY: liftAnim }] },
+              ]}
+            >
+              <View style={styles.tooltip}>
+                <Text style={styles.tooltipText}>SET HERE</Text>
+              </View>
+              <MaterialIcons name="location-on" size={48} color="#D32F2F" />
+            </Animated.View>
             <View style={styles.pinShadow} />
           </View>
         </View>
 
-        {/* BOTTOM SHEET */}
+        {/* FOOTER */}
         <View style={styles.footer}>
-          <Text style={styles.footerLabel}>SELECTED LOCATION</Text>
+          <Text style={styles.footerLabel}>SELECTED ADDRESS</Text>
           <View style={styles.addressRow}>
             {isFetchingAddress ? (
               <ActivityIndicator
                 size="small"
-                color="#3B82F6"
-                style={{ marginRight: 8 }}
+                color="#D32F2F"
+                style={{ marginRight: 12 }}
               />
             ) : (
-              <MaterialIcons
-                name="place"
-                size={20}
-                color="#3B82F6"
-                style={{ marginRight: 8 }}
-              />
+              <View style={styles.iconCircle}>
+                <MaterialIcons name="place" size={18} color="#D32F2F" />
+              </View>
             )}
             <Text style={styles.addressText} numberOfLines={2}>
-              {isFetchingAddress ? "Fetching address..." : addressName}
+              {isFetchingAddress ? "Locating..." : addressName}
             </Text>
           </View>
 
           <TouchableOpacity
             style={[
               styles.confirmBtn,
-              isFetchingAddress && { backgroundColor: "#94A3B8" },
+              isFetchingAddress && { backgroundColor: "#CBD5E1" },
             ]}
-            activeOpacity={0.9}
             onPress={handleConfirm}
             disabled={isFetchingAddress}
           >
-            <Text style={styles.confirmBtnText}>Confirm Location</Text>
+            <Text style={styles.confirmBtnText}>CONFIRM THIS LOCATION</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -164,80 +215,114 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 50,
+    paddingTop: 60,
     paddingBottom: 16,
-    paddingHorizontal: 16,
+    paddingHorizontal: 20,
     backgroundColor: "#FFFFFF",
-    zIndex: 10,
-    elevation: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
-  backBtn: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#0F172A" },
+  backBtn: { padding: 8, marginLeft: -8 },
+  headerTitle: {
+    fontSize: 17,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
   mapContainer: { flex: 1, position: "relative" },
 
-  // Center Pin Styles
+  myLocationBtn: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    backgroundColor: "#FFFFFF",
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+  },
+
   centerPinContainer: {
     position: "absolute",
     top: "50%",
     left: "50%",
     marginLeft: -50,
-    marginTop: -70,
+    marginTop: -50,
     width: 100,
     height: 100,
     justifyContent: "center",
     alignItems: "center",
   },
+  pinWrapper: { alignItems: "center" },
   tooltip: {
     backgroundColor: "#0F172A",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-    marginBottom: 4,
-  },
-  tooltipText: { color: "#FFFFFF", fontSize: 11, fontWeight: "bold" },
-  pinIcon: {
-    textShadowColor: "rgba(0,0,0,0.3)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  pinShadow: {
-    width: 12,
-    height: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 6,
+    marginBottom: -4,
+  },
+  tooltipText: { color: "#FFFFFF", fontSize: 10, fontWeight: "900" },
+  pinShadow: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: "rgba(0,0,0,0.2)",
-    marginTop: -4,
+    transform: [{ scaleX: 2 }],
+    marginTop: -6,
   },
 
-  // Footer Styles
   footer: {
-    backgroundColor: "#FFFFFF",
     padding: 24,
-    borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    elevation: 16,
+    paddingBottom: 40,
+    backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    elevation: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: -10 },
+    shadowOpacity: 0.05,
+    shadowRadius: 15,
   },
   footerLabel: {
-    fontSize: 11,
-    fontWeight: "bold",
+    fontSize: 10,
+    fontWeight: "900",
     color: "#94A3B8",
-    letterSpacing: 1,
-    marginBottom: 8,
+    letterSpacing: 1.5,
+    marginBottom: 12,
   },
   addressRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F1F5F9",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 24,
   },
-  addressText: { flex: 1, fontSize: 16, fontWeight: "bold", color: "#0F172A" },
-  confirmBtn: {
-    backgroundColor: "#0F172A",
-    height: 56,
-    borderRadius: 12,
+  iconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
+    marginRight: 12,
   },
-  confirmBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
+  addressText: { flex: 1, fontSize: 16, fontWeight: "800", color: "#0F172A" },
+  confirmBtn: {
+    backgroundColor: "#D32F2F",
+    height: 56,
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+  },
+  confirmBtnText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
 });

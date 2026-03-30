@@ -7,61 +7,43 @@ import {
   Alert,
   FlatList,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useAuth } from "../../../hooks/AuthContext"; // 🚀 Added Auth context
+import { api } from "../../../services/api"; // 🚀 Added API
 
 // 1. EXTENDED ERD INTERFACE
 interface ReportRecord {
   report_id: string;
-  trip_id: string;
+  trip: string | null; // Changed to match Django's FK field name
   body_number: string;
   violation_type: string;
   passenger_comments: string;
-  status: "Pending" | "Investigating" | "Resolved";
+  status: "Pending" | "Investigating" | "Resolved" | "Dismissed";
   filed_at: string;
   admin_response?: string;
 }
 
-// 2. INITIAL MOCK DATA
-const INITIAL_REPORTS: ReportRecord[] = [
-  {
-    report_id: "TKT-10492",
-    trip_id: "TRP-88172B",
-    body_number: "0888",
-    violation_type: "Overcharging",
-    passenger_comments:
-      "Driver asked for ₱100 even though the app computed ₱80 with my student discount.",
-    status: "Resolved",
-    filed_at: "2026-03-12T18:00:00Z",
-    admin_response:
-      "Verified with the driver. A formal warning has been issued by the TODA President, and the excess ₱20 has been credited to your account.",
-  },
-  {
-    report_id: "TKT-10550",
-    trip_id: "TRP-99281A",
-    body_number: "0406",
-    violation_type: "Reckless Driving",
-    passenger_comments:
-      "Driver was texting while driving and almost hit a parked car near SM Clark.",
-    status: "Investigating",
-    filed_at: "2026-03-14T09:15:00Z",
-  },
-];
-
 const ReportScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useAuth(); // Grab the logged-in user
 
   // STATES
-  const [reports, setReports] = useState<ReportRecord[]>(INITIAL_REPORTS);
+  const [reports, setReports] = useState<ReportRecord[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportRecord | null>(
     null,
   );
   const [isFormVisible, setIsFormVisible] = useState(false);
+
+  // FETCH STATES
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // NEW REPORT FORM STATES
   const [newTripId, setNewTripId] = useState("");
@@ -69,6 +51,29 @@ const ReportScreen = () => {
   const [newViolation, setNewViolation] = useState("Overcharging");
   const [newComments, setNewComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // --- API FETCH LOGIC ---
+  const fetchReports = async (isPullToRefresh = false) => {
+    try {
+      if (!isPullToRefresh) setIsLoading(true);
+      const response = await api.get<ReportRecord[]>("/reports/history/");
+      setReports(response.data);
+    } catch (err) {
+      console.warn("API Error:", err);
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchReports(true);
+  };
 
   // UX MAGIC: Auto-open form if routed from HistoryScreen
   useEffect(() => {
@@ -91,46 +96,53 @@ const ReportScreen = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case "Pending":
-        return "#F59E0B"; // Amber
+        return "#F59E0B";
       case "Investigating":
-        return "#3B82F6"; // Blue
+        return "#3B82F6";
       case "Resolved":
-        return "#10B981"; // Green
+        return "#10B981";
+      case "Dismissed":
+        return "#EF4444";
       default:
-        return "#64748B"; // Slate
+        return "#64748B";
     }
   };
 
-  const handleSubmitReport = () => {
+  const handleSubmitReport = async () => {
     if (!newComments) {
       Alert.alert("Required", "Please provide details about the incident.");
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const newTicket: ReportRecord = {
+    try {
+      const payload = {
         report_id: `TKT-${Math.floor(10000 + Math.random() * 90000)}`,
-        trip_id: newTripId || "Manual Entry",
-        body_number: newBodyNumber || "Unknown",
+        user: user?.id,
+        trip: newTripId || null,
+        // 🚀 ADD THIS LINE: Send the manually typed body number if no trip ID exists
+        manual_body_number: newTripId ? null : newBodyNumber,
         violation_type: newViolation,
         passenger_comments: newComments,
-        status: "Pending",
-        filed_at: new Date().toISOString(),
       };
 
-      setReports([newTicket, ...reports]);
-      setIsSubmitting(false);
+      await api.post("/reports/submit/", payload);
+
+      fetchReports();
       setIsFormVisible(false);
       setNewComments("");
-
       router.setParams({ tripId: "", bodyNumber: "" });
 
       Alert.alert(
         "Report Submitted",
         "Your ticket has been forwarded to the Angeles City PTRO.",
       );
-    }, 1500);
+    } catch (error) {
+      console.warn("Submit Error:", error);
+      Alert.alert("Error", "Could not submit report. Please try again.");
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const renderTicketCard = ({ item }: { item: ReportRecord }) => (
@@ -211,6 +223,14 @@ const ReportScreen = () => {
         renderItem={renderTicketCard}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor="#D32F2F" // Matches your brand red
+            colors={["#D32F2F"]} // For Android
+          />
+        }
         ListEmptyComponent={() => (
           <View style={styles.emptyStateContainer}>
             <View style={styles.emptyStateIconCircle}>
@@ -277,7 +297,7 @@ const ReportScreen = () => {
                 ]}
               >
                 <Text style={styles.detailLabel}>EVIDENCE LEVEL</Text>
-                {selectedReport.trip_id !== "Manual Entry" ? (
+                {selectedReport.trip ? (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <MaterialIcons
                       name="verified-user"
