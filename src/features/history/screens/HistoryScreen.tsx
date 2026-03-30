@@ -1,11 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Modal,
+  RefreshControl,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -13,8 +15,12 @@ import {
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
+import { api } from "../../../services/api";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
+// 🚀 Define your Django Backend URL here (use your local IP for physical device testing)
+const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.x:8000/api";
 
 interface TripRecord {
   trip_id: string;
@@ -32,50 +38,59 @@ interface TripRecord {
   dest_coords: { latitude: number; longitude: number };
 }
 
-const MOCK_HISTORY: TripRecord[] = [
-  {
-    trip_id: "TRP-99281A",
-    body_number: "0406",
-    matrix_id: 1,
-    trip_mode: "DIRECT",
-    total_distance_km: 2.4,
-    computed_fare: 50.0,
-    discount_applied: 0.0,
-    status: "Completed",
-    timestamp: "2026-03-14T08:30:00Z",
-    origin_name: "SM City Clark",
-    destination_name: "Holy Angel University",
-    origin_coords: { latitude: 15.1749, longitude: 120.5791 },
-    dest_coords: { latitude: 15.1365, longitude: 120.5901 },
-  },
-  {
-    trip_id: "TRP-88172B",
-    body_number: "0888",
-    matrix_id: 1,
-    trip_mode: "SPECIAL",
-    total_distance_km: 4.1,
-    computed_fare: 80.0,
-    discount_applied: 16.0,
-    status: "Completed",
-    timestamp: "2026-03-12T17:15:00Z",
-    origin_name: "Nepo Mall",
-    destination_name: "City Savings Bank",
-    origin_coords: { latitude: 15.1384, longitude: 120.5898 },
-    dest_coords: { latitude: 15.1444, longitude: 120.5928 },
-  },
-];
-
 const HistoryScreen = () => {
   const router = useRouter();
+
+  // --- STATE MANAGEMENT ---
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
     "All",
   );
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
 
-  const filteredData = MOCK_HISTORY.filter(
+  // 🚀 New Async States
+  const [trips, setTrips] = useState<TripRecord[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- API FETCH LOGIC ---
+  const fetchTripHistory = async (isPullToRefresh = false) => {
+    try {
+      if (!isPullToRefresh) setIsLoading(true);
+      setError(null);
+
+      // 🚀 The interceptor in api.ts automatically attaches the "Bearer <token>" here!
+      const response = await api.get<TripRecord[]>("/trips/history/");
+
+      setTrips(response.data);
+    } catch (err) {
+      console.warn("API Error:", err);
+      setError(
+        "Could not connect to the server. Please check your connection.",
+      );
+    } finally {
+      setIsLoading(false);
+      setIsRefreshing(false);
+    }
+  };
+
+  // Run on mount
+  useEffect(() => {
+    fetchTripHistory();
+  }, []);
+
+  // Handle Pull-to-Refresh
+  const onRefresh = () => {
+    setIsRefreshing(true);
+    fetchTripHistory(true);
+  };
+
+  // --- DATA FILTERING ---
+  const filteredData = trips.filter(
     (trip) => filter === "All" || trip.status === filter,
   );
 
+  // --- UTILS ---
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleDateString("en-PH", {
       month: "short",
@@ -93,6 +108,7 @@ const HistoryScreen = () => {
     );
   };
 
+  // --- RENDERERS ---
   const renderTripCard = ({ item }: { item: TripRecord }) => (
     <TouchableOpacity
       style={styles.card}
@@ -172,10 +188,9 @@ const HistoryScreen = () => {
 
   return (
     <View style={styles.container}>
-      {/* 🚀 Changed back to Light because it sits on the Crimson Red background */}
       <StatusBar style="light" />
 
-      {/* 1. THE RED HEADER ANCHOR */}
+      {/* 1. BRAND RED HEADER */}
       <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Ride History</Text>
         <Text style={styles.headerSubtitle}>
@@ -183,7 +198,7 @@ const HistoryScreen = () => {
         </Text>
       </View>
 
-      {/* 2. THE OVERLAPPING FILTER PILL (Mirrors your Home Screen Search Bar) */}
+      {/* 2. OVERLAPPING FILTER PILL */}
       <View style={styles.filterWrapper}>
         {["All", "Completed", "Cancelled"].map((tab) => (
           <TouchableOpacity
@@ -204,14 +219,46 @@ const HistoryScreen = () => {
         ))}
       </View>
 
-      {/* 3. THE LIST */}
-      <FlatList
-        data={filteredData}
-        keyExtractor={(item) => item.trip_id}
-        renderItem={renderTripCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-      />
+      {/* 3. THE LIST WITH LOADING/ERROR STATES */}
+      {isLoading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#D32F2F" />
+          <Text style={styles.loadingText}>Fetching your rides...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <MaterialIcons name="wifi-off" size={48} color="#CBD5E1" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchTripHistory()}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <FlatList
+          data={filteredData}
+          keyExtractor={(item) => item.trip_id}
+          renderItem={renderTripCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor="#D32F2F"
+              colors={["#D32F2F"]}
+            />
+          }
+          ListEmptyComponent={
+            <View style={styles.centerContainer}>
+              <MaterialIcons name="history" size={48} color="#E2E8F0" />
+              <Text style={styles.emptyText}>No rides found.</Text>
+            </View>
+          }
+        />
+      )}
 
       {/* RECEIPT MODAL */}
       <Modal
@@ -390,7 +437,6 @@ const HistoryScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
-  // 1. BRAND RED HEADER
   redHeaderBackground: {
     backgroundColor: "#D32F2F",
     paddingTop: 65,
@@ -398,30 +444,29 @@ const styles = StyleSheet.create({
     paddingBottom: 45,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
-    alignItems: "center", // 🚀 THIS CENTERS EVERYTHING
+    alignItems: "center",
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: "900",
     color: "#FFFFFF",
     letterSpacing: -1,
-    textAlign: "center", // 🚀 Centers the text itself
+    textAlign: "center",
   },
   headerSubtitle: {
     fontSize: 15,
     color: "#FECACA",
     marginTop: 4,
-    textAlign: "center", // 🚀 Centers the subtitle
+    textAlign: "center",
   },
 
-  // 2. THE OVERLAPPING FILTER PILL
   filterWrapper: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
     marginHorizontal: 16,
-    marginTop: -28, // 🚀 Pulls the pill up so it rests on the red/gray border
+    marginTop: -28,
     borderRadius: 20,
-    padding: 6, // Inner padding for the tabs
+    padding: 6,
     elevation: 8,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 4 },
@@ -429,23 +474,54 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
   },
   filterTab: {
-    flex: 1, // Makes the 3 tabs spread evenly
+    flex: 1,
     paddingVertical: 12,
     borderRadius: 14,
     alignItems: "center",
   },
-  filterTabActive: {
-    backgroundColor: "#FFF1F2", // Soft pink/red background matching bottom navigation
-  },
+  filterTabActive: { backgroundColor: "#FFF1F2" },
   filterText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
-  filterTextActive: { color: "#D32F2F", fontWeight: "800" }, // Brand Red text
+  filterTextActive: { color: "#D32F2F", fontWeight: "800" },
 
-  // 3. THE LIST
-  listContent: {
-    paddingTop: 24, // Space between the filter pill and the first card
-    paddingHorizontal: 16,
-    paddingBottom: 100,
+  listContent: { paddingTop: 24, paddingHorizontal: 16, paddingBottom: 100 },
+
+  // 🚀 NEW: Styles for Loading and Errors
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
+    paddingHorizontal: 32,
   },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  errorText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  emptyText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: "#94A3B8",
+    fontWeight: "bold",
+  },
+  retryButton: {
+    marginTop: 24,
+    backgroundColor: "#FFF1F2",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE4E6",
+  },
+  retryButtonText: { color: "#D32F2F", fontWeight: "bold", fontSize: 14 },
 
   card: {
     backgroundColor: "#FFFFFF",
@@ -517,7 +593,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // --- MODAL STYLES (Kept identical to the premium tweaks) ---
   modalContainer: { flex: 1, backgroundColor: "#F8FAFC" },
   mapSection: { height: "35%", width: "100%", position: "relative" },
   mapBackButton: {

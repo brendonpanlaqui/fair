@@ -3,14 +3,14 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-    Alert,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const FAQS = [
@@ -83,7 +83,11 @@ export default function HelpSupportScreen() {
 
       {/* HEADER */}
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backBtn}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
           <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Help & Support</Text>
@@ -95,11 +99,12 @@ export default function HelpSupportScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* ========================================== */}
-        {/* SECTION 1: DISPUTE GUIDELINES (MERGED)     */}
+        {/* SECTION 1: DISPUTE GUIDELINES (UPDATED)    */}
         {/* ========================================== */}
         <Text style={styles.sectionTitle}>COMMUTER RIGHTS & DISPUTES</Text>
 
         <View style={styles.guidelinesContainer}>
+          {/* ORDINANCE 723 INTRO */}
           <View style={styles.introBanner}>
             <MaterialIcons
               name="shield"
@@ -110,45 +115,84 @@ export default function HelpSupportScreen() {
             <Text style={styles.introText}>
               Under{" "}
               <Text style={{ fontWeight: "bold" }}>Ordinance No. 723</Text>,
-              overcharging is punishable. Here is how to handle a dispute:
+              overcharging is punishable. Follow these safety guidelines if a
+              dispute occurs:
             </Text>
           </View>
 
+          {/* COLORUM WARNING (ORDINANCE 296) */}
+          <View style={styles.warningBanner}>
+            <MaterialIcons
+              name="warning"
+              size={20}
+              color="#B45309"
+              style={{ marginTop: 2 }}
+            />
+            <Text style={styles.warningText}>
+              <Text style={{ fontWeight: "900", color: "#92400E" }}>
+                Ordinance No. 296:{" "}
+              </Text>
+              Never ride tricycles without a visible Body Number ("Colorum").
+              Unregistered drivers cannot be tracked or penalized by the LGU.
+            </Text>
+          </View>
+
+          {/* STEP 1: HUMAN IN THE LOOP */}
           <View style={styles.stepCard}>
             <View style={styles.stepNumberCircle}>
               <Text style={styles.stepNumberText}>1</Text>
             </View>
             <View style={styles.stepTextContainer}>
-              <Text style={styles.stepTitle}>Note the Body Number</Text>
+              <Text style={styles.stepTitle}>Communicate First</Text>
               <Text style={styles.stepDescription}>
-                Memorize or photograph the tricycle's body number before
-                arguing.
+                Politely show the driver the Fair App's calculated GPS fare.
+                Many disputes are honest mistakes and can be resolved instantly.
               </Text>
             </View>
           </View>
 
+          {/* STEP 2: SAFETY & DE-ESCALATION */}
           <View style={styles.stepCard}>
             <View style={styles.stepNumberCircle}>
               <Text style={styles.stepNumberText}>2</Text>
             </View>
             <View style={styles.stepTextContainer}>
-              <Text style={styles.stepTitle}>Use the Report Tab</Text>
+              <Text style={styles.stepTitle}>Prioritize Safety</Text>
               <Text style={styles.stepDescription}>
-                Submit a digital ticket through the 'Report' tab for the LGU to
-                investigate.
+                If the driver becomes aggressive,{" "}
+                <Text style={{ fontWeight: "bold", color: "#0F172A" }}>
+                  do not argue
+                </Text>
+                . Pay the requested amount to avoid an altercation, but memorize
+                their Body Number.
+              </Text>
+            </View>
+          </View>
+
+          {/* STEP 3: AUDIT TRAIL */}
+          <View style={styles.stepCard}>
+            <View style={styles.stepNumberCircle}>
+              <Text style={styles.stepNumberText}>3</Text>
+            </View>
+            <View style={styles.stepTextContainer}>
+              <Text style={styles.stepTitle}>Submit Map-Trace Report</Text>
+              <Text style={styles.stepDescription}>
+                File a ticket in the Report tab. Complaints linked to an active
+                app trip provide a verifiable GPS map-trace, making it the
+                strongest evidence for LGU action.
               </Text>
             </View>
           </View>
 
           <TouchableOpacity
             style={styles.ptroButton}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
             onPress={handleCallPTRO}
           >
             <MaterialIcons
               name="call"
               size={18}
-              color="#C62828"
+              color="#D32F2F"
               style={{ marginRight: 8 }}
             />
             <Text style={styles.ptroButtonText}>Urgent? Call PTRO Hotline</Text>
@@ -180,7 +224,7 @@ export default function HelpSupportScreen() {
             onPress={handleEmailSupport}
           >
             <View
-              style={[styles.contactIconBg, { backgroundColor: "#F0F9FF" }]}
+              style={[styles.contactIconBg, { backgroundColor: "#E0F2FE" }]}
             >
               <MaterialIcons name="email" size={24} color="#0284C7" />
             </View>
@@ -292,11 +336,30 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFF1F2",
     padding: 16,
     borderRadius: 16,
-    marginBottom: 16,
+    marginBottom: 12,
     borderWidth: 1,
     borderColor: "#FECACA",
   },
   introText: { fontSize: 13, color: "#991B1B", lineHeight: 20 },
+
+  // NEW: Amber Warning Banner for Colorum
+  warningBanner: {
+    flexDirection: "row",
+    backgroundColor: "#FEF3C7", // Amber light
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+  },
+  warningText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#B45309",
+    marginLeft: 10,
+    lineHeight: 18,
+  },
+
   stepCard: {
     flexDirection: "row",
     backgroundColor: "#FFFFFF",
@@ -305,6 +368,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.03,
+    shadowRadius: 8,
   },
   stepNumberCircle: {
     width: 28,
@@ -321,21 +389,21 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "bold",
     color: "#0F172A",
-    marginBottom: 2,
+    marginBottom: 4,
   },
-  stepDescription: { fontSize: 12, color: "#64748B", lineHeight: 16 },
+  stepDescription: { fontSize: 12, color: "#64748B", lineHeight: 18 },
   ptroButton: {
     flexDirection: "row",
-    backgroundColor: "#FFFFFF",
+    backgroundColor: "#FFF1F2",
     paddingVertical: 14,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 1,
-    borderColor: "#FECACA",
+    borderColor: "#FFE4E6",
     marginTop: 8,
   },
-  ptroButtonText: { color: "#C62828", fontSize: 14, fontWeight: "bold" },
+  ptroButtonText: { color: "#D32F2F", fontSize: 14, fontWeight: "bold" },
 
   // Contact Cards
   contactRow: {
@@ -352,6 +420,11 @@ const styles = StyleSheet.create({
     marginHorizontal: 4,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
   },
   contactIconBg: {
     width: 44,
@@ -376,6 +449,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#E2E8F0",
     overflow: "hidden",
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
   },
   faqItem: { borderBottomWidth: 1, borderBottomColor: "#F1F5F9" },
   noBorder: { borderBottomWidth: 0 },
@@ -405,6 +483,11 @@ const styles = StyleSheet.create({
     padding: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.04,
+    shadowRadius: 8,
   },
   feedbackIconBg: {
     width: 44,

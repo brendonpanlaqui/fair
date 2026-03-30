@@ -67,10 +67,6 @@ const InitialLayout = () => {
           options={{ presentation: "modal", headerShown: false }}
         />
         <Stack.Screen name="ordinance" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="dispute-guidelines"
-          options={{ headerShown: false }}
-        />
         <Stack.Screen name="saved-places" options={{ headerShown: false }} />
         <Stack.Screen name="help-support" options={{ headerShown: false }} />
         <Stack.Screen name="give-feedback" options={{ headerShown: false }} />

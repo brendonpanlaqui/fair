@@ -1,12 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React from "react";
 import {
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const TripReceiptScreen = () => {
@@ -25,13 +26,14 @@ const TripReceiptScreen = () => {
   const time = (params.time as string) || "08:45 AM";
   const discountType = (params.discountType as string) || "Student"; // "Student", "Senior", "PWD", or "Regular"
   const bodyNumber = (params.bodyNumber as string) || "0406";
+  const tripId = (params.tripId as string) || "TRP-88172B";
 
   const handleReportDriver = () => {
     // Route to the Support Center and auto-fill the complaint form
     router.push({
       pathname: "/report",
       params: {
-        tripId: "TRP-RECEIPT",
+        tripId: tripId,
         bodyNumber: bodyNumber,
         violation: "Overcharging",
       },
@@ -40,123 +42,131 @@ const TripReceiptScreen = () => {
 
   return (
     <View style={styles.container}>
+      {/* Dark content because we are using a white background now */}
+      <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
+
+      {/* MINIMALIST HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.replace("/(tabs)")}
-          style={styles.backButton}
+          style={styles.closeButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
+          <MaterialIcons name="close" size={28} color="#0F172A" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Trip Receipt</Text>
-        <View style={{ width: 24 }} />
+        <Text style={styles.headerTitle}>Trip Complete</Text>
+        <View style={{ width: 28 }} />
       </View>
+
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.totalSection}>
-          <Text style={styles.totalLabel}>TOTAL PAYABLE</Text>
-          <Text style={styles.totalAmount}>PHP {totalFare.toFixed(2)}</Text>
-          <View style={styles.verifiedBadge}>
-            <MaterialIcons
-              name="verified"
-              size={14}
-              color="#10B981"
-              style={{ marginRight: 6 }}
-            />
-            <Text style={styles.verifiedBadgeText}>
-              Verified: Angeles City Ord. No. 723
-            </Text>
-          </View>
-        </View>
-        <View style={styles.breakdownRow}>
-          <View style={styles.breakdownCard}>
-            <View style={styles.iconCircleRed}>
-              <MaterialIcons name="moped" size={16} color="#E53935" />
+        {/* THE RECEIPT CARD */}
+        <View style={styles.receiptCard}>
+          {/* Top Section: The Total */}
+          <View style={styles.totalSection}>
+            <Text style={styles.totalLabel}>TOTAL PAYABLE</Text>
+            <View style={styles.priceRow}>
+              <Text style={styles.currencySymbol}>₱</Text>
+              <Text style={styles.totalAmount}>{totalFare.toFixed(2)}</Text>
             </View>
-            <Text style={styles.breakdownLabel}>BASE FARE</Text>
-            <Text style={styles.breakdownValue}>PHP {baseFare.toFixed(2)}</Text>
-          </View>
-          <View style={styles.breakdownCard}>
-            <View style={styles.iconCircleRed}>
-              <MaterialIcons name="add-road" size={16} color="#E53935" />
+
+            <View style={styles.verifiedBadge}>
+              <MaterialIcons
+                name="verified-user"
+                size={14}
+                color="#059669"
+                style={{ marginRight: 6 }}
+              />
+              <Text style={styles.verifiedBadgeText}>
+                Ordinance No. 723 Verified
+              </Text>
             </View>
-            <Text style={styles.breakdownLabel}>SUCCEEDING KM</Text>
-            <Text style={styles.breakdownValue}>
-              PHP {succeedingFare.toFixed(2)}
-            </Text>
           </View>
-        </View>
-        <View style={styles.detailsList}>
-          <View style={styles.detailRow}>
-            <View style={styles.detailRowLeft}>
-              <MaterialIcons name="location-on" size={18} color="#94A3B8" />
-              <Text style={styles.detailLabel}>Distance</Text>
-            </View>
-            <Text style={styles.detailValue}>{distance} km</Text>
+
+          {/* The "Tear" Separator */}
+          <View style={styles.tearLineContainer}>
+            <View style={styles.tearCutoutLeft} />
+            <View style={styles.tearDashLine} />
+            <View style={styles.tearCutoutRight} />
           </View>
-          <View style={styles.detailRow}>
-            <View style={styles.detailRowLeft}>
-              <MaterialIcons name="schedule" size={18} color="#94A3B8" />
-              <Text style={styles.detailLabel}>Duration</Text>
-            </View>
-            <Text style={styles.detailValue}>{duration}</Text>
-          </View>
-          <View style={styles.detailRow}>
-            <View style={styles.detailRowLeft}>
-              <MaterialIcons name="calendar-today" size={18} color="#94A3B8" />
-              <Text style={styles.detailLabel}>Date</Text>
-            </View>
-            <Text style={styles.detailValue}>{date}</Text>
-          </View>
-          <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
-            <View style={styles.detailRowLeft}>
-              <MaterialIcons name="access-time" size={18} color="#94A3B8" />
-              <Text style={styles.detailLabel}>Time</Text>
-            </View>
-            <Text style={styles.detailValue}>{time}</Text>
-          </View>
-        </View>
-        {discountType !== "Regular" && (
-          <View style={styles.discountBadge}>
-            <View style={styles.discountLeft}>
-              <View style={styles.idIconSquare}>
-                <MaterialIcons name="badge" size={24} color="#8B5CF6" />
-              </View>
-              <View>
-                <Text style={styles.discountTitle}>
-                  {discountType} Discount Applied
+
+          {/* Bottom Section: Breakdown & Details */}
+          <View style={styles.detailsSection}>
+            <View style={styles.breakdownRow}>
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>BASE FARE</Text>
+                <Text style={styles.breakdownValue}>
+                  ₱{baseFare.toFixed(2)}
                 </Text>
-                <Text style={styles.discountSubtext}>ID Verified via OCR</Text>
+              </View>
+              <View style={styles.verticalDivider} />
+              <View style={styles.breakdownItem}>
+                <Text style={styles.breakdownLabel}>SUCCEEDING KM</Text>
+                <Text style={styles.breakdownValue}>
+                  ₱{succeedingFare.toFixed(2)}
+                </Text>
               </View>
             </View>
-            <MaterialIcons name="check-circle" size={24} color="#10B981" />
+
+            {/* Discount Alert */}
+            {discountType !== "Regular" && (
+              <View style={styles.discountAlert}>
+                <MaterialIcons name="check-circle" size={18} color="#10B981" />
+                <Text style={styles.discountAlertText}>
+                  20% {discountType} Discount Applied
+                </Text>
+              </View>
+            )}
+
+            <View style={styles.metaDataList}>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Trip ID</Text>
+                <Text style={styles.metaValue}>{tripId}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Body Number</Text>
+                <Text style={styles.metaValueHighlight}>#{bodyNumber}</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Distance</Text>
+                <Text style={styles.metaValue}>{distance} km</Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Date & Time</Text>
+                <Text style={styles.metaValue}>
+                  {date} • {time}
+                </Text>
+              </View>
+            </View>
           </View>
-        )}
+        </View>
       </ScrollView>
+
+      {/* ACTIONS FOOTER */}
       <View style={styles.footer}>
-        <TouchableOpacity style={styles.saveBtn} activeOpacity={0.9}>
-          <MaterialIcons
-            name="save-alt"
-            size={20}
-            color="#FFFFFF"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.saveBtnText}>Save as Evidence</Text>
+        <TouchableOpacity
+          style={styles.primaryBtn}
+          activeOpacity={0.9}
+          onPress={() => router.replace("/(tabs)")}
+        >
+          <Text style={styles.primaryBtnText}>Done</Text>
         </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.reportBtn}
-          activeOpacity={0.9}
+          activeOpacity={0.8}
           onPress={handleReportDriver}
         >
           <MaterialIcons
-            name="warning"
-            size={20}
-            color="#9A3412"
+            name="gavel"
+            size={18}
+            color="#D32F2F"
             style={{ marginRight: 8 }}
           />
-          <Text style={styles.reportBtnText}>Report Driver</Text>
+          <Text style={styles.reportBtnText}>Dispute this Fare</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -164,154 +174,250 @@ const TripReceiptScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#FFFFFF" },
+  container: { flex: 1, backgroundColor: "#F8FAFC" },
+
+  // MINIMAL HEADER
   header: {
-    backgroundColor: "#E53935",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 50,
-    paddingBottom: 16,
-    paddingHorizontal: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
+    paddingTop: 60,
+    paddingBottom: 20,
+    paddingHorizontal: 24,
+    backgroundColor: "#F8FAFC",
   },
-  backButton: { padding: 4 },
-  headerTitle: { fontSize: 18, fontWeight: "bold", color: "#FFFFFF" },
+  closeButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+  },
+  headerTitle: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: 0.5,
+  },
 
-  scrollContent: { padding: 24, paddingBottom: 40 },
+  scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 10 },
 
-  // Total Section
-  totalSection: { alignItems: "center", marginBottom: 32 },
+  // RECEIPT CARD
+  receiptCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    elevation: 8,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
+    overflow: "hidden", // Important for the cutouts
+  },
+
+  // TOP SECTION
+  totalSection: {
+    padding: 32,
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
   totalLabel: {
     fontSize: 12,
-    fontWeight: "bold",
-    color: "#64748B",
-    letterSpacing: 1,
-    marginBottom: 4,
+    fontWeight: "900",
+    color: "#94A3B8",
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  priceRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  currencySymbol: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#D32F2F",
+    marginTop: 6,
+    marginRight: 4,
   },
   totalAmount: {
-    fontSize: 48,
+    fontSize: 56,
     fontWeight: "900",
-    color: "#B91C1C",
-    letterSpacing: -1.5,
-    marginBottom: 12,
+    color: "#D32F2F",
+    letterSpacing: -2,
   },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#ECFDF5",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
     borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
   },
   verifiedBadgeText: { color: "#059669", fontSize: 12, fontWeight: "bold" },
 
-  // Fare Breakdown Cards
+  // THE TEAR SEPARATOR (Ticket aesthetic)
+  tearLineContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    width: "100%",
+    height: 24,
+    backgroundColor: "#FFFFFF",
+    position: "relative",
+  },
+  tearCutoutLeft: {
+    position: "absolute",
+    left: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC", // Matches screen background
+  },
+  tearCutoutRight: {
+    position: "absolute",
+    right: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC", // Matches screen background
+  },
+  tearDashLine: {
+    flex: 1,
+    height: 1,
+    marginHorizontal: 16,
+    borderColor: "#E2E8F0",
+    borderWidth: 1,
+    borderStyle: "dashed",
+  },
+
+  // BOTTOM SECTION
+  detailsSection: {
+    padding: 24,
+    paddingTop: 16,
+    backgroundColor: "#FFFFFF",
+  },
   breakdownRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 24,
-  },
-  breakdownCard: {
-    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
     backgroundColor: "#F8FAFC",
     borderRadius: 16,
     padding: 16,
-    marginHorizontal: 4,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
   },
-  iconCircleRed: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: "#FEE2E2",
-    justifyContent: "center",
+  breakdownItem: {
+    flex: 1,
     alignItems: "center",
-    marginBottom: 12,
+  },
+  verticalDivider: {
+    width: 1,
+    height: 30,
+    backgroundColor: "#E2E8F0",
   },
   breakdownLabel: {
     fontSize: 10,
-    fontWeight: "bold",
+    fontWeight: "900",
     color: "#64748B",
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  breakdownValue: { fontSize: 18, fontWeight: "900", color: "#0F172A" },
+  breakdownValue: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
 
-  // Trip Details List
-  detailsList: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    paddingHorizontal: 16,
-    marginBottom: 24,
-  },
-  detailRow: {
+  discountAlert: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-  },
-  detailRowLeft: { flexDirection: "row", alignItems: "center" },
-  detailLabel: { fontSize: 14, color: "#64748B", marginLeft: 12 },
-  detailValue: { fontSize: 14, fontWeight: "bold", color: "#0F172A" },
-
-  // Discount Badge
-  discountBadge: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#F8FAFC",
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderStyle: "dashed",
-  },
-  discountLeft: { flexDirection: "row", alignItems: "center" },
-  idIconSquare: {
-    width: 40,
-    height: 40,
-    borderRadius: 8,
-    backgroundColor: "#EDE9FE",
     justifyContent: "center",
-    alignItems: "center",
-    marginRight: 12,
+    backgroundColor: "#ECFDF5",
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
   },
-  discountTitle: { fontSize: 13, fontWeight: "bold", color: "#0F172A" },
-  discountSubtext: { fontSize: 11, color: "#64748B", marginTop: 2 },
+  discountAlertText: {
+    marginLeft: 8,
+    color: "#059669",
+    fontSize: 13,
+    fontWeight: "bold",
+  },
 
-  // Footer Actions
+  metaDataList: {
+    gap: 16,
+  },
+  metaRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  metaLabel: {
+    fontSize: 13,
+    color: "#64748B",
+    fontWeight: "600",
+  },
+  metaValue: {
+    fontSize: 13,
+    fontWeight: "bold",
+    color: "#0F172A",
+  },
+  metaValueHighlight: {
+    fontSize: 14,
+    fontWeight: "900",
+    color: "#0F172A",
+  },
+
+  // FOOTER ACTIONS
   footer: {
     padding: 24,
-    paddingBottom: 36,
-    backgroundColor: "#FFFFFF",
-    borderTopWidth: 1,
-    borderTopColor: "#F1F5F9",
+    paddingBottom: 40,
+    backgroundColor: "#F8FAFC",
   },
-  saveBtn: {
-    flexDirection: "row",
+  primaryBtn: {
+    backgroundColor: "#0F172A",
+    height: 56,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#B91C1C",
-    height: 56,
-    borderRadius: 12,
     marginBottom: 12,
-    elevation: 2,
+    elevation: 4,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
   },
-  saveBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
+  primaryBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
   reportBtn: {
     flexDirection: "row",
+    backgroundColor: "#FFF1F2",
+    height: 56,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#FEF08A",
-    height: 56,
-    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE4E6",
   },
-  reportBtnText: { color: "#9A3412", fontSize: 16, fontWeight: "bold" },
+  reportBtnText: {
+    color: "#D32F2F",
+    fontSize: 15,
+    fontWeight: "bold",
+  },
 });
 
 export default TripReceiptScreen;

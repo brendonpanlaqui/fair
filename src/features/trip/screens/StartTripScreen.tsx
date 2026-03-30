@@ -1,8 +1,6 @@
-import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
-import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useCameraPermissions } from "expo-camera";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
   ActivityIndicator,
@@ -17,10 +15,12 @@ import {
 } from "react-native";
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 
+import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
+import { isWithinAngelesCity } from "@/src/utils/geofencing";
+import { useCameraPermissions } from "expo-camera";
 import { useTripSetup } from "../hooks/useTripSetup";
 
-// ✨ SETUP FOLDER IMPORTS
-import { MapPickerModal } from "../components/setup/MapPickerModal"; // <-- ADDED THIS
+import { MapPickerModal } from "../components/setup/MapPickerModal";
 import { OCRScannerModal } from "../components/setup/OCRScannerModal";
 import { RouteTimeline } from "../components/setup/RouteTimeline";
 
@@ -59,18 +59,15 @@ const StartTripScreen: React.FC = () => {
     destLng,
   );
 
-  // --- MODAL STATES ---
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
   const [searchTarget, setSearchTarget] = useState<"stopover" | "destination">(
     "destination",
   );
-  const [isMapPickerVisible, setIsMapPickerVisible] = useState(false); // <-- ADDED THIS
+  const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
-  // --- FORM STATES ---
   const [bodyNumber, setBodyNumber] = useState<string>("");
   const [plateNumber, setPlateNumber] = useState<string>("");
 
-  // --- CAMERA STATES ---
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isScanningOCR, setIsScanningOCR] = useState(false);
@@ -115,14 +112,15 @@ const StartTripScreen: React.FC = () => {
   };
 
   const renderSubmitButton = () => {
-    if (isCalculating)
+    if (isCalculating) {
       return (
         <View style={[styles.submitButton, { backgroundColor: "#94A3B8" }]}>
           <ActivityIndicator color="#FFFFFF" style={{ marginRight: 8 }} />
           <Text style={styles.submitButtonText}>CALCULATING ROUTE...</Text>
         </View>
       );
-    if (!finalDest || !calculatedFare)
+    }
+    if (!finalDest || !calculatedFare) {
       return (
         <TouchableOpacity
           style={[styles.submitButton, { backgroundColor: "#94A3B8" }]}
@@ -141,7 +139,8 @@ const StartTripScreen: React.FC = () => {
           <Text style={styles.submitButtonText}>SELECT DESTINATION FIRST</Text>
         </TouchableOpacity>
       );
-    if (!bodyNumber)
+    }
+    if (!bodyNumber) {
       return (
         <View style={[styles.submitButton, { backgroundColor: "#94A3B8" }]}>
           <MaterialIcons
@@ -153,6 +152,7 @@ const StartTripScreen: React.FC = () => {
           <Text style={styles.submitButtonText}>BODY NUMBER REQUIRED</Text>
         </View>
       );
+    }
 
     return (
       <TouchableOpacity
@@ -175,17 +175,19 @@ const StartTripScreen: React.FC = () => {
 
   return (
     <View style={styles.container}>
+      <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
           style={styles.backButton}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <MaterialIcons name="arrow-back" size={28} color="#FFFFFF" />
+          <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Trip Setup</Text>
-        <View style={{ width: 28 }} />
+        <View style={{ width: 24 }} />
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
@@ -202,7 +204,6 @@ const StartTripScreen: React.FC = () => {
           }}
           onRemoveStopover={removeStopover}
         />
-
         <Text style={styles.sectionLabel}>TRICYCLE VERIFICATION</Text>
         <View style={styles.verificationContainer}>
           <TouchableOpacity
@@ -213,8 +214,8 @@ const StartTripScreen: React.FC = () => {
             <View style={styles.cameraIconWrapper}>
               <MaterialIcons
                 name="document-scanner"
-                size={32}
-                color="#E53935"
+                size={28}
+                color="#D32F2F"
               />
             </View>
             <Text style={styles.cameraText}>Scan Painted Body Number</Text>
@@ -225,19 +226,27 @@ const StartTripScreen: React.FC = () => {
 
           <View style={styles.formGroup}>
             <Text style={styles.inputLabel}>BODY NUMBER (REQUIRED)</Text>
-            <TextInput
-              style={[
-                styles.input,
-                {
-                  borderColor: bodyNumber ? "#10B981" : "#E53935",
-                  borderWidth: 1,
-                },
-              ]}
-              placeholder="e.g. 0406"
-              keyboardType="number-pad"
-              value={bodyNumber}
-              onChangeText={setBodyNumber}
-            />
+            <View style={styles.inputWrapper}>
+              <TextInput
+                style={[
+                  styles.input,
+                  bodyNumber.length > 0 ? styles.inputSuccess : null,
+                ]}
+                placeholder="e.g. 0406"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                value={bodyNumber}
+                onChangeText={setBodyNumber}
+              />
+              {bodyNumber.length > 0 ? (
+                <MaterialIcons
+                  name="check-circle"
+                  size={20}
+                  color="#10B981"
+                  style={styles.inputIconRight}
+                />
+              ) : null}
+            </View>
           </View>
 
           <View style={styles.formGroup}>
@@ -245,26 +254,25 @@ const StartTripScreen: React.FC = () => {
             <TextInput
               style={styles.input}
               placeholder="e.g. ABC 1234"
+              placeholderTextColor="#94A3B8"
               autoCapitalize="characters"
               value={plateNumber}
               onChangeText={setPlateNumber}
             />
           </View>
         </View>
-        <View style={{ height: 100 }} />
+        <View style={{ height: 140 }} />
       </ScrollView>
 
       <View style={styles.bottomFooter}>{renderSubmitButton()}</View>
 
-      {/* 📍 NEW MAP PICKER MODAL */}
       <MapPickerModal
         visible={isMapPickerVisible}
         target={searchTarget}
-        initialLat={originLat}
-        initialLng={originLng}
+        initialLat={currentLocation?.latitude || originLat}
+        initialLng={currentLocation?.longitude || originLng}
         onClose={() => setIsMapPickerVisible(false)}
         onConfirm={(lat: number, lng: number, addressName: string) => {
-          // <-- Explicit types fixed your TS errors!
           if (searchTarget === "stopover") {
             setStopovers((prev) => [
               ...prev,
@@ -283,7 +291,6 @@ const StartTripScreen: React.FC = () => {
         }}
       />
 
-      {/* EXISTING CAMERA MODAL */}
       <OCRScannerModal
         visible={isCameraVisible}
         isScanning={isScanningOCR}
@@ -291,7 +298,6 @@ const StartTripScreen: React.FC = () => {
         onScan={simulateOCRScan}
       />
 
-      {/* EXISTING GOOGLE PLACES MODAL */}
       <Modal
         visible={isSearchModalVisible}
         animationType="slide"
@@ -302,46 +308,19 @@ const StartTripScreen: React.FC = () => {
             <TouchableOpacity
               onPress={() => setIsSearchModalVisible(false)}
               style={styles.modalCloseButton}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <MaterialIcons name="close" size={28} color="#0F172A" />
+              <MaterialIcons name="close" size={24} color="#0F172A" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>
               {searchTarget === "stopover"
                 ? "Search Stopover"
                 : "Search Destination"}
             </Text>
-            <View style={{ width: 28 }} />
+            <View style={{ width: 24 }} />
           </View>
-          <View style={styles.modalSearchArea}>
-            {/* ✨ NEW CHOOSE ON MAP BUTTON */}
-            <TouchableOpacity
-              style={styles.chooseOnMapBtn}
-              activeOpacity={0.8}
-              onPress={() => {
-                setIsSearchModalVisible(false);
-                setTimeout(() => setIsMapPickerVisible(true), 300);
-              }}
-            >
-              <MaterialIcons
-                name="map"
-                size={24}
-                color="#3B82F6"
-                style={{ marginRight: 12 }}
-              />
-              <View>
-                <Text style={styles.chooseOnMapTitle}>Choose on Map</Text>
-                <Text style={styles.chooseOnMapSubtext}>
-                  Pinpoint your exact location
-                </Text>
-              </View>
-              <MaterialIcons
-                name="chevron-right"
-                size={24}
-                color="#CBD5E1"
-                style={{ marginLeft: "auto" }}
-              />
-            </TouchableOpacity>
 
+          <View style={styles.modalSearchArea}>
             <GooglePlacesAutocomplete
               placeholder={
                 searchTarget === "stopover"
@@ -349,6 +328,9 @@ const StartTripScreen: React.FC = () => {
                   : "Where are you heading?"
               }
               fetchDetails={true}
+              enablePoweredByContainer={false}
+              debounce={400}
+              minLength={2}
               onPress={(data, details = null) => {
                 if (details) {
                   const lat = details.geometry.location.lat;
@@ -360,7 +342,6 @@ const StartTripScreen: React.FC = () => {
                     );
                     return;
                   }
-
                   if (searchTarget === "stopover") {
                     setStopovers((prev) => [
                       ...prev,
@@ -390,30 +371,91 @@ const StartTripScreen: React.FC = () => {
                 radius: "8000",
                 strictbounds: true,
               }}
+              renderRow={(rowData) => {
+                const title = rowData.structured_formatting.main_text;
+                const subtitle = rowData.structured_formatting.secondary_text;
+                return (
+                  <View style={styles.customRow}>
+                    <View style={styles.rowIconContainer}>
+                      <MaterialIcons
+                        name="location-on"
+                        size={20}
+                        color="#94A3B8"
+                      />
+                    </View>
+                    <View style={styles.rowTextContainer}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {title}
+                      </Text>
+                      <Text style={styles.rowSubtitle} numberOfLines={1}>
+                        {subtitle || "Angeles City, Pampanga"}
+                      </Text>
+                    </View>
+                  </View>
+                );
+              }}
+              // @ts-ignore
+              ListHeaderComponent={() => (
+                <TouchableOpacity
+                  style={styles.chooseOnMapBtn}
+                  activeOpacity={0.8}
+                  onPress={() => {
+                    setIsSearchModalVisible(false);
+                    setTimeout(() => setIsMapPickerVisible(true), 300);
+                  }}
+                >
+                  <View style={styles.chooseOnMapIconBg}>
+                    <MaterialIcons name="place" size={20} color="#D32F2F" />
+                  </View>
+                  <View>
+                    <Text style={styles.chooseOnMapTitle}>Choose on Map</Text>
+                    <Text style={styles.chooseOnMapSubtext}>
+                      Pinpoint your exact location
+                    </Text>
+                  </View>
+                  <MaterialIcons
+                    name="chevron-right"
+                    size={24}
+                    color="#CBD5E1"
+                    style={{ marginLeft: "auto" }}
+                  />
+                </TouchableOpacity>
+              )}
               styles={{
                 container: { flex: 1 },
                 textInputContainer: {
-                  backgroundColor: "#F1F5F9",
-                  borderRadius: 12,
-                  paddingHorizontal: 8,
-                  paddingVertical: 4,
-                  marginBottom: 12,
+                  backgroundColor: "#F8FAFC",
+                  borderRadius: 16,
+                  paddingHorizontal: 12,
+                  marginBottom: 16,
+                  borderWidth: 1,
+                  borderColor: "#E2E8F0",
+                  flexDirection: "row",
+                  alignItems: "center",
                 },
                 textInput: {
-                  height: 48,
+                  height: 52,
                   color: "#0F172A",
                   fontSize: 16,
                   backgroundColor: "transparent",
+                  margin: 0,
+                  padding: 0,
                 },
-                predefinedPlacesDescription: { color: "#1faadb" },
-                row: {
-                  padding: 16,
-                  borderBottomWidth: 1,
-                  borderBottomColor: "#E2E8F0",
-                },
-                description: { fontSize: 15, color: "#334155" },
+                row: { padding: 0 },
+                separator: { height: 1, backgroundColor: "#F1F5F9" },
               }}
-              textInputProps={{ autoFocus: true }}
+              textInputProps={{
+                autoFocus: true,
+                placeholderTextColor: "#94A3B8",
+              }}
+              renderLeftButton={() => (
+                <MaterialIcons
+                  name="search"
+                  size={22}
+                  color="#94A3B8"
+                  style={{ marginRight: 8 }}
+                />
+              )}
             />
           </View>
         </View>
@@ -423,46 +465,56 @@ const StartTripScreen: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  // Keeping your existing styles
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   header: {
-    backgroundColor: "#E53935",
+    backgroundColor: "#F8FAFC",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingTop: 45,
-    paddingBottom: 15,
-    paddingHorizontal: 16,
+    paddingTop: 60,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
   },
-  backButton: { padding: 4 },
-  headerTitle: { color: "#FFFFFF", fontSize: 18, fontWeight: "bold" },
+  backButton: { padding: 4, marginLeft: -4 },
+  headerTitle: {
+    color: "#0F172A",
+    fontSize: 18,
+    fontWeight: "900",
+    letterSpacing: -0.5,
+  },
   content: { flex: 1, padding: 20 },
   sectionLabel: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#475569",
-    letterSpacing: 1,
+    fontSize: 11,
+    fontWeight: "900",
+    color: "#94A3B8",
+    letterSpacing: 1.5,
     marginBottom: 12,
     marginLeft: 4,
     marginTop: 8,
   },
   verificationContainer: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 20,
     marginBottom: 16,
-    elevation: 2,
+    elevation: 4,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
     borderWidth: 1,
-    borderColor: "#F1F5F9",
+    borderColor: "#F8FAFC",
   },
   cameraBox: {
-    backgroundColor: "#FEF2F2",
-    borderRadius: 12,
+    backgroundColor: "#FFF1F2",
+    borderRadius: 16,
     paddingVertical: 24,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#FCA5A5",
+    borderColor: "#FECACA",
     borderStyle: "dashed",
     marginBottom: 24,
   },
@@ -475,89 +527,144 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 12,
     elevation: 2,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  cameraText: { color: "#D32F2F", fontSize: 14, fontWeight: "bold" },
+  cameraText: { color: "#D32F2F", fontSize: 15, fontWeight: "900" },
   cameraSubtext: {
-    color: "#EF4444",
-    fontSize: 11,
+    color: "#94A3B8",
+    fontSize: 12,
+    fontWeight: "600",
     marginTop: 4,
     textAlign: "center",
     paddingHorizontal: 20,
   },
-  formGroup: { marginBottom: 16 },
+  formGroup: { marginBottom: 20 },
   inputLabel: {
-    fontSize: 11,
-    fontWeight: "bold",
+    fontSize: 10,
+    fontWeight: "900",
     color: "#94A3B8",
-    marginBottom: 6,
-    letterSpacing: 0.5,
+    marginBottom: 8,
+    letterSpacing: 1,
   },
+  inputWrapper: { position: "relative", justifyContent: "center" },
   input: {
     backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
-    borderRadius: 8,
+    borderRadius: 16,
     paddingHorizontal: 16,
-    height: 48,
-    fontSize: 15,
+    height: 56,
+    fontSize: 16,
+    fontWeight: "700",
     color: "#0F172A",
   },
+  inputSuccess: { borderColor: "#10B981", backgroundColor: "#FFFFFF" },
+  inputIconRight: { position: "absolute", right: 16 },
   bottomFooter: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: "#FFFFFF",
-    padding: 20,
+    paddingTop: 16,
+    paddingHorizontal: 20,
+    paddingBottom: 36,
     borderTopWidth: 1,
-    borderTopColor: "#E2E8F0",
-    elevation: 10,
+    borderTopColor: "#F1F5F9",
+    elevation: 16,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
   },
   submitButton: {
-    backgroundColor: "#E53935",
+    backgroundColor: "#D32F2F",
     flexDirection: "row",
-    borderRadius: 12,
-    height: 56,
+    borderRadius: 16,
+    height: 60,
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
   },
   submitButtonText: {
     color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
+    fontSize: 15,
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
-
-  // Modal Styles
   modalContainer: { flex: 1, backgroundColor: "#FFFFFF" },
   modalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 45,
-    paddingBottom: 12,
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: "#E2E8F0",
+    borderBottomColor: "#F1F5F9",
   },
-  modalCloseButton: { padding: 4 },
-  modalTitle: { fontSize: 18, fontWeight: "bold", color: "#0F172A" },
-  modalSearchArea: { flex: 1, padding: 16 },
-
-  // ✨ NEW: Choose on Map Button Styles
+  modalCloseButton: { padding: 4, marginLeft: -4 },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#0F172A",
+    letterSpacing: -0.5,
+  },
+  modalSearchArea: { flex: 1, padding: 20 },
+  customRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+  },
+  rowIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#F8FAFC",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  rowTextContainer: { flex: 1, justifyContent: "center" },
+  rowTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#0F172A",
+    marginBottom: 2,
+  },
+  rowSubtitle: { fontSize: 13, color: "#64748B", fontWeight: "500" },
   chooseOnMapBtn: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#EFF6FF",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: "#BFDBFE",
+    backgroundColor: "#FFFFFF",
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    marginBottom: 8,
   },
-  chooseOnMapTitle: { fontSize: 15, fontWeight: "bold", color: "#1E3A8A" },
-  chooseOnMapSubtext: { fontSize: 12, color: "#3B82F6", marginTop: 2 },
+  chooseOnMapIconBg: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "#FFF1F2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 14,
+  },
+  chooseOnMapTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#D32F2F",
+    marginBottom: 2,
+  },
+  chooseOnMapSubtext: { fontSize: 13, color: "#64748B", fontWeight: "500" },
 });
 
 export default StartTripScreen;
