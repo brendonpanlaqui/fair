@@ -1,6 +1,13 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import React from "react";
-import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useState } from "react";
+import {
+  Modal,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 interface Props {
   estimatedMinutes: number;
@@ -14,163 +21,296 @@ export const ActiveTripDashboard = ({
   lockedDistance,
   onSecretTrigger,
   onEndTrip,
-}: Props) => (
-  <View style={styles.bottomSheet}>
-    <View style={styles.dragHandle} />
+}: Props) => {
+  // 🚀 Custom Modal State
+  const [showEndModal, setShowEndModal] = useState(false);
 
-    <View style={styles.statusRow}>
-      <TouchableOpacity
-        style={styles.onRouteBadge}
-        activeOpacity={1}
-        onPress={onSecretTrigger}
+  const confirmEndTrip = () => {
+    setShowEndModal(false);
+    onEndTrip();
+  };
+
+  return (
+    <>
+      <View style={styles.bottomSheet}>
+        <View style={styles.dragHandle} />
+
+        <View style={styles.statusRow}>
+          {/* 🚀 Restored to "ON ROUTE" to indicate compliance with the GPS path */}
+          <TouchableOpacity
+            style={styles.onRouteBadge}
+            activeOpacity={0.9}
+            onPress={onSecretTrigger}
+          >
+            <MaterialIcons
+              name="alt-route"
+              size={14}
+              color="#10B981"
+              style={{ marginRight: 6 }}
+            />
+            <Text style={styles.onRouteText}>ON ROUTE</Text>
+          </TouchableOpacity>
+
+          <Text style={styles.updatedText}>GPS Active</Text>
+        </View>
+
+        <View style={styles.metricsGrid}>
+          <View style={styles.metricCard}>
+            <View style={styles.metricHeader}>
+              <MaterialIcons name="schedule" size={16} color="#64748B" />
+              <Text style={styles.metricLabel}>EST. ARRIVAL</Text>
+            </View>
+            <View style={styles.metricValueRow}>
+              <Text style={styles.metricValue}>{estimatedMinutes}</Text>
+              <Text style={styles.metricUnit}>min</Text>
+            </View>
+          </View>
+
+          <View style={styles.metricCard}>
+            <View style={styles.metricHeader}>
+              <MaterialIcons name="place" size={16} color="#64748B" />
+              <Text style={styles.metricLabel}>DISTANCE</Text>
+            </View>
+            <View style={styles.metricValueRow}>
+              <Text style={styles.metricValue}>
+                {lockedDistance.toFixed(1)}
+              </Text>
+              <Text style={styles.metricUnit}>km</Text>
+            </View>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.endTripButton}
+          activeOpacity={0.9}
+          onPress={() => setShowEndModal(true)}
+        >
+          <MaterialIcons
+            name="stop-circle"
+            size={24}
+            color="#FFFFFF"
+            style={{ marginRight: 8 }}
+          />
+          <Text style={styles.endTripText}>End Trip Now</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* 🚀 PREMIUM CONFIRMATION MODAL */}
+      <Modal
+        visible={showEndModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowEndModal(false)}
       >
-        <MaterialIcons
-          name="check-circle"
-          size={14}
-          color="#16A34A"
-          style={{ marginRight: 4 }}
-        />
-        <Text style={styles.onRouteText}>ON ROUTE</Text>
-      </TouchableOpacity>
-      <Text style={styles.updatedText}>Updated just now</Text>
-    </View>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalIconContainer}>
+              <View style={styles.modalIconBg}>
+                <MaterialIcons name="location-on" size={32} color="#D32F2F" />
+              </View>
+            </View>
 
-    <View style={styles.metricsGrid}>
-      <View style={styles.metricCard}>
-        <View style={styles.metricHeader}>
-          <MaterialIcons name="schedule" size={16} color="#64748B" />
-          <Text style={styles.metricLabel}>EST. ARRIVAL</Text>
-        </View>
-        <View style={styles.metricValueRow}>
-          <Text style={styles.metricValue}>{estimatedMinutes}</Text>
-          <Text style={styles.metricUnit}>min</Text>
-        </View>
-      </View>
+            <Text style={styles.modalTitle}>End this trip?</Text>
+            <Text style={styles.modalSubtitle}>
+              Are you sure you have arrived at your destination? Your final fare
+              and map-trace will be locked.
+            </Text>
 
-      <View style={styles.metricCard}>
-        <View style={styles.metricHeader}>
-          <MaterialIcons name="place" size={16} color="#64748B" />
-          <Text style={styles.metricLabel}>DISTANCE</Text>
-        </View>
-        <View style={styles.metricValueRow}>
-          <Text style={styles.metricValue}>{lockedDistance.toFixed(1)}</Text>
-          <Text style={styles.metricUnit}>km</Text>
-        </View>
-      </View>
-    </View>
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.confirmBtn}
+                activeOpacity={0.9}
+                onPress={confirmEndTrip}
+              >
+                <Text style={styles.confirmBtnText}>Yes, End Trip</Text>
+              </TouchableOpacity>
 
-    <TouchableOpacity
-      style={styles.slideButtonContainer}
-      activeOpacity={0.9}
-      onPress={onEndTrip}
-    >
-      <View style={styles.slideButtonTrack}>
-        <View style={styles.slideButtonThumb}>
-          <MaterialIcons name="stop" size={24} color="#DC2626" />
+              <TouchableOpacity
+                style={styles.cancelBtn}
+                activeOpacity={0.7}
+                onPress={() => setShowEndModal(false)}
+              >
+                <Text style={styles.cancelBtnText}>Keep Riding</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-        <Text style={styles.slideButtonText}>Slide to End Trip</Text>
-        <MaterialIcons
-          name="keyboard-arrow-right"
-          size={24}
-          color="#FFFFFF"
-          style={{ opacity: 0.5, marginRight: 16 }}
-        />
-      </View>
-    </TouchableOpacity>
-  </View>
-);
+      </Modal>
+    </>
+  );
+};
 
 const styles = StyleSheet.create({
+  // --- EXISTING DASHBOARD STYLES ---
   bottomSheet: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
-    elevation: 16,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    elevation: 24,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: -8 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
   },
   dragHandle: {
-    width: 40,
-    height: 4,
+    width: 48,
+    height: 6,
     backgroundColor: "#E2E8F0",
-    borderRadius: 2,
+    borderRadius: 3,
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   statusRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 20,
+    marginBottom: 24,
   },
   onRouteBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#DCFCE7",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
+    backgroundColor: "#F0FDF4",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
   },
   onRouteText: {
-    color: "#16A34A",
+    color: "#059669",
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
-  updatedText: { color: "#94A3B8", fontSize: 12 },
-  metricsGrid: { flexDirection: "row", gap: 12, marginBottom: 24 },
+  updatedText: { color: "#94A3B8", fontSize: 12, fontWeight: "600" },
+  metricsGrid: { flexDirection: "row", gap: 16, marginBottom: 24 },
   metricCard: {
     flex: 1,
     backgroundColor: "#F8FAFC",
-    borderRadius: 16,
+    borderRadius: 20,
     padding: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
   },
   metricHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
   metricLabel: {
     color: "#64748B",
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: "900",
     marginLeft: 6,
     letterSpacing: 0.5,
   },
   metricValueRow: { flexDirection: "row", alignItems: "baseline" },
-  metricValue: { color: "#0F172A", fontSize: 24, fontWeight: "900" },
+  metricValue: {
+    color: "#0F172A",
+    fontSize: 32,
+    fontWeight: "900",
+    letterSpacing: -1,
+  },
   metricUnit: {
     color: "#64748B",
     fontSize: 14,
-    fontWeight: "600",
+    fontWeight: "700",
     marginLeft: 4,
   },
-  slideButtonContainer: {
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: "#DC2626",
-    overflow: "hidden",
-    elevation: 4,
-  },
-  slideButtonTrack: {
-    flex: 1,
+  endTripButton: {
     flexDirection: "row",
+    height: 60,
+    borderRadius: 20,
+    backgroundColor: "#D32F2F", // Brand Crimson
+    justifyContent: "center",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: 4,
+    elevation: 4,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
   },
-  slideButtonThumb: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
+  endTripText: {
+    color: "#FFFFFF",
+    fontSize: 17,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+
+  // --- NEW CUSTOM MODAL STYLES ---
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)", // Dark slate blur
+    justifyContent: "flex-end",
+  },
+  modalContent: {
     backgroundColor: "#FFFFFF",
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
+    padding: 24,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
+    alignItems: "center",
+  },
+  modalIconContainer: {
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  modalIconBg: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "#FEF2F2",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#0F172A",
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    fontWeight: "500",
+    lineHeight: 22,
+    paddingHorizontal: 16,
+    marginBottom: 32,
+  },
+  modalActions: {
+    width: "100%",
+    gap: 12,
+  },
+  confirmBtn: {
+    height: 56,
+    backgroundColor: "#D32F2F",
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
     elevation: 2,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  slideButtonText: {
+  confirmBtnText: {
     color: "#FFFFFF",
     fontSize: 16,
     fontWeight: "bold",
-    marginLeft: 16,
+  },
+  cancelBtn: {
+    height: 56,
+    backgroundColor: "#F1F5F9",
+    borderRadius: 16,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  cancelBtnText: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

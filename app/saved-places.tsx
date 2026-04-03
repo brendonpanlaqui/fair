@@ -1,63 +1,120 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import {
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
-// Mock data: In a real app, this would come from your Django backend or local SQLite
-const SAVED_PLACES = [
-  {
-    id: "1",
-    type: "home",
-    title: "Home",
-    address: "123 Main St, Balibago, Angeles City",
-    icon: "home",
-    color: "#0284C7",
-    bg: "#E0F2FE",
-  },
-  {
-    id: "2",
-    type: "school",
-    title: "CCA Campus",
-    address: "City College of Angeles, Pampanga",
-    icon: "school",
-    color: "#D32F2F",
-    bg: "#FFF1F2",
-  },
-  {
-    id: "3",
-    type: "place",
-    title: "Nepo Mall",
-    address: "St. Joseph St, Angeles City",
-    icon: "storefront",
-    color: "#D97706",
-    bg: "#FEF3C7",
-  },
-];
+import { MapPickerModal } from "@/src/features/trip/components/setup/MapPickerModal";
+import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
+
+const STORAGE_KEY = "@fair_saved_places";
+
+interface SavedPlace {
+  id: string;
+  title: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  icon: string;
+  color: string;
+  bg: string;
+}
 
 export default function SavedPlacesScreen() {
   const router = useRouter();
+  const { currentLocation } = useLocationTracking();
 
-  const handleAddNew = () => {
-    Alert.alert(
-      "Add New Place",
-      "This will open a map picker to pin your new saved location.",
-    );
+  const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
+  const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
+
+  // 🚀 NEW STATES FOR ANDROID-COMPATIBLE PROMPT
+  const [isNamePromptVisible, setIsNamePromptVisible] = useState(false);
+  const [customName, setCustomName] = useState("");
+  const [pendingPlace, setPendingPlace] = useState<{
+    lat: number;
+    lng: number;
+    address: string;
+  } | null>(null);
+
+  useEffect(() => {
+    loadSavedPlaces();
+  }, []);
+
+  const loadSavedPlaces = async () => {
+    try {
+      const storedPlaces = await AsyncStorage.getItem(STORAGE_KEY);
+      if (storedPlaces) {
+        setSavedPlaces(JSON.parse(storedPlaces));
+      }
+    } catch (error) {
+      console.error("Failed to load saved places", error);
+    }
   };
 
-  const handleEditPlace = (title: string) => {
-    Alert.alert("Manage Location", `What would you like to do with ${title}?`, [
-      { text: "Edit Address", onPress: () => {} },
-      { text: "Delete", style: "destructive", onPress: () => {} },
-      { text: "Cancel", style: "cancel" },
-    ]);
+  const savePlacesToStorage = async (newPlaces: SavedPlace[]) => {
+    try {
+      setSavedPlaces(newPlaces);
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newPlaces));
+    } catch (error) {
+      console.error("Failed to save place", error);
+    }
+  };
+
+  const handleAddNew = () => {
+    setIsMapPickerVisible(true);
+  };
+
+  // 🚀 STEP 1: Map confirm opens the custom naming modal instead of Alert.prompt
+  const handleMapConfirm = (lat: number, lng: number, addressName: string) => {
+    setIsMapPickerVisible(false);
+
+    // Suggest a default name based on the street/building
+    const defaultName = addressName.split(",")[0];
+    setCustomName(defaultName);
+
+    setPendingPlace({ lat, lng, address: addressName });
+
+    // Add a slight delay so the map modal closes smoothly before this one opens
+    setTimeout(() => {
+      setIsNamePromptVisible(true);
+    }, 400);
+  };
+
+  // 🚀 STEP 2: Actually save the place when they click "Save" in our custom modal
+  const handleSaveCustomName = () => {
+    if (!pendingPlace) return;
+
+    const newPlace: SavedPlace = {
+      id: Date.now().toString(),
+      title: customName.trim() || pendingPlace.address.split(",")[0],
+      address: pendingPlace.address,
+      latitude: pendingPlace.lat,
+      longitude: pendingPlace.lng,
+      icon: "place",
+      color: "#D32F2F",
+      bg: "#FFF1F2",
+    };
+
+    savePlacesToStorage([...savedPlaces, newPlace]);
+
+    // Clean up
+    setIsNamePromptVisible(false);
+    setPendingPlace(null);
+    setCustomName("");
+  };
+
+  const handleDeletePlace = (id: string) => {
+    const filteredPlaces = savedPlaces.filter((p) => p.id !== id);
+    savePlacesToStorage(filteredPlaces);
   };
 
   return (
@@ -98,47 +155,107 @@ export default function SavedPlacesScreen() {
 
         {/* SAVED PLACES LIST */}
         <View style={styles.listContainer}>
-          {SAVED_PLACES.map((place, index) => (
-            <React.Fragment key={place.id}>
-              <View style={styles.placeRow}>
-                <View
-                  style={[styles.placeIconBg, { backgroundColor: place.bg }]}
-                >
-                  <MaterialIcons
-                    name={place.icon as any}
-                    size={22}
-                    color={place.color}
-                  />
-                </View>
-
-                <View style={styles.placeTextContainer}>
-                  <Text style={styles.placeTitle}>{place.title}</Text>
-                  <Text
-                    style={styles.placeAddress}
-                    numberOfLines={1}
-                    ellipsizeMode="tail"
+          {savedPlaces.length === 0 ? (
+            <View style={styles.emptyStateContainer}>
+              <MaterialIcons
+                name="location-off"
+                size={48}
+                color="#E2E8F0"
+                style={{ marginBottom: 12 }}
+              />
+              <Text style={styles.emptyStateText}>No saved places yet.</Text>
+            </View>
+          ) : (
+            savedPlaces.map((place, index) => (
+              <React.Fragment key={place.id}>
+                <View style={styles.placeRow}>
+                  <View
+                    style={[styles.placeIconBg, { backgroundColor: place.bg }]}
                   >
-                    {place.address}
-                  </Text>
+                    <MaterialIcons
+                      name={place.icon as any}
+                      size={22}
+                      color={place.color}
+                    />
+                  </View>
+
+                  <View style={styles.placeTextContainer}>
+                    <Text style={styles.placeTitle}>{place.title}</Text>
+                    <Text
+                      style={styles.placeAddress}
+                      numberOfLines={1}
+                      ellipsizeMode="tail"
+                    >
+                      {place.address}
+                    </Text>
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.moreBtn}
+                    onPress={() => handleDeletePlace(place.id)}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                  >
+                    <MaterialIcons
+                      name="delete-outline"
+                      size={22}
+                      color="#EF4444"
+                    />
+                  </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity
-                  style={styles.moreBtn}
-                  onPress={() => handleEditPlace(place.title)}
-                  hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                >
-                  <MaterialIcons name="more-vert" size={20} color="#94A3B8" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Add a divider unless it's the last item */}
-              {index < SAVED_PLACES.length - 1 && (
-                <View style={styles.divider} />
-              )}
-            </React.Fragment>
-          ))}
+                {index < savedPlaces.length - 1 && (
+                  <View style={styles.divider} />
+                )}
+              </React.Fragment>
+            ))
+          )}
         </View>
       </ScrollView>
+
+      {/* MAP PICKER MODAL */}
+      <MapPickerModal
+        visible={isMapPickerVisible}
+        target="destination"
+        initialLat={currentLocation?.latitude || 15.1444}
+        initialLng={currentLocation?.longitude || 120.5928}
+        onClose={() => setIsMapPickerVisible(false)}
+        onConfirm={handleMapConfirm}
+      />
+
+      {/* 🚀 NEW: ANDROID-SAFE NAME PROMPT MODAL */}
+      <Modal visible={isNamePromptVisible} transparent animationType="fade">
+        <View style={styles.promptOverlay}>
+          <View style={styles.promptBox}>
+            <Text style={styles.promptTitle}>Name this location</Text>
+            <Text style={styles.promptSubtitle}>
+              Enter a short title (e.g., Work, Gym, Home)
+            </Text>
+
+            <TextInput
+              style={styles.promptInput}
+              value={customName}
+              onChangeText={setCustomName}
+              placeholder="My New Place"
+              autoFocus={true}
+            />
+
+            <View style={styles.promptActions}>
+              <TouchableOpacity
+                style={styles.promptCancelBtn}
+                onPress={() => setIsNamePromptVisible(false)}
+              >
+                <Text style={styles.promptCancelText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.promptSaveBtn}
+                onPress={handleSaveCustomName}
+              >
+                <Text style={styles.promptSaveText}>Save Place</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -161,7 +278,6 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 60 },
 
-  // Add New Card
   addNewCard: {
     flexDirection: "row",
     alignItems: "center",
@@ -170,7 +286,7 @@ const styles = StyleSheet.create({
     padding: 16,
     marginBottom: 32,
     borderWidth: 1,
-    borderColor: "#FECACA", // Subtle red border
+    borderColor: "#FECACA",
     borderStyle: "dashed",
     elevation: 2,
     shadowColor: "#D32F2F",
@@ -205,7 +321,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // List Container
   listContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -218,11 +333,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.03,
     shadowRadius: 8,
   },
-  placeRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-  },
+  placeRow: { flexDirection: "row", alignItems: "center", padding: 16 },
   placeIconBg: {
     width: 44,
     height: 44,
@@ -240,6 +351,63 @@ const styles = StyleSheet.create({
   },
   placeAddress: { fontSize: 13, color: "#64748B" },
   moreBtn: { padding: 4 },
-
   divider: { height: 1, backgroundColor: "#F1F5F9", marginLeft: 76 },
+
+  emptyStateContainer: {
+    padding: 40,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  emptyStateText: { color: "#94A3B8", fontWeight: "600", fontSize: 15 },
+
+  // 🚀 NEW CUSTOM PROMPT STYLES
+  promptOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  promptBox: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 24,
+    padding: 24,
+    width: "100%",
+    elevation: 10,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+  },
+  promptTitle: {
+    fontSize: 20,
+    fontWeight: "900",
+    color: "#0F172A",
+    marginBottom: 8,
+  },
+  promptSubtitle: { fontSize: 14, color: "#64748B", marginBottom: 20 },
+  promptInput: {
+    backgroundColor: "#F8FAFC",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    padding: 16,
+    fontSize: 16,
+    color: "#0F172A",
+    marginBottom: 24,
+  },
+  promptActions: { flexDirection: "row", justifyContent: "flex-end", gap: 12 },
+  promptCancelBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  promptCancelText: { color: "#64748B", fontSize: 15, fontWeight: "bold" },
+  promptSaveBtn: {
+    backgroundColor: "#D32F2F",
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+  },
+  promptSaveText: { color: "#FFFFFF", fontSize: 15, fontWeight: "bold" },
 });

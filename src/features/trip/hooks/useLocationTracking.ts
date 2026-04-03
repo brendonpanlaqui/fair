@@ -10,7 +10,6 @@ export const useLocationTracking = () => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const startTracking = async () => {
-      // 1. Request Permissions
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         setErrorMsg("Permission to access location was denied");
@@ -18,16 +17,26 @@ export const useLocationTracking = () => {
       }
 
       try {
-        // 2. Continuously WATCH the position instead of just getting it once
         locationSubscription = await Location.watchPositionAsync(
           {
-            accuracy: Location.Accuracy.High, // 🚀 High accuracy needed for strict deviation checking
-            timeInterval: 3000, // 🚀 Update every 3 seconds
-            distanceInterval: 5, // 🚀 Or update every 5 meters moved
+            // 🚀 BestForNavigation forces the GPS chip to stay awake and prioritize accuracy
+            accuracy: Location.Accuracy.BestForNavigation,
+            timeInterval: 3000,
+            distanceInterval: 5,
           },
           (location) => {
-            // Every time the phone moves 5 meters or 3 seconds pass, this runs!
-            setCurrentLocation(location.coords);
+            const { accuracy, latitude, longitude } = location.coords;
+
+            // 🚀 THE FIX: THE ACCURACY FILTER
+            // Only accept this location if the phone is 100% sure you are within a 30-meter radius.
+            // Note: If you are testing deep indoors, you may need to temporarily change this to 60 or 100 to get a signal!
+            if (accuracy && accuracy <= 500) {
+              setCurrentLocation(location.coords);
+            } else {
+              console.log(
+                `⚠️ Ignored garbage GPS ping. Accuracy was off by ${accuracy} meters.`,
+              );
+            }
           },
         );
       } catch (error) {
@@ -37,8 +46,6 @@ export const useLocationTracking = () => {
 
     startTracking();
 
-    // 3. CRITICAL: Cleanup function.
-    // This stops the GPS from draining the battery after the user clicks "End Trip"
     return () => {
       if (locationSubscription) {
         locationSubscription.remove();

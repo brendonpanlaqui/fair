@@ -1,4 +1,5 @@
 import MapHeader from "@/src/features/trip/components/setup/MapHeader";
+import { MapPickerModal } from "@/src/features/trip/components/setup/MapPickerModal"; // 🚀 Imported the modal
 import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
 import { calculateDirectFare } from "@/src/utils/fareMatrix";
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
@@ -36,6 +37,9 @@ const HomeScreen: React.FC = () => {
   const [selectedMode, setSelectedMode] = useState<"DIRECT" | "SPECIAL">(
     "DIRECT",
   );
+
+  // 🚀 NEW: State for Map Picker Modal
+  const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const { currentLocation } = useLocationTracking();
@@ -184,6 +188,8 @@ const HomeScreen: React.FC = () => {
         onPlaceSelected={handlePlaceSelected}
         hasDestination={destination !== null}
         onClear={handleClearRoute}
+        // 🚀 NEW: Hooked up the Choose on Map button
+        onChooseOnMap={() => setIsMapPickerVisible(true)}
       />
 
       {/* 3. RIGHT CONTROLS */}
@@ -411,6 +417,20 @@ const HomeScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+
+      {/* 🚀 7. RENDER THE MAP PICKER MODAL */}
+      <MapPickerModal
+        visible={isMapPickerVisible}
+        target="destination"
+        initialLat={currentLocation?.latitude || 15.1444}
+        initialLng={currentLocation?.longitude || 120.5928}
+        onClose={() => setIsMapPickerVisible(false)}
+        onConfirm={(lat: number, lng: number, addressName: string) => {
+          setIsMapPickerVisible(false);
+          // Pass the chosen location back into your existing route handler!
+          handlePlaceSelected({ latitude: lat, longitude: lng }, addressName);
+        }}
+      />
     </View>
   );
 };
