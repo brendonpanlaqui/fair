@@ -9,9 +9,13 @@ export default {
     icon: "./assets/images/icon.png",
     scheme: "fair-app",
     userInterfaceStyle: "automatic",
-    platforms: ["android"],
+    platforms: ["android"], // Focusing on Android
     ios: {
       supportsTablet: true,
+      // ✨ ADDED: iOS background location tracking requirements (just in case you port to iOS later)
+      infoPlist: {
+        UIBackgroundModes: ["location", "fetch"],
+      },
     },
     android: {
       adaptiveIcon: {
@@ -21,10 +25,13 @@ export default {
         monochromeImage: "./assets/images/android-icon-monochrome.png",
       },
       predictiveBackGestureEnabled: false,
+      // ✨ ADDED: Foreground Service permissions required for Android background tracking
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
+        "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
       ],
       config: {
         googleMaps: {
@@ -48,6 +55,16 @@ export default {
           dark: {
             backgroundColor: "#000000",
           },
+        },
+      ],
+      // ✨ ADDED: Expo Location Plugin to properly configure the native tracking
+      [
+        "expo-location",
+        {
+          locationAlwaysAndWhenInUsePermission:
+            "Allow Fair App to use your location to track your ride and calculate fares securely in the background.",
+          isAndroidBackgroundLocationEnabled: true,
+          isIosBackgroundLocationEnabled: true,
         },
       ],
     ],

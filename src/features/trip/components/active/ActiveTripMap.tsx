@@ -1,4 +1,5 @@
-import React from "react";
+import { LocationObjectCoords } from "expo-location";
+import React, { useEffect, useRef, useState } from "react";
 import { StyleSheet, View } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
@@ -7,7 +8,7 @@ const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
 interface Props {
   mapCenter: { latitude: number; longitude: number };
-  currentLocation: { latitude: number; longitude: number } | null;
+  currentLocation: LocationObjectCoords | null; // 🚀 Uses Expo's official strict typing
   destLat: number | null;
   destLng: number | null;
   waypoints: { latitude: number; longitude: number }[];
@@ -24,12 +25,47 @@ export const ActiveTripMap = ({
   stopovers,
   onRouteReady,
 }: Props) => {
+  const mapRef = useRef<MapView>(null);
+
+  // 🚀 FIX 1: Start as null, then set it ONCE via useEffect
+  const [lockedOrigin, setLockedOrigin] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+
+  // Wait for the GPS to lock on, then freeze the origin for the red line
+  useEffect(() => {
+    if (!lockedOrigin && currentLocation) {
+      setLockedOrigin({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+      });
+    }
+  }, [currentLocation, lockedOrigin]);
+
+  // 🚀 FIX 2: Gentle Camera Update
+  // We only animate the camera if we already have the route drawn,
+  // giving it that smooth 3D navigation feel without breaking the initial zoom.
+  useEffect(() => {
+    if (currentLocation && lockedOrigin && mapRef.current) {
+      mapRef.current.animateCamera(
+        {
+          center: currentLocation,
+          pitch: 45, // 3D driving view
+          heading: currentLocation.heading || 0, // Faces the direction you are moving (if available)
+        },
+        { duration: 1000 },
+      );
+    }
+  }, [currentLocation, lockedOrigin]);
+
   return (
     <View style={styles.mapContainer}>
       <MapView
+        ref={mapRef}
         provider={PROVIDER_GOOGLE}
         style={StyleSheet.absoluteFillObject}
-        region={{
+        initialRegion={{
           ...mapCenter,
           latitudeDelta: 0.02,
           longitudeDelta: 0.02,
@@ -39,15 +75,6 @@ export const ActiveTripMap = ({
         showsCompass={false}
         mapType="standard"
       >
-        {/* User Location */}
-        {currentLocation && (
-          <Marker coordinate={mapCenter} anchor={{ x: 0.5, y: 0.5 }}>
-            <View style={styles.userMarker}>
-              <View style={styles.userMarkerCore} />
-            </View>
-          </Marker>
-        )}
-
         {/* Destination Marker */}
         {destLat && destLng && (
           <Marker
@@ -60,24 +87,28 @@ export const ActiveTripMap = ({
           </Marker>
         )}
 
-        {/* Live Red Line */}
-        {currentLocation && destLat && destLng && (
+        {/* Locked Route Line */}
+        {lockedOrigin && destLat && destLng && (
           <MapViewDirections
-            origin={{
-              latitude: currentLocation.latitude,
-              longitude: currentLocation.longitude,
-            }}
+            origin={lockedOrigin}
             destination={{ latitude: destLat, longitude: destLng }}
             waypoints={waypoints}
             apikey={GOOGLE_API_KEY}
-            strokeWidth={5}
+            strokeWidth={6}
             strokeColor="#E53935"
             optimizeWaypoints={false}
-            onReady={(result) => onRouteReady(result.coordinates)}
+            onReady={(result) => {
+              onRouteReady(result.coordinates);
+              // Zoom to show the whole route initially
+              mapRef.current?.fitToCoordinates(result.coordinates, {
+                edgePadding: { top: 120, right: 40, bottom: 300, left: 40 },
+                animated: true,
+              });
+            }}
           />
         )}
 
-        {/* Stopovers (Orange) */}
+        {/* Stopovers */}
         {stopovers.map((stop, index) => {
           const lat = Number(stop.latitude);
           const lng = Number(stop.longitude);
@@ -104,22 +135,6 @@ export const ActiveTripMap = ({
 
 const styles = StyleSheet.create({
   mapContainer: { ...StyleSheet.absoluteFillObject },
-  userMarker: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: "rgba(59, 130, 246, 0.3)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  userMarkerCore: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: "#3B82F6",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
   destinationMarker: {
     width: 26,
     height: 26,
