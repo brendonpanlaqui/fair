@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps"; // 🚀 Added map imports
 
 const TripReceiptScreen = () => {
   const router = useRouter();
@@ -24,25 +25,40 @@ const TripReceiptScreen = () => {
   const duration = (params.duration as string) || "12 mins";
   const date = (params.date as string) || "Oct 24, 2023";
   const time = (params.time as string) || "08:45 AM";
-  const discountType = (params.discountType as string) || "Student"; // "Student", "Senior", "PWD", or "Regular"
+  const discountType = (params.discountType as string) || "Student";
   const bodyNumber = (params.bodyNumber as string) || "0406";
   const tripId = (params.tripId as string) || "TRP-88172B";
 
+  // 🚀 NEW MAP PARAMS: Extracting the location data passed from the trip
+  const originLat = params.originLat ? Number(params.originLat) : 15.1444;
+  const originLng = params.originLng ? Number(params.originLng) : 120.5928;
+  const destLat = params.destLat ? Number(params.destLat) : 15.1384;
+  const destLng = params.destLng ? Number(params.destLng) : 120.5898;
+  const polylineHash = params.polylineHash as string | null;
+
   const handleReportDriver = () => {
-    // Route to the Support Center and auto-fill the complaint form
     router.push({
       pathname: "/report",
-      params: {
-        tripId: tripId,
-        bodyNumber: bodyNumber,
-        violation: "Overcharging",
-      },
+      params: { tripId, bodyNumber, violation: "Overcharging" },
     });
   };
 
+  // 🚀 HELPER: Safely parse the physical trace
+  const getDrivenRoute = () => {
+    if (!polylineHash) return null;
+    try {
+      const coords = JSON.parse(polylineHash);
+      if (Array.isArray(coords) && coords.length > 0) return coords;
+    } catch (e) {
+      console.warn("Failed to parse polyline on receipt");
+    }
+    return null;
+  };
+
+  const parsedRoute = getDrivenRoute();
+
   return (
     <View style={styles.container}>
-      {/* Dark content because we are using a white background now */}
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -63,8 +79,49 @@ const TripReceiptScreen = () => {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* THE RECEIPT CARD */}
         <View style={styles.receiptCard}>
+          {/* 🚀 NEW: THE RECEIPT MAP HEADER */}
+          <View style={styles.receiptMapContainer}>
+            <MapView
+              provider={PROVIDER_GOOGLE}
+              style={StyleSheet.absoluteFillObject}
+              initialRegion={{
+                latitude: (originLat + destLat) / 2,
+                longitude: (originLng + destLng) / 2,
+                latitudeDelta: 0.015,
+                longitudeDelta: 0.015,
+              }}
+              pitchEnabled={false}
+              rotateEnabled={false}
+              scrollEnabled={false}
+              zoomEnabled={false}
+            >
+              <Marker
+                coordinate={{ latitude: originLat, longitude: originLng }}
+              >
+                <View style={styles.originMarker} />
+              </Marker>
+
+              <Marker coordinate={{ latitude: destLat, longitude: destLng }}>
+                <View style={styles.destinationMarker}>
+                  <View style={styles.destinationMarkerCore} />
+                </View>
+              </Marker>
+
+              {parsedRoute && (
+                <Polyline
+                  coordinates={parsedRoute}
+                  strokeWidth={5}
+                  strokeColor="#D32F2F"
+                  lineCap="round"
+                  lineJoin="round"
+                />
+              )}
+            </MapView>
+            {/* Soft gradient overlay to blend map into the receipt */}
+            <View style={styles.mapFadeOverlay} />
+          </View>
+
           {/* Top Section: The Total */}
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>TOTAL PAYABLE</Text>
@@ -111,7 +168,6 @@ const TripReceiptScreen = () => {
               </View>
             </View>
 
-            {/* Discount Alert */}
             {discountType !== "Regular" && (
               <View style={styles.discountAlert}>
                 <MaterialIcons name="check-circle" size={18} color="#10B981" />
@@ -176,7 +232,6 @@ const TripReceiptScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
-  // MINIMAL HEADER
   header: {
     flexDirection: "row",
     alignItems: "center",
@@ -208,7 +263,6 @@ const styles = StyleSheet.create({
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 10 },
 
-  // RECEIPT CARD
   receiptCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
@@ -217,12 +271,52 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.08,
     shadowRadius: 16,
-    overflow: "hidden", // Important for the cutouts
+    overflow: "hidden",
   },
 
-  // TOP SECTION
+  // 🚀 NEW MAP STYLES
+  receiptMapContainer: {
+    height: 160,
+    width: "100%",
+    position: "relative",
+    backgroundColor: "#E2E8F0",
+  },
+  mapFadeOverlay: {
+    position: "absolute",
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 30,
+    backgroundColor: "rgba(255,255,255,0.8)", // Optional: blends the map cleanly into the white card
+  },
+  originMarker: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    backgroundColor: "#FFFFFF",
+    borderWidth: 4,
+    borderColor: "#3B82F6",
+  },
+  destinationMarker: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: "#D32F2F",
+    borderWidth: 3,
+    borderColor: "#FFFFFF",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  destinationMarkerCore: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#FFFFFF",
+  },
+
   totalSection: {
     padding: 32,
+    paddingTop: 24, // Reduced slightly since map is above it now
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
@@ -264,7 +358,6 @@ const styles = StyleSheet.create({
   },
   verifiedBadgeText: { color: "#059669", fontSize: 12, fontWeight: "bold" },
 
-  // THE TEAR SEPARATOR (Ticket aesthetic)
   tearLineContainer: {
     flexDirection: "row",
     alignItems: "center",
@@ -279,7 +372,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#F8FAFC", // Matches screen background
+    backgroundColor: "#F8FAFC",
   },
   tearCutoutRight: {
     position: "absolute",
@@ -287,7 +380,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: "#F8FAFC", // Matches screen background
+    backgroundColor: "#F8FAFC",
   },
   tearDashLine: {
     flex: 1,
@@ -298,7 +391,6 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
 
-  // BOTTOM SECTION
   detailsSection: {
     padding: 24,
     paddingTop: 16,
@@ -315,15 +407,8 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#F1F5F9",
   },
-  breakdownItem: {
-    flex: 1,
-    alignItems: "center",
-  },
-  verticalDivider: {
-    width: 1,
-    height: 30,
-    backgroundColor: "#E2E8F0",
-  },
+  breakdownItem: { flex: 1, alignItems: "center" },
+  verticalDivider: { width: 1, height: 30, backgroundColor: "#E2E8F0" },
   breakdownLabel: {
     fontSize: 10,
     fontWeight: "900",
@@ -331,11 +416,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginBottom: 4,
   },
-  breakdownValue: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
+  breakdownValue: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
 
   discountAlert: {
     flexDirection: "row",
@@ -355,36 +436,17 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
 
-  metaDataList: {
-    gap: 16,
-  },
+  metaDataList: { gap: 16 },
   metaRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
-  metaLabel: {
-    fontSize: 13,
-    color: "#64748B",
-    fontWeight: "600",
-  },
-  metaValue: {
-    fontSize: 13,
-    fontWeight: "bold",
-    color: "#0F172A",
-  },
-  metaValueHighlight: {
-    fontSize: 14,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
+  metaLabel: { fontSize: 13, color: "#64748B", fontWeight: "600" },
+  metaValue: { fontSize: 13, fontWeight: "bold", color: "#0F172A" },
+  metaValueHighlight: { fontSize: 14, fontWeight: "900", color: "#0F172A" },
 
-  // FOOTER ACTIONS
-  footer: {
-    padding: 24,
-    paddingBottom: 40,
-    backgroundColor: "#F8FAFC",
-  },
+  footer: { padding: 24, paddingBottom: 40, backgroundColor: "#F8FAFC" },
   primaryBtn: {
     backgroundColor: "#0F172A",
     height: 56,
@@ -398,11 +460,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 12,
   },
-  primaryBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  primaryBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
   reportBtn: {
     flexDirection: "row",
     backgroundColor: "#FFF1F2",
@@ -413,11 +471,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FFE4E6",
   },
-  reportBtnText: {
-    color: "#D32F2F",
-    fontSize: 15,
-    fontWeight: "bold",
-  },
+  reportBtnText: { color: "#D32F2F", fontSize: 15, fontWeight: "bold" },
 });
 
 export default TripReceiptScreen;

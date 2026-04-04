@@ -37,7 +37,7 @@ export const useActiveTrip = () => {
   }));
 
   // 2. Location & ETA Math
-  const { currentLocation } = useLocationTracking();
+  const { currentLocation, drivenTrace } = useLocationTracking();
   const mapCenter = currentLocation
     ? {
         latitude: currentLocation.latitude,
@@ -97,6 +97,7 @@ export const useActiveTrip = () => {
               origin_lng: routeCoordinates[0]?.longitude || mapCenter.longitude,
               dest_lat: destLat,
               dest_lng: destLng,
+              polyline_hash: JSON.stringify(drivenTrace),
             };
 
             // 🚀 5. SEND TO BACKEND
@@ -128,6 +129,12 @@ export const useActiveTrip = () => {
                 time: timeStr,
                 bodyNumber: bodyNumber,
                 discountType: "Regular",
+                originLat: routeCoordinates[0]?.latitude || mapCenter.latitude,
+                originLng:
+                  routeCoordinates[0]?.longitude || mapCenter.longitude,
+                destLat: destLat,
+                destLng: destLng,
+                polylineHash: JSON.stringify(drivenTrace),
               },
             });
           } catch (error: any) {

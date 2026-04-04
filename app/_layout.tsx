@@ -3,7 +3,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
-import { Stack, usePathname, useRouter } from "expo-router";
+import { Stack, useRouter, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
@@ -20,25 +20,26 @@ const InitialLayout = () => {
   const { user, isGuest, loading } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
-  const pathname = usePathname();
+
+  // 🚀 THE UPGRADE: useSegments tells us exactly which folder the user is currently inside
+  const segments = useSegments();
 
   useEffect(() => {
     if (loading) return;
 
-    // 1. THIS IS THE SHIELD: It must include forgot-password!
-    const inAuthGroup =
-      pathname === "/auth" ||
-      pathname === "/otp" ||
-      pathname === "/forgot-password";
-
+    // 🛡️ THE NEW SHIELD: If the first folder in the path is (auth), they are in the auth group!
+    // This automatically protects /otp, /forgot-password, /verify-id without needing to list them.
+    const inAuthGroup = segments[0] === "(auth)";
     const isAllowedAccess = user || isGuest;
 
     if (!isAllowedAccess && !inAuthGroup) {
+      // Kick them to the login screen
       router.replace("/auth");
     } else if (isAllowedAccess && inAuthGroup) {
+      // They are logged in but trying to view login pages -> send to dashboard
       router.replace("/(tabs)");
     }
-  }, [user, isGuest, loading, pathname]);
+  }, [user, isGuest, loading, segments]);
 
   if (loading) {
     return (
@@ -59,25 +60,9 @@ const InitialLayout = () => {
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
       <Stack>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="auth" options={{ headerShown: false }} />
-        <Stack.Screen name="otp" options={{ headerShown: false }} />
-        <Stack.Screen name="forgot-password" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="verify-id"
-          options={{ presentation: "modal", headerShown: false }}
-        />
-        <Stack.Screen name="ordinance" options={{ headerShown: false }} />
-        <Stack.Screen name="saved-places" options={{ headerShown: false }} />
-        <Stack.Screen name="help-support" options={{ headerShown: false }} />
-        <Stack.Screen name="give-feedback" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="start-trip"
-          options={{
-            presentation: "modal",
-            headerTitle: "Setup Ride",
-            headerShown: true,
-          }}
-        />
+        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <Stack.Screen name="(trip)" options={{ headerShown: false }} />
+        <Stack.Screen name="(menu)" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

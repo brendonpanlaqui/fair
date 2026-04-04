@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 export const useLocationTracking = () => {
   const [currentLocation, setCurrentLocation] =
     useState<Location.LocationObjectCoords | null>(null);
+  const [drivenTrace, setDrivenTrace] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
@@ -19,7 +22,6 @@ export const useLocationTracking = () => {
       try {
         locationSubscription = await Location.watchPositionAsync(
           {
-            // 🚀 BestForNavigation forces the GPS chip to stay awake and prioritize accuracy
             accuracy: Location.Accuracy.BestForNavigation,
             timeInterval: 3000,
             distanceInterval: 5,
@@ -27,11 +29,11 @@ export const useLocationTracking = () => {
           (location) => {
             const { accuracy, latitude, longitude } = location.coords;
 
-            // 🚀 THE FIX: THE ACCURACY FILTER
-            // Only accept this location if the phone is 100% sure you are within a 30-meter radius.
-            // Note: If you are testing deep indoors, you may need to temporarily change this to 60 or 100 to get a signal!
             if (accuracy && accuracy <= 500) {
               setCurrentLocation(location.coords);
+
+              // 🚀 1. ADD THIS: Push every valid coordinate into the breadcrumb array
+              setDrivenTrace((prev) => [...prev, { latitude, longitude }]);
             } else {
               console.log(
                 `⚠️ Ignored garbage GPS ping. Accuracy was off by ${accuracy} meters.`,
@@ -55,6 +57,7 @@ export const useLocationTracking = () => {
 
   return {
     currentLocation,
+    drivenTrace, // 🚀 2. Make sure this is exported so useActiveTrip can grab it!
     errorMsg,
   };
 };

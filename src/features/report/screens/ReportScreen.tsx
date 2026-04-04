@@ -227,8 +227,8 @@ const ReportScreen = () => {
           <RefreshControl
             refreshing={isRefreshing}
             onRefresh={onRefresh}
-            tintColor="#D32F2F" // Matches your brand red
-            colors={["#D32F2F"]} // For Android
+            tintColor="#D32F2F"
+            colors={["#D32F2F"]}
           />
         }
         ListEmptyComponent={() => (

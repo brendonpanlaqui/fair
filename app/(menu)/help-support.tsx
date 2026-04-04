@@ -1,4 +1,4 @@
-import { MaterialIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
@@ -41,7 +41,6 @@ export default function HelpSupportScreen() {
   const toggleFAQ = (id: string) =>
     setExpandedId(expandedId === id ? null : id);
 
-  // --- GOVERNMENT CONTACT ---
   const handleCallPTRO = () => {
     Alert.alert(
       "Contact PTRO",
@@ -61,10 +60,9 @@ export default function HelpSupportScreen() {
     );
   };
 
-  // --- APP DEV CONTACT ---
   const handleEmailSupport = () =>
     Linking.openURL(
-      "mailto:support@fairapp.ph?subject=Fair App Support Request",
+      "mailto:fairapp.angeles@gmail.com?subject=Fair App Support Request",
     );
   const handleCallSupport = () => {
     Alert.alert(
@@ -81,7 +79,6 @@ export default function HelpSupportScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -98,16 +95,13 @@ export default function HelpSupportScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ========================================== */}
-        {/* SECTION 1: DISPUTE GUIDELINES (UPDATED)    */}
-        {/* ========================================== */}
         <Text style={styles.sectionTitle}>COMMUTER RIGHTS & DISPUTES</Text>
 
         <View style={styles.guidelinesContainer}>
           {/* ORDINANCE 723 INTRO */}
           <View style={styles.introBanner}>
-            <MaterialIcons
-              name="shield"
+            <MaterialCommunityIcons
+              name="shield-check"
               size={24}
               color="#C62828"
               style={{ marginBottom: 8 }}
@@ -120,7 +114,6 @@ export default function HelpSupportScreen() {
             </Text>
           </View>
 
-          {/* COLORUM WARNING (ORDINANCE 296) */}
           <View style={styles.warningBanner}>
             <MaterialIcons
               name="warning"
@@ -137,7 +130,6 @@ export default function HelpSupportScreen() {
             </Text>
           </View>
 
-          {/* STEP 1: HUMAN IN THE LOOP */}
           <View style={styles.stepCard}>
             <View style={styles.stepNumberCircle}>
               <Text style={styles.stepNumberText}>1</Text>
@@ -151,7 +143,6 @@ export default function HelpSupportScreen() {
             </View>
           </View>
 
-          {/* STEP 2: SAFETY & DE-ESCALATION */}
           <View style={styles.stepCard}>
             <View style={styles.stepNumberCircle}>
               <Text style={styles.stepNumberText}>2</Text>
@@ -169,7 +160,6 @@ export default function HelpSupportScreen() {
             </View>
           </View>
 
-          {/* STEP 3: AUDIT TRAIL */}
           <View style={styles.stepCard}>
             <View style={styles.stepNumberCircle}>
               <Text style={styles.stepNumberText}>3</Text>
@@ -199,9 +189,6 @@ export default function HelpSupportScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ========================================== */}
-        {/* SECTION 2: APP TECHNICAL SUPPORT           */}
-        {/* ========================================== */}
         <Text style={styles.sectionTitle}>APP TECHNICAL SUPPORT</Text>
         <View style={styles.contactRow}>
           <TouchableOpacity
@@ -233,9 +220,6 @@ export default function HelpSupportScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* ========================================== */}
-        {/* SECTION 3: FAQS                            */}
-        {/* ========================================== */}
         <Text style={styles.sectionTitle}>FREQUENTLY ASKED QUESTIONS</Text>
         <View style={styles.faqContainer}>
           {FAQS.map((faq, index) => {
@@ -279,9 +263,6 @@ export default function HelpSupportScreen() {
           })}
         </View>
 
-        {/* ========================================== */}
-        {/* SECTION 4: APP FEEDBACK                    */}
-        {/* ========================================== */}
         <Text style={[styles.sectionTitle, { marginTop: 32 }]}>FEEDBACK</Text>
         <TouchableOpacity
           style={styles.feedbackCard}
@@ -330,7 +311,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 
-  // Guidelines Section
   guidelinesContainer: { marginBottom: 32 },
   introBanner: {
     backgroundColor: "#FFF1F2",
@@ -342,7 +322,6 @@ const styles = StyleSheet.create({
   },
   introText: { fontSize: 13, color: "#991B1B", lineHeight: 20 },
 
-  // NEW: Amber Warning Banner for Colorum
   warningBanner: {
     flexDirection: "row",
     backgroundColor: "#FEF3C7", // Amber light
@@ -404,8 +383,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   ptroButtonText: { color: "#D32F2F", fontSize: 14, fontWeight: "bold" },
-
-  // Contact Cards
   contactRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -441,8 +418,6 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   contactSubtitle: { fontSize: 11, color: "#64748B" },
-
-  // FAQ Section
   faqContainer: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -473,8 +448,6 @@ const styles = StyleSheet.create({
   faqQuestionActive: { color: "#C62828" },
   faqBody: { paddingHorizontal: 16, paddingBottom: 16 },
   faqAnswer: { fontSize: 13, color: "#64748B", lineHeight: 20 },
-
-  // Feedback Card
   feedbackCard: {
     flexDirection: "row",
     alignItems: "center",

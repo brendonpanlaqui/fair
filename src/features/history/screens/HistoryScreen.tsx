@@ -13,7 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import { api } from "../../../services/api";
 
@@ -36,6 +36,7 @@ interface TripRecord {
   destination_name: string;
   origin_coords: { latitude: number; longitude: number };
   dest_coords: { latitude: number; longitude: number };
+  polyline_hash: string | null;
 }
 
 const HistoryScreen = () => {
@@ -186,6 +187,19 @@ const HistoryScreen = () => {
     </TouchableOpacity>
   );
 
+  const getDrivenRoute = (hash?: string | null) => {
+    if (!hash) return null;
+    try {
+      const coords = JSON.parse(hash);
+      if (Array.isArray(coords) && coords.length > 0) {
+        return coords;
+      }
+    } catch (e) {
+      console.warn("Failed to parse polyline breadcrumbs:", e);
+    }
+    return null;
+  };
+
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
@@ -281,8 +295,8 @@ const HistoryScreen = () => {
                     (selectedTrip.origin_coords.longitude +
                       selectedTrip.dest_coords.longitude) /
                     2,
-                  latitudeDelta: 0.05,
-                  longitudeDelta: 0.05,
+                  latitudeDelta: 0.015,
+                  longitudeDelta: 0.015,
                 }}
                 pitchEnabled={false}
                 rotateEnabled={false}
@@ -297,13 +311,23 @@ const HistoryScreen = () => {
                     <View style={styles.destinationMarkerCore} />
                   </View>
                 </Marker>
-                <MapViewDirections
-                  origin={selectedTrip.origin_coords}
-                  destination={selectedTrip.dest_coords}
-                  apikey={GOOGLE_API_KEY}
-                  strokeWidth={4}
-                  strokeColor="#D32F2F"
-                />
+                {getDrivenRoute(selectedTrip.polyline_hash) ? (
+                  <Polyline
+                    coordinates={getDrivenRoute(selectedTrip.polyline_hash)!}
+                    strokeWidth={5}
+                    strokeColor="#D32F2F"
+                    lineCap="round"
+                    lineJoin="round"
+                  />
+                ) : (
+                  <MapViewDirections
+                    origin={selectedTrip.origin_coords}
+                    destination={selectedTrip.dest_coords}
+                    apikey={GOOGLE_API_KEY}
+                    strokeWidth={4}
+                    strokeColor="#D32F2F"
+                  />
+                )}
               </MapView>
 
               <TouchableOpacity
