@@ -3,16 +3,16 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 
 const CATEGORIES = ["Suggestion", "Bug Report", "App Design", "Other"];
@@ -40,7 +40,6 @@ export default function GiveFeedbackScreen() {
 
     setIsSubmitting(true);
 
-    // Simulate network request
     setTimeout(() => {
       setIsSubmitting(false);
       Alert.alert(
@@ -58,7 +57,6 @@ export default function GiveFeedbackScreen() {
     >
       <StatusBar style="dark" />
 
-      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
@@ -72,7 +70,6 @@ export default function GiveFeedbackScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* GUARDRAIL BANNER */}
         <View style={styles.infoBanner}>
           <MaterialIcons
             name="info"
@@ -89,7 +86,6 @@ export default function GiveFeedbackScreen() {
           </View>
         </View>
 
-        {/* STAR RATING */}
         <Text style={styles.sectionTitle}>How is your experience?</Text>
         <View style={styles.starsContainer}>
           {[1, 2, 3, 4, 5].map((star) => (
@@ -108,7 +104,6 @@ export default function GiveFeedbackScreen() {
           ))}
         </View>
 
-        {/* CATEGORY CHIPS */}
         <Text style={styles.sectionTitle}>What is this regarding?</Text>
         <View style={styles.chipsContainer}>
           {CATEGORIES.map((cat) => {
@@ -130,7 +125,6 @@ export default function GiveFeedbackScreen() {
           })}
         </View>
 
-        {/* TEXT AREA */}
         <Text style={styles.sectionTitle}>Tell us more</Text>
         <View style={styles.textAreaContainer}>
           <TextInput
@@ -146,7 +140,6 @@ export default function GiveFeedbackScreen() {
         </View>
       </ScrollView>
 
-      {/* FIXED BOTTOM SUBMIT BUTTON */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[
@@ -185,10 +178,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { padding: 4, marginLeft: -4 },
   headerTitle: { fontSize: 18, fontWeight: "900", color: "#0F172A" },
-
   scrollContent: { paddingHorizontal: 24, paddingTop: 24, paddingBottom: 100 },
-
-  // Info Banner
   infoBanner: {
     flexDirection: "row",
     backgroundColor: "#FFFBEB",
@@ -206,15 +196,12 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   bannerText: { fontSize: 13, color: "#B45309", lineHeight: 20 },
-
   sectionTitle: {
     fontSize: 16,
     fontWeight: "900",
     color: "#0F172A",
     marginBottom: 16,
   },
-
-  // Star Rating
   starsContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -223,8 +210,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   starBtn: { padding: 4 },
-
-  // Chips
   chipsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -245,8 +230,6 @@ const styles = StyleSheet.create({
   },
   chipText: { fontSize: 13, fontWeight: "600", color: "#64748B" },
   chipTextActive: { color: "#C62828" },
-
-  // Text Area
   textAreaContainer: {
     backgroundColor: "#F8FAFC",
     borderRadius: 16,
@@ -261,8 +244,6 @@ const styles = StyleSheet.create({
     color: "#0F172A",
     lineHeight: 22,
   },
-
-  // Footer
   footer: {
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,

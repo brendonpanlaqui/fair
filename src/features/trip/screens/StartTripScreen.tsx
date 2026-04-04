@@ -107,6 +107,9 @@ const StartTripScreen: React.FC = () => {
         destLat: finalDest?.lat,
         destLng: finalDest?.lng,
         stopovers: JSON.stringify(stopovers),
+        destName: finalDest?.name || "Unknown Destination",
+        originName: "Current Location",
+        matrixId: 1,
       },
     });
   };

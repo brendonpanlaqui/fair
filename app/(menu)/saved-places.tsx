@@ -36,7 +36,6 @@ export default function SavedPlacesScreen() {
   const [savedPlaces, setSavedPlaces] = useState<SavedPlace[]>([]);
   const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
-  // 🚀 NEW STATES FOR ANDROID-COMPATIBLE PROMPT
   const [isNamePromptVisible, setIsNamePromptVisible] = useState(false);
   const [customName, setCustomName] = useState("");
   const [pendingPlace, setPendingPlace] = useState<{
@@ -73,23 +72,23 @@ export default function SavedPlacesScreen() {
     setIsMapPickerVisible(true);
   };
 
-  // 🚀 STEP 1: Map confirm opens the custom naming modal instead of Alert.prompt
+  // called when the user confirms a location in the MapPickerModal
   const handleMapConfirm = (lat: number, lng: number, addressName: string) => {
     setIsMapPickerVisible(false);
 
-    // Suggest a default name based on the street/building
+    // store the picked location in state and open a custom prompt to ask for a name
     const defaultName = addressName.split(",")[0];
     setCustomName(defaultName);
 
     setPendingPlace({ lat, lng, address: addressName });
 
-    // Add a slight delay so the map modal closes smoothly before this one opens
+    // slight delay to ensure the map picker modal has fully closed before opening the next one
     setTimeout(() => {
       setIsNamePromptVisible(true);
     }, 400);
   };
 
-  // 🚀 STEP 2: Actually save the place when they click "Save" in our custom modal
+  // saves the new place with the custom name entered by the user, or a default name if they left it blank
   const handleSaveCustomName = () => {
     if (!pendingPlace) return;
 
@@ -106,7 +105,7 @@ export default function SavedPlacesScreen() {
 
     savePlacesToStorage([...savedPlaces, newPlace]);
 
-    // Clean up
+    // reset prompt state
     setIsNamePromptVisible(false);
     setPendingPlace(null);
     setCustomName("");
@@ -121,7 +120,6 @@ export default function SavedPlacesScreen() {
     <View style={styles.container}>
       <StatusBar style="dark" />
 
-      {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
@@ -134,7 +132,6 @@ export default function SavedPlacesScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ADD NEW BUTTON */}
         <TouchableOpacity
           style={styles.addNewCard}
           activeOpacity={0.7}
@@ -153,7 +150,6 @@ export default function SavedPlacesScreen() {
 
         <Text style={styles.sectionTitle}>YOUR LOCATIONS</Text>
 
-        {/* SAVED PLACES LIST */}
         <View style={styles.listContainer}>
           {savedPlaces.length === 0 ? (
             <View style={styles.emptyStateContainer}>
@@ -212,7 +208,6 @@ export default function SavedPlacesScreen() {
         </View>
       </ScrollView>
 
-      {/* MAP PICKER MODAL */}
       <MapPickerModal
         visible={isMapPickerVisible}
         target="destination"
@@ -222,7 +217,6 @@ export default function SavedPlacesScreen() {
         onConfirm={handleMapConfirm}
       />
 
-      {/* 🚀 NEW: ANDROID-SAFE NAME PROMPT MODAL */}
       <Modal visible={isNamePromptVisible} transparent animationType="fade">
         <View style={styles.promptOverlay}>
           <View style={styles.promptBox}>
@@ -359,8 +353,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   emptyStateText: { color: "#94A3B8", fontWeight: "600", fontSize: 15 },
-
-  // 🚀 NEW CUSTOM PROMPT STYLES
   promptOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",

@@ -12,19 +12,17 @@ export default function TabLayout() {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: "#D32F2F", // Brand Red
-        tabBarInactiveTintColor: "#94A3B8", // Slate Gray
+        tabBarActiveTintColor: "#D32F2F",
+        tabBarInactiveTintColor: "#94A3B8",
         headerShown: false,
         tabBarButton: HapticTab,
         tabBarStyle: {
           backgroundColor: "#ffffff",
-          // DESIGN TWEAK 1: Increased base height to 70 for premium breathing room
           height: 70 + (insets.bottom > 0 ? insets.bottom : 12),
           paddingBottom: insets.bottom > 0 ? insets.bottom : 12,
           paddingTop: 10,
           borderTopWidth: 1,
-          borderTopColor: "#F1F5F9", // Softer, less aggressive border line
-          // DESIGN TWEAK 2: Softer, wider shadow spread for a "floating" feel
+          borderTopColor: "#F1F5F9",
           elevation: 16,
           shadowColor: "#0F172A",
           shadowOffset: { width: 0, height: -4 },
@@ -32,7 +30,6 @@ export default function TabLayout() {
           shadowRadius: 12,
         },
         tabBarLabelStyle: {
-          // DESIGN TWEAK 3: Slightly larger font with letter spacing for high legibility
           fontSize: 11,
           marginTop: 6,
           fontWeight: "700",
@@ -51,7 +48,7 @@ export default function TabLayout() {
                   focused ? "map-marker-radius" : "map-marker-radius-outline"
                 }
                 color={color}
-                size={24} // Slightly smaller icon to let the pill background breathe
+                size={24}
               />
             </View>
           ),
@@ -108,10 +105,9 @@ export default function TabLayout() {
 
 const styles = StyleSheet.create({
   activePill: {
-    // DESIGN TWEAK 4: Wider pill shape (60x32) creates a more elegant horizontal oval
     width: 60,
     height: 32,
-    backgroundColor: "#FFF1F2", // A softer, more premium "Tailwind Rose 50" tint
+    backgroundColor: "#FFF1F2",
     borderRadius: 16,
     alignItems: "center",
     justifyContent: "center",

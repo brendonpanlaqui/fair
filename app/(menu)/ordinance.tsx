@@ -21,7 +21,7 @@ export default function OrdinanceScreen() {
 
       <View style={styles.imageContainer}>
         <Image
-          source={require("../assets/images/fare-matrix.jpg")}
+          source={require("../../assets/images/fare-matrix.jpg")}
           style={styles.image}
           resizeMode="contain"
         />

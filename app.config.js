@@ -1,6 +1,6 @@
-import "dotenv/config";
+require("dotenv/config");
 
-export default {
+module.exports = {
   expo: {
     name: "fair",
     slug: "fair-app",
@@ -9,23 +9,20 @@ export default {
     icon: "./assets/images/icon.png",
     scheme: "fair-app",
     userInterfaceStyle: "automatic",
-    platforms: ["android"], // Focusing on Android
+    platforms: ["android"],
     ios: {
       supportsTablet: true,
-      // ✨ ADDED: iOS background location tracking requirements (just in case you port to iOS later)
       infoPlist: {
         UIBackgroundModes: ["location", "fetch"],
       },
     },
     android: {
+      package: "com.brendonpanlaqui.fairapp",
       adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
-        foregroundImage: "./assets/images/android-icon-foreground.png",
-        backgroundImage: "./assets/images/android-icon-background.png",
-        monochromeImage: "./assets/images/android-icon-monochrome.png",
+        backgroundColor: "#A50000",
+        foregroundImage: "./assets/images/adaptive-icon.png",
       },
       predictiveBackGestureEnabled: false,
-      // ✨ ADDED: Foreground Service permissions required for Android background tracking
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
@@ -51,13 +48,12 @@ export default {
           image: "./assets/images/splash-icon.png",
           imageWidth: 200,
           resizeMode: "contain",
-          backgroundColor: "#ffffff",
+          backgroundColor: "#A50000",
           dark: {
-            backgroundColor: "#000000",
+            backgroundColor: "#A50000",
           },
         },
       ],
-      // ✨ ADDED: Expo Location Plugin to properly configure the native tracking
       [
         "expo-location",
         {
