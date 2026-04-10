@@ -21,22 +21,21 @@ const InitialLayout = () => {
   const router = useRouter();
   const colorScheme = useColorScheme();
 
-  // 🚀 THE UPGRADE: useSegments tells us exactly which folder the user is currently inside
+  // to check which folder they are in
   const segments = useSegments();
 
   useEffect(() => {
     if (loading) return;
 
-    // 🛡️ THE NEW SHIELD: If the first folder in the path is (auth), they are in the auth group!
-    // This automatically protects /otp, /forgot-password, /verify-id without needing to list them.
+    // check if the user is trying to access an auth page
     const inAuthGroup = segments[0] === "(auth)";
     const isAllowedAccess = user || isGuest;
 
     if (!isAllowedAccess && !inAuthGroup) {
-      // Kick them to the login screen
+      // send to login
       router.replace("/auth");
     } else if (isAllowedAccess && inAuthGroup) {
-      // They are logged in but trying to view login pages -> send to dashboard
+      // send to home
       router.replace("/(tabs)");
     }
   }, [user, isGuest, loading, segments]);

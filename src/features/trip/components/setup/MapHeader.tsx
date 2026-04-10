@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useFocusEffect } from "expo-router"; // 🚀 Used to refresh data when returning to the screen
+import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Keyboard,
@@ -37,7 +37,6 @@ const MapHeader: React.FC<MapHeaderProps> = ({
   const autocompleteRef = useRef<GooglePlacesAutocompleteRef>(null);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
 
-  // 🚀 1. Fetch saved places every time this header comes into focus
   useFocusEffect(
     useCallback(() => {
       const loadSavedPlaces = async () => {
@@ -68,11 +67,9 @@ const MapHeader: React.FC<MapHeaderProps> = ({
     onClear();
   };
 
-  // 🚀 2. Format the saved places so Google Places can read them
   const predefinedPlaces = savedPlaces.map((place) => ({
-    description: place.title, // Required by the library
+    description: place.title,
     geometry: { location: { lat: place.latitude, lng: place.longitude } },
-    // Inject our custom data to trick the renderer
     structured_formatting: {
       main_text: place.title,
       secondary_text: place.address,
@@ -89,7 +86,7 @@ const MapHeader: React.FC<MapHeaderProps> = ({
         <Text style={styles.brandText}>fair</Text>
       </View>
 
-      <View style={styles.searchBarWrapper}>
+      <View style={styles.searchBarWrapper} pointerEvents="box-none">
         <GooglePlacesAutocomplete
           ref={autocompleteRef}
           enablePoweredByContainer={false}
@@ -97,11 +94,9 @@ const MapHeader: React.FC<MapHeaderProps> = ({
           debounce={400}
           minLength={2}
           fetchDetails={true}
-          // 🚀 3. Inject the formatted saved places!
           predefinedPlaces={predefinedPlaces}
-          predefinedPlacesAlwaysVisible={true} // Shows them before typing
+          predefinedPlacesAlwaysVisible={true}
           onPress={(data: any, details = null) => {
-            // Predefined places sometimes pass the geometry directly in `data` or `details`
             const lat =
               details?.geometry?.location?.lat || data?.geometry?.location?.lat;
             const lng =
@@ -122,7 +117,6 @@ const MapHeader: React.FC<MapHeaderProps> = ({
             strictbounds: true,
           }}
           renderRow={(rowData: any) => {
-            // 🚀 4. Check if this row is a Saved Place or a normal Google result
             const isSaved = rowData.isSavedPlace;
             const title =
               rowData.structured_formatting?.main_text || rowData.description;
@@ -135,13 +129,13 @@ const MapHeader: React.FC<MapHeaderProps> = ({
                 <View
                   style={[
                     styles.rowIconContainer,
-                    isSaved && { backgroundColor: rowData.customBg }, // Apply custom Bg!
+                    isSaved && { backgroundColor: rowData.customBg },
                   ]}
                 >
                   <MaterialIcons
                     name={isSaved ? rowData.customIcon : "location-on"}
                     size={20}
-                    color={isSaved ? rowData.customColor : "#94A3B8"} // Apply custom color!
+                    color={isSaved ? rowData.customColor : "#94A3B8"}
                   />
                 </View>
                 <View style={styles.rowTextContainer}>
@@ -155,35 +149,6 @@ const MapHeader: React.FC<MapHeaderProps> = ({
               </View>
             );
           }}
-          // @ts-ignore
-          ListHeaderComponent={() => (
-            <TouchableOpacity
-              style={styles.chooseOnMapBtn}
-              activeOpacity={0.8}
-              onPress={() => {
-                Keyboard.dismiss();
-                if (onChooseOnMap) {
-                  setTimeout(() => onChooseOnMap(), 300);
-                }
-              }}
-            >
-              <View style={styles.chooseOnMapIconBg}>
-                <MaterialIcons name="place" size={20} color="#D32F2F" />
-              </View>
-              <View>
-                <Text style={styles.chooseOnMapTitle}>Choose on Map</Text>
-                <Text style={styles.chooseOnMapSubtext}>
-                  Pinpoint your exact location
-                </Text>
-              </View>
-              <MaterialIcons
-                name="chevron-right"
-                size={24}
-                color="#CBD5E1"
-                style={{ marginLeft: "auto" }}
-              />
-            </TouchableOpacity>
-          )}
           styles={{
             container: { flex: 0 },
             textInputContainer: {
@@ -195,6 +160,11 @@ const MapHeader: React.FC<MapHeaderProps> = ({
               flexDirection: "row",
               alignItems: "center",
               height: 56,
+              elevation: 4, // Added shadow to separate from the button below
+              shadowColor: "#0F172A",
+              shadowOffset: { width: 0, height: 4 },
+              shadowOpacity: 0.1,
+              shadowRadius: 12,
             },
             textInput: {
               height: 52,
@@ -206,15 +176,15 @@ const MapHeader: React.FC<MapHeaderProps> = ({
             },
             listView: {
               position: "absolute",
-              top: 64,
+              top: 64, // Pushes the dropdown list down slightly
               left: 0,
               right: 0,
               backgroundColor: "#FFFFFF",
               borderRadius: 16,
-              elevation: 8,
+              elevation: 10,
               shadowColor: "#0F172A",
               shadowOffset: { width: 0, height: 6 },
-              shadowOpacity: 0.1,
+              shadowOpacity: 0.15,
               shadowRadius: 12,
               zIndex: 9999,
               paddingVertical: 8,
@@ -253,18 +223,47 @@ const MapHeader: React.FC<MapHeaderProps> = ({
             ) : null
           }
         />
+
+        {/* 🚀 Moved Standalone Choose on Map Button Here */}
+        {!hasDestination && (
+          <TouchableOpacity
+            style={styles.standaloneChooseOnMapBtn}
+            activeOpacity={0.8}
+            onPress={() => {
+              Keyboard.dismiss();
+              if (onChooseOnMap) {
+                setTimeout(() => onChooseOnMap(), 100);
+              }
+            }}
+          >
+            <View style={styles.chooseOnMapIconBg}>
+              <MaterialIcons name="place" size={20} color="#D32F2F" />
+            </View>
+            <View>
+              <Text style={styles.chooseOnMapTitle}>Choose on Map</Text>
+              <Text style={styles.chooseOnMapSubtext}>
+                Pinpoint your exact location
+              </Text>
+            </View>
+            <MaterialIcons
+              name="chevron-right"
+              size={24}
+              color="#CBD5E1"
+              style={{ marginLeft: "auto" }}
+            />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  // ... (Keep your exact existing styles here)
   container: { position: "absolute", top: 0, left: 0, right: 0, zIndex: 10 },
   redBackground: {
     backgroundColor: "#D32F2F",
-    paddingTop: 55,
-    paddingBottom: 40,
+    paddingTop: 60,
+    paddingBottom: 45,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     alignItems: "center",
@@ -288,15 +287,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  chooseOnMapBtn: {
+  // 🚀 Updated Styles for the Standalone Button
+  standaloneChooseOnMapBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    marginBottom: 8,
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginTop: 8, // Space between search bar and button
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    elevation: 3,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
   chooseOnMapIconBg: {
     width: 36,
@@ -310,7 +316,7 @@ const styles = StyleSheet.create({
   chooseOnMapTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#D32F2F",
+    color: "#0F172A", // Darker for better contrast outside the list
     marginBottom: 2,
   },
   chooseOnMapSubtext: {

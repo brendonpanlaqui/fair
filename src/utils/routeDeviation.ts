@@ -1,5 +1,3 @@
-// src/utils/routeDeviation.ts
-
 interface Coordinate {
   latitude: number;
   longitude: number;
@@ -30,7 +28,7 @@ export const getDistanceInMeters = (
   return R * c;
 };
 
-// 3. The Point-to-Line Segment Algorithm
+// The Point-to-Line Segment Algorithm
 const distanceToSegment = (
   p: Coordinate,
   a: Coordinate,

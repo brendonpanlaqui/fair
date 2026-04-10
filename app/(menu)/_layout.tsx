@@ -7,13 +7,7 @@ export default function MenuLayout() {
       <Stack.Screen name="help-support" options={{ headerShown: false }} />
       <Stack.Screen name="ordinance" options={{ headerShown: false }} />
       <Stack.Screen name="saved-places" options={{ headerShown: false }} />
-      <Stack.Screen
-        name="verify-id"
-        options={{
-          presentation: "modal",
-          headerShown: false,
-        }}
-      />
+      <Stack.Screen name="verify-id" options={{ headerShown: false }} />
     </Stack>
   );
 }

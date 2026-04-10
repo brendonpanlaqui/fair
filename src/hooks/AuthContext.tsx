@@ -112,16 +112,34 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  // --- NEW: Handle Guest Mode ---
   const continueAsGuest = () => {
     setIsGuest(true);
     setUser(null);
   };
 
+  const verifyOtp = async (email: string, otp: string) => {
+    const response = await api.post("/auth/verify-otp/", { email, otp });
+    const {
+      tokens,
+      user_id,
+      email: userEmail,
+      first_name,
+      last_name,
+    } = response.data;
+
+    if (tokens?.access) {
+      await SecureStore.setItemAsync("userToken", tokens.access);
+    }
+
+    const userData = { id: user_id, email: userEmail, first_name, last_name };
+    await SecureStore.setItemAsync("userData", JSON.stringify(userData));
+    setUser(userData);
+  };
+
   const logout = async () => {
     await SecureStore.deleteItemAsync("userToken");
     setUser(null);
-    setIsGuest(false); // Reset guest state on logout so they go back to the auth screen
+    setIsGuest(false);
   };
 
   return (

@@ -2,17 +2,15 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import React, { useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    KeyboardAvoidingView,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
+import { InputField } from "../../../components/ui/InputField";
 import { api } from "../../../services/api";
 
 const ForgotPasswordScreen = () => {
@@ -20,8 +18,6 @@ const ForgotPasswordScreen = () => {
 
   const [step, setStep] = useState<1 | 2>(1);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -31,15 +27,11 @@ const ForgotPasswordScreen = () => {
       Alert.alert("Invalid Email", "Please enter a valid email address.");
       return;
     }
-
     setIsLoading(true);
     try {
       await api.post("/auth/forgot-password/", { email });
       setStep(2);
-      Alert.alert(
-        "Code Sent!",
-        "Check your email (or the terminal) for the reset code.",
-      );
+      Alert.alert("Code Sent!", "Check your email for the reset code.");
     } catch (error) {
       Alert.alert("Error", "Could not send reset code. Please try again.");
     } finally {
@@ -55,31 +47,24 @@ const ForgotPasswordScreen = () => {
       );
       return;
     }
-
     setIsLoading(true);
     try {
-      await api.post("/auth/reset-password/", {
-        email,
-        otp,
-        newPassword,
-      });
-
+      await api.post("/auth/reset-password/", { email, otp, newPassword });
       Alert.alert("Success!", "Your password has been reset.", [
         { text: "Log In", onPress: () => router.replace("/auth") },
       ]);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || "Invalid reset code.";
-      Alert.alert("Reset Failed", errorMessage);
+      Alert.alert(
+        "Reset Failed",
+        error.response?.data?.error || "Invalid reset code.",
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
+    <View style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
@@ -102,78 +87,33 @@ const ForgotPasswordScreen = () => {
         </View>
 
         {step === 1 ? (
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <View style={styles.inputWrapper}>
-              <MaterialIcons
-                name="mail-outline"
-                size={20}
-                color="#94A3B8"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder="name@example.com"
-                placeholderTextColor="#94A3B8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={setEmail}
-              />
-            </View>
-          </View>
+          <InputField
+            label="Email Address"
+            icon="mail-outline"
+            placeholder="name@example.com"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={setEmail}
+          />
         ) : (
           <>
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>6-Digit Reset Code</Text>
-              <View style={styles.inputWrapper}>
-                <MaterialIcons
-                  name="vpn-key"
-                  size={20}
-                  color="#94A3B8"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.inputWithIcon}
-                  placeholder="123456"
-                  placeholderTextColor="#94A3B8"
-                  keyboardType="number-pad"
-                  maxLength={6}
-                  value={otp}
-                  onChangeText={setOtp}
-                />
-              </View>
-            </View>
-
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>New Password</Text>
-              <View style={styles.inputWrapper}>
-                <MaterialIcons
-                  name="lock-outline"
-                  size={20}
-                  color="#94A3B8"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.inputWithIcon}
-                  placeholder="Min. 8 characters"
-                  placeholderTextColor="#94A3B8"
-                  secureTextEntry={!showPassword}
-                  value={newPassword}
-                  onChangeText={setNewPassword}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowPassword(!showPassword)}
-                  style={{ padding: 4 }}
-                >
-                  <MaterialIcons
-                    name={showPassword ? "visibility" : "visibility-off"}
-                    size={20}
-                    color="#94A3B8"
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
+            <InputField
+              label="6-Digit Reset Code"
+              icon="vpn-key"
+              placeholder="123456"
+              keyboardType="number-pad"
+              maxLength={6}
+              value={otp}
+              onChangeText={setOtp}
+            />
+            <InputField
+              label="New Password"
+              icon="lock-outline"
+              placeholder="Min. 8 characters"
+              isPassword
+              value={newPassword}
+              onChangeText={setNewPassword}
+            />
           </>
         )}
 
@@ -192,7 +132,7 @@ const ForgotPasswordScreen = () => {
           )}
         </TouchableOpacity>
       </ScrollView>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -228,20 +168,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
   },
-  inputGroup: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: "700", color: "#0F172A", marginBottom: 8 },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    height: 56,
-    paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
-  },
-  inputIcon: { marginRight: 12 },
-  inputWithIcon: { flex: 1, height: "100%", fontSize: 16, color: "#0F172A" },
   submitBtn: {
     backgroundColor: "#C62828",
     height: 56,

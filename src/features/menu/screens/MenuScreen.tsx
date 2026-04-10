@@ -84,7 +84,7 @@ export default function ProfileScreen() {
         ],
       );
     } else {
-      router.push("/verify-id");
+      router.push("/(menu)/verify-id");
     }
   };
 

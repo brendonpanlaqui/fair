@@ -25,19 +25,13 @@ export const DeviationModal = ({ visible, onClose, onReport }: Props) => (
             activeOpacity={0.8}
             onPress={onClose}
           >
-            <Text style={styles.safeBtnText}>YES, DRIVER TOOK SHORTCUT</Text>
+            <Text style={styles.safeBtnText}>I'M SAFE, WE TOOK A SHORTCUT</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.endRideBtn}
             activeOpacity={0.9}
             onPress={onReport}
           >
-            <MaterialIcons
-              name="security"
-              size={18}
-              color="#FFFFFF"
-              style={{ marginRight: 6 }}
-            />
             <Text style={styles.endRideBtnText}>END RIDE & REPORT</Text>
           </TouchableOpacity>
         </View>

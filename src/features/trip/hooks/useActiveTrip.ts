@@ -2,8 +2,8 @@ import { getShortestDistanceToRoute } from "@/src/utils/routeDeviation";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert } from "react-native";
-import { useAuth } from "../../../hooks/AuthContext"; // 🚀 2. Import Auth
-import { api } from "../../../services/api"; // 🚀 1. Import your API
+import { useAuth } from "../../../hooks/AuthContext";
+import { api } from "../../../services/api";
 import { useLocationTracking } from "./useLocationTracking";
 
 const DEVIATION_THRESHOLD_METERS = 100;
@@ -11,7 +11,7 @@ const DEVIATION_THRESHOLD_METERS = 100;
 export const useActiveTrip = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user } = useAuth(); // 🚀 3. Grab the logged-in user
+  const { user } = useAuth();
 
   // 1. Extract & Parse Data
   const fixedFare = params.fixedFare ? Number(params.fixedFare) : 0;
@@ -19,12 +19,9 @@ export const useActiveTrip = () => {
     ? Number(params.lockedDistance)
     : 0;
   const bodyNumber = (params.bodyNumber as string) || "888";
-
-  // 🚀 Extract these new parameters (Make sure you are passing them from the booking screen!)
   const originName = (params.originName as string) || "Unknown Origin";
   const destName = (params.destName as string) || "Unknown Destination";
   const matrixId = params.matrixId ? Number(params.matrixId) : 1;
-
   const destLat = params.destLat ? Number(params.destLat) : null;
   const destLng = params.destLng ? Number(params.destLng) : null;
 
@@ -65,94 +62,98 @@ export const useActiveTrip = () => {
     }
   };
 
-  const handleEndTrip = () => {
-    Alert.alert("End Ride", "Are you sure you want to end this trip?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "End Trip",
-        style: "destructive",
-        onPress: async () => {
-          // 🚀 Make this async!
-          try {
-            // Calculate base vs succeeding
-            const base = 35;
-            const succeeding = Math.max(0, fixedFare - base);
-            const generatedTripId = `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
+  // 🚀 UPDATED: Accepting the askedFare from the UI
+  const handleEndTrip = (askedFare?: string) => {
+    // 🚀 THE FIX: Safely parse the user's input into a number for Django.
+    // If they left it blank or typed nonsense, we default to the official fixedFare.
+    const finalFareCharged =
+      askedFare && !isNaN(Number(askedFare)) ? Number(askedFare) : fixedFare;
 
-            // 🚀 4. BUILD THE PAYLOAD FOR DJANGO
-            const payload = {
-              trip_id: generatedTripId,
-              user: user?.id || null,
-              tricycle: bodyNumber,
-              fare_matrix: matrixId,
-              trip_mode: parsedStopovers.length > 0 ? "Special" : "Direct",
-              origin_address: originName,
-              destination_address: destName,
-              total_distance_km: lockedDistance,
-              computed_fare: fixedFare,
-              actual_fare_charged: fixedFare,
-              discount_applied: 0.0, // You can add logic to calculate this if user is Student/PWD
-              status: "Completed",
-              origin_lat: routeCoordinates[0]?.latitude || mapCenter.latitude,
-              origin_lng: routeCoordinates[0]?.longitude || mapCenter.longitude,
-              dest_lat: destLat,
-              dest_lng: destLng,
-              polyline_hash: JSON.stringify(drivenTrace),
-            };
+    Alert.alert(
+      "End Ride",
+      "Are you sure you want to end this trip and generate a receipt?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Generate Receipt",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const base = 35;
+              const succeeding = Math.max(0, fixedFare - base);
+              const generatedTripId = `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
 
-            // 🚀 5. SEND TO BACKEND
-            await api.post("/trips/submit/", payload);
+              // 🚀 BUILD THE PAYLOAD FOR DJANGO
+              const payload = {
+                trip_id: generatedTripId,
+                user: user?.id || null,
+                tricycle: bodyNumber,
+                fare_matrix: matrixId,
+                trip_mode: parsedStopovers.length > 0 ? "Special" : "Direct",
+                origin_address: originName,
+                destination_address: destName,
+                total_distance_km: lockedDistance,
+                computed_fare: fixedFare,
+                actual_fare_charged: finalFareCharged, // 🚀 NOW SAVING THE ACTUAL FARE!
+                discount_applied: 0.0,
+                status: "Completed",
+                origin_lat: drivenTrace[0]?.latitude || mapCenter.latitude,
+                origin_lng: drivenTrace[0]?.longitude || mapCenter.longitude,
+                dest_lat: destLat,
+                dest_lng: destLng,
+                polyline_hash: JSON.stringify(drivenTrace),
+              };
 
-            // Format current date and time for the UI
-            const now = new Date();
-            const dateStr = now.toLocaleDateString("en-US", {
-              month: "short",
-              day: "numeric",
-              year: "numeric",
-            });
-            const timeStr = now.toLocaleTimeString("en-US", {
-              hour: "2-digit",
-              minute: "2-digit",
-            });
+              await api.post("/trips/submit/", payload);
 
-            // 🚀 6. NAVIGATE TO RECEIPT (Passing the generated ID)
-            router.replace({
-              pathname: "/trip-receipt",
-              params: {
-                tripId: generatedTripId, // Pass the ID so the receipt matches the database
-                totalFare: fixedFare,
-                baseFare: base,
-                succeedingFare: succeeding,
-                distance: lockedDistance.toFixed(1),
-                duration: `${estimatedMinutes} mins`,
-                date: dateStr,
-                time: timeStr,
-                bodyNumber: bodyNumber,
-                discountType: "Regular",
-                originLat: routeCoordinates[0]?.latitude || mapCenter.latitude,
-                originLng:
-                  routeCoordinates[0]?.longitude || mapCenter.longitude,
-                destLat: destLat,
-                destLng: destLng,
-                polylineHash: JSON.stringify(drivenTrace),
-              },
-            });
-          } catch (error: any) {
-            // 🚀 THIS WILL PRINT THE EXACT DJANGO ERROR TO YOUR TERMINAL
-            console.log("\n--- DJANGO REJECTED THE TRIP ---");
-            console.log(
-              JSON.stringify(error.response?.data || error.message, null, 2),
-            );
-            console.log("--------------------------------\n");
+              const now = new Date();
+              const dateStr = now.toLocaleDateString("en-US", {
+                month: "short",
+                day: "numeric",
+                year: "numeric",
+              });
+              const timeStr = now.toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+              });
 
-            Alert.alert(
-              "Sync Failed",
-              "Check your Expo terminal to see exactly what Django rejected!",
-            );
-          }
+              // 🚀 NAVIGATE TO RECEIPT
+              router.replace({
+                pathname: "/trip-receipt",
+                params: {
+                  tripId: generatedTripId,
+                  totalFare: fixedFare, // The official LGU computed fare
+                  actualFare: finalFareCharged, // 🚀 NEW: Pass this to show overcharging on the receipt!
+                  baseFare: base,
+                  succeedingFare: succeeding,
+                  distance: lockedDistance.toFixed(1),
+                  duration: `${estimatedMinutes} mins`,
+                  date: dateStr,
+                  time: timeStr,
+                  bodyNumber: bodyNumber,
+                  discountType: "Regular",
+                  originLat: drivenTrace[0]?.latitude || mapCenter.latitude,
+                  originLng: drivenTrace[0]?.longitude || mapCenter.longitude,
+                  destLat: destLat,
+                  destLng: destLng,
+                  polylineHash: JSON.stringify(drivenTrace),
+                },
+              });
+            } catch (error: any) {
+              console.log("\n--- DJANGO REJECTED THE TRIP ---");
+              console.log(
+                JSON.stringify(error.response?.data || error.message, null, 2),
+              );
+              console.log("--------------------------------\n");
+              Alert.alert(
+                "Sync Failed",
+                "Check your Expo terminal to see exactly what Django rejected!",
+              );
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const handleReportDeviation = () => {
@@ -163,7 +164,6 @@ export const useActiveTrip = () => {
     });
   };
 
-  // 5. Real-Time Route Monitoring Effect
   useEffect(() => {
     if (
       currentLocation &&

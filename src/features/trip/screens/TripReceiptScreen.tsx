@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useRef } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -17,6 +17,11 @@ const TripReceiptScreen = () => {
 
   // Extract params or use Fallbacks for testing the UI
   const totalFare = params.totalFare ? Number(params.totalFare) : 47.0;
+
+  // 🚀 NEW: Extract actual fare and calculate the overcharge
+  const actualFare = params.actualFare ? Number(params.actualFare) : totalFare;
+  const overchargeAmount = actualFare - totalFare;
+
   const baseFare = params.baseFare ? Number(params.baseFare) : 35.0;
   const succeedingFare = params.succeedingFare
     ? Number(params.succeedingFare)
@@ -36,6 +41,31 @@ const TripReceiptScreen = () => {
   const destLng = params.destLng ? Number(params.destLng) : 120.5898;
   const polylineHash = params.polylineHash as string | null;
 
+  const mapRef = useRef<MapView>(null);
+  const fitMapToRoute = () => {
+    const coords = parsedRoute ?? [
+      { latitude: originLat, longitude: originLng },
+      { latitude: destLat, longitude: destLng },
+    ];
+    // If the route is tiny (e.g. <300 m), fitToCoordinates zooms in too
+    // aggressively. Pad the bounding box so streets stay readable.
+    const lats = coords.map((c) => c.latitude);
+    const lngs = coords.map((c) => c.longitude);
+    const latDelta = Math.max(Math.max(...lats) - Math.min(...lats), 0.004);
+    const lngDelta = Math.max(Math.max(...lngs) - Math.min(...lngs), 0.004);
+    const centerLat = (Math.max(...lats) + Math.min(...lats)) / 2;
+    const centerLng = (Math.max(...lngs) + Math.min(...lngs)) / 2;
+    mapRef.current?.animateToRegion(
+      {
+        latitude: centerLat,
+        longitude: centerLng,
+        latitudeDelta: latDelta * 1.4, // 1.4 = ~40% padding on each axis
+        longitudeDelta: lngDelta * 1.4,
+      },
+      0, // 0 ms = instant, no animation on a receipt
+    );
+  };
+
   const handleReportDriver = () => {
     router.push({
       pathname: "/report",
@@ -43,19 +73,24 @@ const TripReceiptScreen = () => {
     });
   };
 
-  // 🚀 HELPER: Safely parse the physical trace
   const getDrivenRoute = () => {
-    if (!polylineHash) return null;
-    try {
-      const coords = JSON.parse(polylineHash);
-      if (Array.isArray(coords) && coords.length > 0) return coords;
-    } catch (e) {
-      console.warn("Failed to parse polyline on receipt");
+    if (polylineHash) {
+      try {
+        const coords = JSON.parse(polylineHash);
+        // Need at least 2 points to draw a line
+        if (Array.isArray(coords) && coords.length >= 2) return coords;
+      } catch (e) {
+        console.warn("Failed to parse polyline on receipt");
+      }
     }
-    return null;
+    // Fallback: straight line between origin and dest
+    return [
+      { latitude: originLat, longitude: originLng },
+      { latitude: destLat, longitude: destLng },
+    ];
   };
-
   const parsedRoute = getDrivenRoute();
+  const isEstimatedRoute = !polylineHash || parsedRoute.length < 3;
 
   return (
     <View style={styles.container}>
@@ -85,12 +120,8 @@ const TripReceiptScreen = () => {
             <MapView
               provider={PROVIDER_GOOGLE}
               style={StyleSheet.absoluteFillObject}
-              initialRegion={{
-                latitude: (originLat + destLat) / 2,
-                longitude: (originLng + destLng) / 2,
-                latitudeDelta: 0.015,
-                longitudeDelta: 0.015,
-              }}
+              ref={mapRef}
+              onMapReady={fitMapToRoute}
               pitchEnabled={false}
               rotateEnabled={false}
               scrollEnabled={false}
@@ -98,28 +129,32 @@ const TripReceiptScreen = () => {
             >
               <Marker
                 coordinate={{ latitude: originLat, longitude: originLng }}
-              >
-                <View style={styles.originMarker} />
-              </Marker>
+                title="Pick-up"
+                pinColor="#3B82F6"
+              />
+              <Marker
+                coordinate={{ latitude: destLat, longitude: destLng }}
+                title="Drop-off"
+                pinColor="#D32F2F"
+              />
 
-              <Marker coordinate={{ latitude: destLat, longitude: destLng }}>
-                <View style={styles.destinationMarker}>
-                  <View style={styles.destinationMarkerCore} />
-                </View>
-              </Marker>
-
-              {parsedRoute && (
-                <Polyline
-                  coordinates={parsedRoute}
-                  strokeWidth={5}
-                  strokeColor="#D32F2F"
-                  lineCap="round"
-                  lineJoin="round"
-                />
-              )}
+              <Polyline
+                coordinates={parsedRoute}
+                strokeWidth={isEstimatedRoute ? 3 : 5}
+                strokeColor={isEstimatedRoute ? "#94A3B8" : "#D32F2F"}
+                lineDashPattern={isEstimatedRoute ? [6, 4] : undefined}
+                lineCap="round"
+                lineJoin="round"
+              />
             </MapView>
-            {/* Soft gradient overlay to blend map into the receipt */}
-            <View style={styles.mapFadeOverlay} />
+
+            {/* ✅ Regular Views go OUTSIDE MapView, overlaid via absolute position */}
+            {isEstimatedRoute && (
+              <View style={styles.estimatedBadge}>
+                <MaterialIcons name="info-outline" size={12} color="#FCD34D" />
+                <Text style={styles.estimatedBadgeText}>Estimated route</Text>
+              </View>
+            )}
           </View>
 
           {/* Top Section: The Total */}
@@ -152,6 +187,21 @@ const TripReceiptScreen = () => {
 
           {/* Bottom Section: Breakdown & Details */}
           <View style={styles.detailsSection}>
+            {/* 🚀 NEW: THE OVERCHARGE WARNING BOX */}
+            {overchargeAmount > 0 ? (
+              <View style={styles.overchargeAlert}>
+                <MaterialIcons name="error-outline" size={24} color="#DC2626" />
+                <View style={styles.overchargeTextWrapper}>
+                  <Text style={styles.overchargeTitle}>
+                    {"Overcharge Detected!"}
+                  </Text>
+                  <Text style={styles.overchargeSubtext}>
+                    {`You paid ₱${actualFare.toFixed(2)}. The driver charged ₱${overchargeAmount.toFixed(2)} above the official ordinance.`}
+                  </Text>
+                </View>
+              </View>
+            ) : null}
+
             <View style={styles.breakdownRow}>
               <View style={styles.breakdownItem}>
                 <Text style={styles.breakdownLabel}>BASE FARE</Text>
@@ -262,7 +312,6 @@ const styles = StyleSheet.create({
   },
 
   scrollContent: { paddingHorizontal: 20, paddingBottom: 40, paddingTop: 10 },
-
   receiptCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
@@ -273,45 +322,56 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     overflow: "hidden",
   },
-
-  // 🚀 NEW MAP STYLES
+  // 🚀 NEW OVERCHARGE STYLES
+  overchargeAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+  },
+  overchargeTextWrapper: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  overchargeTitle: {
+    color: "#DC2626",
+    fontSize: 14,
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  overchargeSubtext: {
+    color: "#991B1B",
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
   receiptMapContainer: {
-    height: 160,
+    height: 200, // taller = more route context visible
     width: "100%",
     position: "relative",
     backgroundColor: "#E2E8F0",
   },
-  mapFadeOverlay: {
+  estimatedBadge: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 30,
-    backgroundColor: "rgba(255,255,255,0.8)", // Optional: blends the map cleanly into the white card
-  },
-  originMarker: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 4,
-    borderColor: "#3B82F6",
-  },
-  destinationMarker: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    backgroundColor: "#D32F2F",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    justifyContent: "center",
+    top: 10,
+    left: 10,
+    flexDirection: "row",
     alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(15,23,42,0.65)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20, // pill shape
   },
-  destinationMarkerCore: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#FFFFFF",
+  estimatedBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
   },
 
   totalSection: {

@@ -150,20 +150,9 @@ const HomeScreen: React.FC = () => {
           showsMyLocationButton={false}
           showsCompass={false}
         >
-          <Marker
-            coordinate={mapCenter}
-            anchor={{ x: 0.5, y: 0.5 }}
-            flat={true}
-          >
-            <View style={styles.originMarker} />
-          </Marker>
+          <Marker coordinate={mapCenter} flat={true}></Marker>
 
-          {destination && (
-            <Marker coordinate={destination} anchor={{ x: 0.5, y: 0.5 }}>
-              <View style={styles.destinationMarker} />
-              <View style={styles.destinationMarkerCore} />
-            </Marker>
-          )}
+          {destination && <Marker coordinate={destination}></Marker>}
 
           {destination && (
             <MapViewDirections
@@ -441,35 +430,6 @@ const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   mapArea: { flex: 1, position: "relative" },
-  originMarker: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 6,
-    borderColor: "#D32F2F",
-  },
-  destinationMarker: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#D32F2F",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 6,
-    shadowColor: "#D32F2F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-  },
-  destinationMarkerCore: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#FFFFFF",
-  },
   rightControls: {
     position: "absolute",
     right: 16,
