@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import * as SecureStore from "expo-secure-store";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -10,10 +10,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+
+import { OTPInput } from "../../../components/ui/OTPInput"; // 👈 Update this path if needed
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 
@@ -22,11 +23,11 @@ const OTPScreen = () => {
   const { email } = useLocalSearchParams();
   const { setUser } = useAuth() as any;
 
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  // 🚀 Just one simple string state now!
+  const [otpCode, setOtpCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(300);
-
-  const inputRefs = useRef<Array<TextInput | null>>([]);
+  const [isResending, setIsResending] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(60);
 
   useEffect(() => {
     if (timeLeft <= 0) return;
@@ -40,25 +41,8 @@ const OTPScreen = () => {
     return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
-  const handleOtpChange = (text: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = text;
-    setOtp(newOtp);
-
-    if (text !== "" && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyPress = (e: any, index: number) => {
-    if (e.nativeEvent.key === "Backspace" && otp[index] === "" && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
   const handleVerify = async () => {
-    const code = otp.join("");
-    if (code.length < 6) {
+    if (otpCode.length < 6) {
       Alert.alert("Incomplete", "Please enter the full 6-digit code.");
       return;
     }
@@ -66,13 +50,11 @@ const OTPScreen = () => {
     setIsLoading(true);
 
     try {
-      // 1. Verify OTP with Django
       const response = await api.post("/auth/verify-otp/", {
         email: email,
-        otp: code,
+        otp: otpCode,
       });
 
-      // 2. Grab EVERYTHING from the backend, including the newly added names!
       const {
         tokens,
         user_id,
@@ -81,28 +63,17 @@ const OTPScreen = () => {
         last_name,
       } = response.data;
 
-      // 3. Securely store the JWT access token
       if (tokens && tokens.access) {
         await SecureStore.setItemAsync("userToken", tokens.access);
       }
 
-      // 4. Package the user data
-      const userData = {
-        id: user_id,
-        email: userEmail,
-        first_name: first_name,
-        last_name: last_name,
-      };
-
-      // 5. Save it to the vault so it survives app restarts!
+      const userData = { id: user_id, email: userEmail, first_name, last_name };
       await SecureStore.setItemAsync("userData", JSON.stringify(userData));
 
-      // 6. Auto-Login the user globally
       if (typeof setUser === "function") {
         setUser(userData);
       }
 
-      // 7. Slide directly to the Map Dashboard
       router.replace("/(tabs)");
     } catch (error: any) {
       console.error("❌ OTP CRASH:", error);
@@ -114,9 +85,36 @@ const OTPScreen = () => {
     }
   };
 
-  const handleResend = () => {
-    Alert.alert("Code Resent", "A new code has been sent to your email.");
-    setTimeLeft(300);
+  const handleResend = async () => {
+    // 1. Safety check: Don't allow clicking if the timer is still running
+    if (timeLeft > 0) return;
+
+    setIsResending(true);
+
+    try {
+      // 2. Call your Django backend to trigger the new email
+      // (Make sure this URL matches your actual Django urls.py)
+      await api.post("/auth/resend-otp/", {
+        email: email,
+      });
+
+      Alert.alert(
+        "Code Resent",
+        "A new 6-digit code has been sent to your email.",
+      );
+
+      // 3. Reset the UI for the new attempt
+      setTimeLeft(60); // Start the 5-minute countdown again
+      setOtpCode(""); // 🚀 Clear out the old digits so the boxes are empty
+    } catch (error: any) {
+      console.error("❌ RESEND CRASH:", error);
+      const errorMessage =
+        error.response?.data?.error ||
+        "Could not resend code. Please try again.";
+      Alert.alert("Resend Failed", errorMessage);
+    } finally {
+      setIsResending(false);
+    }
   };
 
   return (
@@ -145,23 +143,8 @@ const OTPScreen = () => {
           </Text>
         </View>
 
-        <View style={styles.otpContainer}>
-          {otp.map((digit, index) => (
-            <TextInput
-              key={index}
-              ref={(ref) => {
-                inputRefs.current[index] = ref;
-              }}
-              style={[styles.otpBox, digit ? styles.otpBoxActive : null]}
-              keyboardType="number-pad"
-              maxLength={1}
-              value={digit}
-              onChangeText={(text) => handleOtpChange(text, index)}
-              onKeyPress={(e) => handleKeyPress(e, index)}
-              secureTextEntry={false}
-            />
-          ))}
-        </View>
+        {/* 🚀 Our incredibly clean reusable component */}
+        <OTPInput code={otpCode} setCode={setOtpCode} maxLength={6} />
 
         <View style={styles.timerContainer}>
           <MaterialIcons name="access-time" size={16} color="#64748B" />
@@ -185,8 +168,19 @@ const OTPScreen = () => {
 
         <View style={styles.resendContainer}>
           <Text style={styles.resendText}>Didn't receive code? </Text>
-          <TouchableOpacity onPress={handleResend}>
-            <Text style={styles.resendLink}>Resend</Text>
+          <TouchableOpacity
+            onPress={handleResend}
+            disabled={timeLeft > 0 || isResending} // Lock button if counting down OR sending
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          >
+            <Text
+              style={[
+                styles.resendLink,
+                (timeLeft > 0 || isResending) && { color: "#94A3B8" }, // Gray out if disabled
+              ]}
+            >
+              {isResending ? "Sending..." : "Resend"}
+            </Text>
           </TouchableOpacity>
         </View>
 
@@ -242,27 +236,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 22,
     paddingHorizontal: 16,
-  },
-  otpContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
-    marginBottom: 24,
-  },
-  otpBox: {
-    width: 48,
-    height: 56,
-    borderWidth: 1.5,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    fontSize: 24,
-    fontWeight: "bold",
-    color: "#0F172A",
-    textAlign: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  otpBoxActive: {
-    borderColor: "#C62828",
   },
   timerContainer: {
     flexDirection: "row",

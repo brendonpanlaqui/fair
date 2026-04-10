@@ -5,14 +5,13 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  KeyboardAvoidingView,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { InputField } from "../../../components/ui/InputField";
 import { useAuth } from "../../../hooks/AuthContext";
 
 const AuthScreen = () => {
@@ -21,8 +20,6 @@ const AuthScreen = () => {
 
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -30,46 +27,68 @@ const AuthScreen = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
-  const [emailError, setEmailError] = useState("");
-  const [passwordError, setPasswordError] = useState("");
-  const [confirmPasswordError, setConfirmPasswordError] = useState("");
+  const [errors, setErrors] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+  });
 
   const toggleMode = (mode: "login" | "register") => {
     setIsLogin(mode === "login");
-    setEmailError("");
-    setPasswordError("");
-    setConfirmPasswordError("");
+    setErrors({
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    });
     setPassword("");
     setConfirmPassword("");
   };
 
   const validateForm = () => {
     let isValid = true;
-    setEmailError("");
-    setPasswordError("");
-    setConfirmPasswordError("");
+    let newErrors = {
+      firstName: "",
+      lastName: "",
+      email: "",
+      password: "",
+      confirmPassword: "",
+    };
 
     if (!email.includes("@") || !email.includes(".")) {
-      setEmailError("Please enter a valid email format");
+      newErrors.email = "Please enter a valid email format";
       isValid = false;
     }
 
     if (password.length < 8) {
-      setPasswordError("Minimum 8 characters required");
+      newErrors.password = "Minimum 8 characters required";
       isValid = false;
     }
 
-    if (!isLogin && password !== confirmPassword) {
-      setConfirmPasswordError("Passwords do not match");
-      isValid = false;
+    if (!isLogin) {
+      if (!firstName.trim()) {
+        newErrors.firstName = "Required";
+        isValid = false;
+      }
+      if (!lastName.trim()) {
+        newErrors.lastName = "Required";
+        isValid = false;
+      }
+      if (password !== confirmPassword) {
+        newErrors.confirmPassword = "Passwords do not match";
+        isValid = false;
+      }
     }
 
+    setErrors(newErrors);
     return isValid;
   };
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-
     setIsLoading(true);
 
     try {
@@ -78,7 +97,6 @@ const AuthScreen = () => {
         router.replace("/(tabs)");
       } else {
         await register(email, password, firstName, lastName);
-
         Alert.alert(
           "Code Sent!",
           "Check your email for the verification code.",
@@ -86,37 +104,26 @@ const AuthScreen = () => {
             {
               text: "OK",
               onPress: () =>
-                router.push({ pathname: "/otp", params: { email: email } }),
+                router.push({ pathname: "/otp", params: { email } }),
             },
           ],
         );
       }
     } catch (error: any) {
-      if (isLogin) {
-        const errorMessage =
-          error.response?.data?.error ||
-          error.response?.data?.detail ||
-          "Invalid credentials";
-        setPasswordError(errorMessage);
-      } else {
-        const errorMessage =
-          error.response?.data?.error ||
-          error.response?.data?.email?.[0] ||
-          "Registration failed. Email may exist.";
-        setEmailError(errorMessage);
-      }
+      const errorMessage =
+        error.response?.data?.error ||
+        error.response?.data?.email?.[0] ||
+        "Authentication failed.";
+      isLogin
+        ? setErrors((prev) => ({ ...prev, password: errorMessage }))
+        : setErrors((prev) => ({ ...prev, email: errorMessage }));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleGuestMode = () => {
-    continueAsGuest();
-    router.replace("/(tabs)");
-  };
-
   return (
-    <KeyboardAvoidingView style={styles.container} behavior="height">
+    <View style={styles.container}>
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
@@ -125,7 +132,6 @@ const AuthScreen = () => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
-        {/* 🚀 Header moved INSIDE the ScrollView */}
         <View style={styles.header}>
           <Text style={styles.logoText}>fair</Text>
         </View>
@@ -134,7 +140,6 @@ const AuthScreen = () => {
           <TouchableOpacity
             style={[styles.tab, isLogin && styles.activeTab]}
             onPress={() => toggleMode("login")}
-            activeOpacity={0.8}
           >
             <Text style={[styles.tabText, isLogin && styles.activeTabText]}>
               Sign In
@@ -143,13 +148,13 @@ const AuthScreen = () => {
           <TouchableOpacity
             style={[styles.tab, !isLogin && styles.activeTab]}
             onPress={() => toggleMode("register")}
-            activeOpacity={0.8}
           >
             <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>
               Create Account
             </Text>
           </TouchableOpacity>
         </View>
+
         <View style={styles.titleContainer}>
           <Text style={styles.title}>
             {isLogin ? "Welcome Back" : "Create an account"}
@@ -160,162 +165,82 @@ const AuthScreen = () => {
               : "Fill in your details to get started."}
           </Text>
         </View>
+
         <View style={styles.formContainer}>
           {!isLogin && (
             <View style={styles.row}>
-              <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-                <Text style={styles.label}>First Name</Text>
-                <View style={styles.inputWrapper}>
-                  <MaterialIcons
-                    name="person-outline"
-                    size={20}
-                    color="#94A3B8"
-                    style={styles.inputIcon}
-                  />
-                  <TextInput
-                    style={styles.inputWithIcon}
-                    placeholder="Juan"
-                    placeholderTextColor="#94A3B8"
-                    value={firstName}
-                    onChangeText={setFirstName}
-                  />
-                </View>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <InputField
+                  label="First Name"
+                  icon="person-outline"
+                  placeholder="Juan"
+                  value={firstName}
+                  onChangeText={(text) => {
+                    setFirstName(text);
+                    setErrors((prev) => ({ ...prev, firstName: "" }));
+                  }}
+                  error={errors.firstName}
+                />
               </View>
-              <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-                <Text style={styles.label}>Last Name</Text>
-                <View style={styles.inputWrapper}>
-                  <TextInput
-                    style={[styles.inputWithIcon, { paddingLeft: 16 }]}
-                    placeholder="Dela Cruz"
-                    placeholderTextColor="#94A3B8"
-                    value={lastName}
-                    onChangeText={setLastName}
-                  />
-                </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <InputField
+                  label="Last Name"
+                  placeholder="Dela Cruz"
+                  value={lastName}
+                  onChangeText={(text) => {
+                    setLastName(text);
+                    setErrors((prev) => ({ ...prev, lastName: "" }));
+                  }}
+                  error={errors.lastName}
+                />
               </View>
             </View>
           )}
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Email Address</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                emailError ? styles.inputWrapperError : null,
-              ]}
-            >
-              <MaterialIcons
-                name="mail-outline"
-                size={20}
-                color="#94A3B8"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder="name@example.com"
-                placeholderTextColor="#94A3B8"
-                keyboardType="email-address"
-                autoCapitalize="none"
-                value={email}
-                onChangeText={(text) => {
-                  setEmail(text);
-                  setEmailError("");
-                }}
-              />
-            </View>
-            {emailError ? (
-              <Text style={styles.errorText}>{emailError}</Text>
-            ) : null}
-          </View>
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Password</Text>
-            <View
-              style={[
-                styles.inputWrapper,
-                passwordError ? styles.inputWrapperError : null,
-              ]}
-            >
-              <MaterialIcons
-                name="lock-outline"
-                size={20}
-                color="#94A3B8"
-                style={styles.inputIcon}
-              />
-              <TextInput
-                style={styles.inputWithIcon}
-                placeholder="Enter your password"
-                placeholderTextColor="#94A3B8"
-                secureTextEntry={!showPassword}
-                value={password}
-                onChangeText={(text) => {
-                  setPassword(text);
-                  setPasswordError("");
-                }}
-              />
-              <TouchableOpacity
-                onPress={() => setShowPassword(!showPassword)}
-                style={styles.eyeIcon}
-              >
-                <MaterialIcons
-                  name={showPassword ? "visibility" : "visibility-off"}
-                  size={20}
-                  color="#94A3B8"
-                />
-              </TouchableOpacity>
-            </View>
-            {isLogin && (
-              <Text
-                style={passwordError ? styles.errorText : styles.helperText}
-              >
-                {passwordError || "Minimum 8 characters required"}
-              </Text>
-            )}
-            {!isLogin && passwordError ? (
-              <Text style={styles.errorText}>{passwordError}</Text>
-            ) : null}
-          </View>
-          {!isLogin && (
-            <View style={styles.inputGroup}>
-              <Text style={styles.label}>Confirm Password</Text>
-              <View
-                style={[
-                  styles.inputWrapper,
-                  confirmPasswordError ? styles.inputWrapperError : null,
-                ]}
-              >
-                <MaterialIcons
-                  name="lock-outline"
-                  size={20}
-                  color="#94A3B8"
-                  style={styles.inputIcon}
-                />
-                <TextInput
-                  style={styles.inputWithIcon}
-                  placeholder="Confirm your password"
-                  placeholderTextColor="#94A3B8"
-                  secureTextEntry={!showConfirmPassword}
-                  value={confirmPassword}
-                  onChangeText={(text) => {
-                    setConfirmPassword(text);
-                    setConfirmPasswordError("");
-                  }}
-                />
-                <TouchableOpacity
-                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
-                  style={styles.eyeIcon}
-                >
-                  <MaterialIcons
-                    name={showConfirmPassword ? "visibility" : "visibility-off"}
-                    size={20}
-                    color="#94A3B8"
-                  />
-                </TouchableOpacity>
-              </View>
-              {confirmPasswordError ? (
-                <Text style={styles.errorText}>{confirmPasswordError}</Text>
-              ) : null}
-            </View>
+          <InputField
+            label="Email Address"
+            icon="mail-outline"
+            placeholder="name@example.com"
+            keyboardType="email-address"
+            value={email}
+            onChangeText={(text) => {
+              setEmail(text);
+              setErrors((prev) => ({ ...prev, email: "" }));
+            }}
+            error={errors.email}
+          />
+
+          <InputField
+            label="Password"
+            icon="lock-outline"
+            placeholder="Enter your password"
+            isPassword
+            value={password}
+            onChangeText={(text) => {
+              setPassword(text);
+              setErrors((prev) => ({ ...prev, password: "" }));
+            }}
+            error={errors.password}
+          />
+          {isLogin && !errors.password && (
+            <Text style={styles.helperText}>Minimum 8 characters required</Text>
           )}
+
+          {!isLogin && (
+            <InputField
+              label="Confirm Password"
+              icon="lock-outline"
+              placeholder="Confirm your password"
+              isPassword
+              value={confirmPassword}
+              onChangeText={(text) => {
+                setConfirmPassword(text);
+                setErrors((prev) => ({ ...prev, confirmPassword: "" }));
+              }}
+              error={errors.confirmPassword}
+            />
+          )}
+
           {isLogin && (
             <TouchableOpacity
               style={styles.forgotPassword}
@@ -325,6 +250,7 @@ const AuthScreen = () => {
             </TouchableOpacity>
           )}
         </View>
+
         <TouchableOpacity
           style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
           activeOpacity={0.9}
@@ -339,6 +265,7 @@ const AuthScreen = () => {
             </Text>
           )}
         </TouchableOpacity>
+
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
           <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
@@ -357,7 +284,10 @@ const AuthScreen = () => {
 
         <TouchableOpacity
           style={styles.guestBtn}
-          onPress={handleGuestMode}
+          onPress={() => {
+            continueAsGuest();
+            router.replace("/(tabs)");
+          }}
           activeOpacity={0.8}
         >
           <Text style={styles.guestBtnText}>Continue as Guest</Text>
@@ -369,6 +299,7 @@ const AuthScreen = () => {
           />
         </TouchableOpacity>
       </ScrollView>
+
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           {isLogin ? "Don't have an account? " : "Already have an account? "}
@@ -381,7 +312,7 @@ const AuthScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 
@@ -390,17 +321,16 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 60, // 🚀 Gives space for the status bar so it doesn't overlap
-    paddingBottom: 24, // 🚀 Breathing room between logo and the tabs
+    paddingTop: 60,
+    paddingBottom: 24,
   },
   logoText: {
-    color: "#D32F2F",
+    color: "#C62828",
     fontSize: 32,
     fontWeight: "900",
     fontStyle: "italic",
     letterSpacing: -1,
   },
-  // Removed top padding from scrollContent since the header is now handling it
   scrollContent: { paddingHorizontal: 24, paddingBottom: 40, flexGrow: 1 },
   tabContainer: {
     flexDirection: "row",
@@ -412,7 +342,7 @@ const styles = StyleSheet.create({
   tab: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: 8 },
   activeTab: { backgroundColor: "#FFFFFF", elevation: 2 },
   tabText: { fontSize: 14, fontWeight: "600", color: "#64748B" },
-  activeTabText: { color: "#D32F2F", fontWeight: "bold" },
+  activeTabText: { color: "#C62828", fontWeight: "bold" },
   titleContainer: { marginBottom: 32 },
   title: {
     fontSize: 32,
@@ -424,28 +354,16 @@ const styles = StyleSheet.create({
   subtitle: { fontSize: 16, color: "#64748B" },
   formContainer: { marginBottom: 16 },
   row: { flexDirection: "row", justifyContent: "space-between" },
-  inputGroup: { marginBottom: 20 },
-  label: { fontSize: 14, fontWeight: "700", color: "#0F172A", marginBottom: 8 },
-  inputWrapper: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    height: 56,
-    paddingHorizontal: 16,
-    backgroundColor: "#FFFFFF",
+  helperText: {
+    color: "#64748B",
+    fontSize: 12,
+    marginTop: -12,
+    marginBottom: 20,
   },
-  inputWrapperError: { borderColor: "#D32F2F" },
-  inputIcon: { marginRight: 12 },
-  inputWithIcon: { flex: 1, height: "100%", fontSize: 16, color: "#0F172A" },
-  eyeIcon: { padding: 4, marginLeft: 8 },
-  helperText: { color: "#64748B", fontSize: 12, marginTop: 8 },
-  errorText: { color: "#D32F2F", fontSize: 12, marginTop: 8 },
   forgotPassword: { alignSelf: "flex-end", marginTop: -4 },
-  forgotPasswordText: { color: "#D32F2F", fontSize: 14, fontWeight: "700" },
+  forgotPasswordText: { color: "#C62828", fontSize: 14, fontWeight: "700" },
   submitBtn: {
-    backgroundColor: "#D32F2F",
+    backgroundColor: "#C62828",
     height: 56,
     borderRadius: 12,
     justifyContent: "center",
@@ -491,7 +409,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#F1F5F9",
   },
   footerText: { color: "#64748B", fontSize: 14 },
-  footerLink: { color: "#D32F2F", fontSize: 14, fontWeight: "bold" },
+  footerLink: { color: "#C62828", fontSize: 14, fontWeight: "bold" },
 });
 
 export default AuthScreen;

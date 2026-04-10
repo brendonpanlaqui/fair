@@ -22,7 +22,6 @@ export const ActiveTripDashboard = ({
   onSecretTrigger,
   onEndTrip,
 }: Props) => {
-  // 🚀 Custom Modal State
   const [showEndModal, setShowEndModal] = useState(false);
 
   const confirmEndTrip = () => {
@@ -36,7 +35,6 @@ export const ActiveTripDashboard = ({
         <View style={styles.dragHandle} />
 
         <View style={styles.statusRow}>
-          {/* 🚀 Restored to "ON ROUTE" to indicate compliance with the GPS path */}
           <TouchableOpacity
             style={styles.onRouteBadge}
             activeOpacity={0.9}
@@ -48,34 +46,36 @@ export const ActiveTripDashboard = ({
               color="#10B981"
               style={{ marginRight: 6 }}
             />
-            <Text style={styles.onRouteText}>ON ROUTE</Text>
+            <Text style={styles.onRouteText}>{"ON ROUTE"}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.updatedText}>GPS Active</Text>
+          <Text style={styles.updatedText}>{"GPS Active"}</Text>
         </View>
 
         <View style={styles.metricsGrid}>
           <View style={styles.metricCard}>
             <View style={styles.metricHeader}>
               <MaterialIcons name="schedule" size={16} color="#64748B" />
-              <Text style={styles.metricLabel}>EST. ARRIVAL</Text>
+              <Text style={styles.metricLabel}>{"EST. ARRIVAL"}</Text>
             </View>
             <View style={styles.metricValueRow}>
-              <Text style={styles.metricValue}>{estimatedMinutes}</Text>
-              <Text style={styles.metricUnit}>min</Text>
+              {/* 🚀 FIX: Converting the number variable safely to a string */}
+              <Text style={styles.metricValue}>{`${estimatedMinutes}`}</Text>
+              <Text style={styles.metricUnit}>{"min"}</Text>
             </View>
           </View>
 
           <View style={styles.metricCard}>
             <View style={styles.metricHeader}>
               <MaterialIcons name="place" size={16} color="#64748B" />
-              <Text style={styles.metricLabel}>DISTANCE</Text>
+              <Text style={styles.metricLabel}>{"DISTANCE"}</Text>
             </View>
             <View style={styles.metricValueRow}>
-              <Text style={styles.metricValue}>
-                {lockedDistance.toFixed(1)}
-              </Text>
-              <Text style={styles.metricUnit}>km</Text>
+              {/* 🚀 FIX: Stringifying the fixed distance */}
+              <Text
+                style={styles.metricValue}
+              >{`${lockedDistance.toFixed(1)}`}</Text>
+              <Text style={styles.metricUnit}>{"km"}</Text>
             </View>
           </View>
         </View>
@@ -91,11 +91,10 @@ export const ActiveTripDashboard = ({
             color="#FFFFFF"
             style={{ marginRight: 8 }}
           />
-          <Text style={styles.endTripText}>End Trip Now</Text>
+          <Text style={styles.endTripText}>{"End Trip Now"}</Text>
         </TouchableOpacity>
       </View>
 
-      {/* 🚀 PREMIUM CONFIRMATION MODAL */}
       <Modal
         visible={showEndModal}
         transparent={true}
@@ -110,10 +109,11 @@ export const ActiveTripDashboard = ({
               </View>
             </View>
 
-            <Text style={styles.modalTitle}>End this trip?</Text>
+            <Text style={styles.modalTitle}>{"End this trip?"}</Text>
             <Text style={styles.modalSubtitle}>
-              Are you sure you have arrived at your destination? Your final fare
-              and map-trace will be locked.
+              {
+                "Are you sure you have arrived at your destination? Your final fare and map-trace will be locked."
+              }
             </Text>
 
             <View style={styles.modalActions}>
@@ -122,7 +122,7 @@ export const ActiveTripDashboard = ({
                 activeOpacity={0.9}
                 onPress={confirmEndTrip}
               >
-                <Text style={styles.confirmBtnText}>Yes, End Trip</Text>
+                <Text style={styles.confirmBtnText}>{"Yes, End Trip"}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -130,7 +130,7 @@ export const ActiveTripDashboard = ({
                 activeOpacity={0.7}
                 onPress={() => setShowEndModal(false)}
               >
-                <Text style={styles.cancelBtnText}>Keep Riding</Text>
+                <Text style={styles.cancelBtnText}>{"Keep Riding"}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -141,7 +141,6 @@ export const ActiveTripDashboard = ({
 };
 
 const styles = StyleSheet.create({
-  // --- EXISTING DASHBOARD STYLES ---
   bottomSheet: {
     position: "absolute",
     bottom: 0,
@@ -223,7 +222,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     height: 60,
     borderRadius: 20,
-    backgroundColor: "#D32F2F", // Brand Crimson
+    backgroundColor: "#D32F2F",
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
@@ -238,11 +237,9 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
-
-  // --- NEW CUSTOM MODAL STYLES ---
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.6)", // Dark slate blur
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "flex-end",
   },
   modalContent: {
@@ -253,10 +250,7 @@ const styles = StyleSheet.create({
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
     alignItems: "center",
   },
-  modalIconContainer: {
-    marginBottom: 20,
-    marginTop: 8,
-  },
+  modalIconContainer: { marginBottom: 20, marginTop: 8 },
   modalIconBg: {
     width: 64,
     height: 64,
@@ -280,10 +274,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 32,
   },
-  modalActions: {
-    width: "100%",
-    gap: 12,
-  },
+  modalActions: { width: "100%", gap: 12 },
   confirmBtn: {
     height: 56,
     backgroundColor: "#D32F2F",
@@ -296,11 +287,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
-  confirmBtnText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  confirmBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
   cancelBtn: {
     height: 56,
     backgroundColor: "#F1F5F9",
@@ -308,9 +295,5 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  cancelBtnText: {
-    color: "#0F172A",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
+  cancelBtnText: { color: "#0F172A", fontSize: 16, fontWeight: "bold" },
 });

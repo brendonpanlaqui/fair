@@ -21,7 +21,6 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
   const [sosVisible, setSosVisible] = useState(false);
 
   const handleCall = (number: string) => {
-    // Strips out any spaces or dots to ensure the phone dialer works perfectly
     const cleanNumber = number.replace(/[^0-9+]/g, "");
     const url =
       Platform.OS === "android"
@@ -33,9 +32,7 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
 
   return (
     <View style={styles.topOverlay} pointerEvents="box-none">
-      {/* UNIFIED HUD: Compact, White, Premium */}
       <View style={styles.hudCard}>
-        {/* Top Row: Navigation & SOS */}
         <View style={styles.hudTopRow}>
           <TouchableOpacity
             style={styles.backButton}
@@ -46,8 +43,9 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
           </TouchableOpacity>
 
           <View style={styles.titleWrapper}>
-            <Text style={styles.hudSubtitle}>ACTIVE RIDE</Text>
-            <Text style={styles.hudTitle}>Body #{bodyNumber}</Text>
+            <Text style={styles.hudSubtitle}>{"ACTIVE RIDE"}</Text>
+            {/* 🚀 FIX: Forced to string */}
+            <Text style={styles.hudTitle}>{`Body #${bodyNumber}`}</Text>
           </View>
 
           <TouchableOpacity
@@ -56,30 +54,29 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
             onPress={() => setSosVisible(true)}
           >
             <MaterialIcons name="health-and-safety" size={16} color="#DC2626" />
-            <Text style={styles.sosText}>SOS</Text>
+            <Text style={styles.sosText}>{"SOS"}</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.divider} />
 
-        {/* Bottom Row: The Fare */}
         <View style={styles.hudBottomRow}>
           <View>
-            <Text style={styles.fareLabel}>CURRENT FARE</Text>
+            <Text style={styles.fareLabel}>{"CURRENT FARE"}</Text>
             <View style={styles.fareValueRow}>
-              <Text style={styles.fareCurrency}>₱</Text>
-              <Text style={styles.fareValue}>{fixedFare}.00</Text>
+              <Text style={styles.fareCurrency}>{"₱"}</Text>
+              {/* 🚀 FIX: Forced to string and formatted safely */}
+              <Text style={styles.fareValue}>{`${fixedFare.toFixed(2)}`}</Text>
             </View>
           </View>
 
           <View style={styles.verifiedBadge}>
             <MaterialIcons name="verified" size={14} color="#10B981" />
-            <Text style={styles.verifiedText}>LGU Verified</Text>
+            <Text style={styles.verifiedText}>{"LGU Verified"}</Text>
           </View>
         </View>
       </View>
 
-      {/* 🚀 COMPREHENSIVE EMERGENCY MODAL */}
       <Modal
         visible={sosVisible}
         transparent={true}
@@ -90,9 +87,10 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>Emergency Center</Text>
+                <Text style={styles.modalTitle}>{"Emergency Center"}</Text>
+                {/* 🚀 FIX: Forced to string */}
                 <Text style={styles.modalSubtitle}>
-                  Current Ride: Body #{bodyNumber}
+                  {`Current Ride: Body #${bodyNumber}`}
                 </Text>
               </View>
               <TouchableOpacity
@@ -109,8 +107,7 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
               bounces={false}
               contentContainerStyle={{ paddingBottom: 20 }}
             >
-              {/* CATEGORY 1: MEDICAL & RESCUE (Life Threatening) */}
-              <Text style={styles.sectionLabel}>CRITICAL EMERGENCY</Text>
+              <Text style={styles.sectionLabel}>{"CRITICAL EMERGENCY"}</Text>
               <TouchableOpacity
                 style={styles.actionCard}
                 activeOpacity={0.8}
@@ -127,18 +124,17 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>
-                    National Emergency (911)
+                    {"National Emergency (911)"}
                   </Text>
                   <Text style={styles.actionSubtext}>
-                    Police, Medical, or Rescue
+                    {"Police, Medical, or Rescue"}
                   </Text>
                 </View>
                 <MaterialIcons name="call" size={24} color="#CBD5E1" />
               </TouchableOpacity>
 
-              {/* CATEGORY 2: TRAFFIC INCIDENTS (From Poster) */}
               <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
-                POLICE & TRAFFIC
+                {"POLICE & TRAFFIC"}
               </Text>
               <TouchableOpacity
                 style={styles.actionCard}
@@ -151,17 +147,16 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                   <MaterialIcons name="traffic" size={24} color="#EA580C" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>PNP - Traffic Unit</Text>
+                  <Text style={styles.actionTitle}>{"PNP - Traffic Unit"}</Text>
                   <Text style={styles.actionSubtext}>
-                    Collisions & traffic disputes
+                    {"Collisions & disputes"}
                   </Text>
                 </View>
                 <MaterialIcons name="call" size={24} color="#CBD5E1" />
               </TouchableOpacity>
 
-              {/* CATEGORY 3: LGU REGULATION (From Poster) */}
               <Text style={[styles.sectionLabel, { marginTop: 8 }]}>
-                FARE & REGULATION
+                {"FARE & REGULATION"}
               </Text>
               <TouchableOpacity
                 style={styles.actionCard}
@@ -174,9 +169,9 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                   <MaterialIcons name="gavel" size={24} color="#0F172A" />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.actionTitle}>PTRO Angeles City</Text>
+                  <Text style={styles.actionTitle}>{"PTRO Angeles City"}</Text>
                   <Text style={styles.actionSubtext}>
-                    Report overcharging & violations
+                    {"Report overcharging"}
                   </Text>
                 </View>
                 <MaterialIcons name="call" size={24} color="#CBD5E1" />
@@ -198,8 +193,6 @@ const styles = StyleSheet.create({
     paddingTop: Platform.OS === "ios" ? 55 : 45,
     paddingHorizontal: 16,
   },
-
-  // HUD CARD
   hudCard: {
     backgroundColor: "#FFFFFF",
     borderRadius: 24,
@@ -223,10 +216,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  titleWrapper: {
-    flex: 1,
-    alignItems: "center",
-  },
+  titleWrapper: { flex: 1, alignItems: "center" },
   hudSubtitle: {
     fontSize: 10,
     fontWeight: "900",
@@ -234,11 +224,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 2,
   },
-  hudTitle: {
-    fontSize: 16,
-    fontWeight: "900",
-    color: "#0F172A",
-  },
+  hudTitle: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
   sosButton: {
     flexDirection: "row",
     alignItems: "center",
@@ -256,13 +242,7 @@ const styles = StyleSheet.create({
     marginLeft: 4,
     letterSpacing: 0.5,
   },
-
-  divider: {
-    height: 1,
-    backgroundColor: "#F1F5F9",
-    marginVertical: 12,
-  },
-
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 12 },
   hudBottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -276,10 +256,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 2,
   },
-  fareValueRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-  },
+  fareValueRow: { flexDirection: "row", alignItems: "flex-start" },
   fareCurrency: {
     fontSize: 16,
     fontWeight: "900",
@@ -309,8 +286,6 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     marginLeft: 4,
   },
-
-  // MODAL
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.5)",
@@ -322,7 +297,7 @@ const styles = StyleSheet.create({
     borderTopRightRadius: 28,
     padding: 24,
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
-    maxHeight: "90%", // Allows ScrollView to expand cleanly
+    maxHeight: "90%",
   },
   modalHeader: {
     flexDirection: "row",
@@ -350,7 +325,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-
   sectionLabel: {
     fontSize: 11,
     fontWeight: "900",
@@ -359,7 +333,6 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     marginLeft: 4,
   },
-
   actionCard: {
     flexDirection: "row",
     alignItems: "center",

@@ -23,6 +23,7 @@ module.exports = {
         foregroundImage: "./assets/images/adaptive-icon.png",
       },
       predictiveBackGestureEnabled: false,
+      softwareKeyboardLayoutMode: "resize",
       permissions: [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",

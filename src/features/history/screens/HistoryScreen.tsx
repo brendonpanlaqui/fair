@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -14,11 +14,9 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
 import { api } from "../../../services/api";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
-// 🚀 Define your Django Backend URL here (use your local IP for physical device testing)
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.x:8000/api";
 
@@ -42,27 +40,62 @@ interface TripRecord {
 const HistoryScreen = () => {
   const router = useRouter();
 
-  // --- STATE MANAGEMENT ---
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
     "All",
   );
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
-
-  // 🚀 New Async States
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- API FETCH LOGIC ---
+  // ✅ mapRef typed correctly — same fix as TripReceiptScreen
+  const mapRef = useRef<MapView>(null);
+
+  // ✅ Fit map to the selected trip's route once the map is ready
+  const fitMapToRoute = () => {
+    if (!selectedTrip) return;
+
+    const coords = getDrivenRoute(selectedTrip.polyline_hash) ?? [
+      selectedTrip.origin_coords,
+      selectedTrip.dest_coords,
+    ];
+
+    const lats = coords.map((c: { latitude: number }) => c.latitude);
+    const lngs = coords.map((c: { longitude: number }) => c.longitude);
+    const latDelta = Math.max(Math.max(...lats) - Math.min(...lats), 0.004);
+    const lngDelta = Math.max(Math.max(...lngs) - Math.min(...lngs), 0.004);
+    const centerLat = (Math.max(...lats) + Math.min(...lats)) / 2;
+    const centerLng = (Math.max(...lngs) + Math.min(...lngs)) / 2;
+
+    mapRef.current?.animateToRegion(
+      {
+        latitude: centerLat,
+        longitude: centerLng,
+        latitudeDelta: latDelta * 1.4,
+        longitudeDelta: lngDelta * 1.4,
+      },
+      0,
+    );
+  };
+
+  // ✅ Require at least 2 points — same logic as TripReceiptScreen
+  const getDrivenRoute = (hash?: string | null) => {
+    if (!hash) return null;
+    try {
+      const coords = JSON.parse(hash);
+      if (Array.isArray(coords) && coords.length >= 2) return coords;
+    } catch (e) {
+      console.warn("Failed to parse polyline breadcrumbs:", e);
+    }
+    return null;
+  };
+
   const fetchTripHistory = async (isPullToRefresh = false) => {
     try {
       if (!isPullToRefresh) setIsLoading(true);
       setError(null);
-
-      // 🚀 The interceptor in api.ts automatically attaches the "Bearer <token>" here!
       const response = await api.get<TripRecord[]>("/trips/history/");
-
       setTrips(response.data);
     } catch (err) {
       console.warn("API Error:", err);
@@ -75,23 +108,19 @@ const HistoryScreen = () => {
     }
   };
 
-  // Run on mount
   useEffect(() => {
     fetchTripHistory();
   }, []);
 
-  // Handle Pull-to-Refresh
   const onRefresh = () => {
     setIsRefreshing(true);
     fetchTripHistory(true);
   };
 
-  // --- DATA FILTERING ---
   const filteredData = trips.filter(
     (trip) => filter === "All" || trip.status === filter,
   );
 
-  // --- UTILS ---
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleDateString("en-PH", {
       month: "short",
@@ -109,7 +138,6 @@ const HistoryScreen = () => {
     );
   };
 
-  // --- RENDERERS ---
   const renderTripCard = ({ item }: { item: TripRecord }) => (
     <TouchableOpacity
       style={styles.card}
@@ -187,24 +215,24 @@ const HistoryScreen = () => {
     </TouchableOpacity>
   );
 
-  const getDrivenRoute = (hash?: string | null) => {
-    if (!hash) return null;
-    try {
-      const coords = JSON.parse(hash);
-      if (Array.isArray(coords) && coords.length > 0) {
-        return coords;
-      }
-    } catch (e) {
-      console.warn("Failed to parse polyline breadcrumbs:", e);
-    }
-    return null;
-  };
+  // Derived values for the modal map — computed once selectedTrip is set
+  const modalRoute = selectedTrip
+    ? getDrivenRoute(selectedTrip.polyline_hash)
+    : null;
+
+  const isEstimatedRoute =
+    !selectedTrip?.polyline_hash || !modalRoute || modalRoute.length < 3;
+
+  const modalPolylineCoords =
+    modalRoute ??
+    (selectedTrip
+      ? [selectedTrip.origin_coords, selectedTrip.dest_coords]
+      : []);
 
   return (
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* 1. BRAND RED HEADER */}
       <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Ride History</Text>
         <Text style={styles.headerSubtitle}>
@@ -212,7 +240,6 @@ const HistoryScreen = () => {
         </Text>
       </View>
 
-      {/* 2. OVERLAPPING FILTER PILL */}
       <View style={styles.filterWrapper}>
         {["All", "Completed", "Cancelled"].map((tab) => (
           <TouchableOpacity
@@ -233,7 +260,6 @@ const HistoryScreen = () => {
         ))}
       </View>
 
-      {/* 3. THE LIST WITH LOADING/ERROR STATES */}
       {isLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#D32F2F" />
@@ -274,7 +300,6 @@ const HistoryScreen = () => {
         />
       )}
 
-      {/* RECEIPT MODAL */}
       <Modal
         visible={selectedTrip !== null}
         animationType="slide"
@@ -284,51 +309,50 @@ const HistoryScreen = () => {
           <View style={styles.modalContainer}>
             <View style={styles.mapSection}>
               <MapView
+                key={selectedTrip.trip_id}
+                ref={mapRef}
                 provider={PROVIDER_GOOGLE}
                 style={StyleSheet.absoluteFillObject}
-                initialRegion={{
-                  latitude:
-                    (selectedTrip.origin_coords.latitude +
-                      selectedTrip.dest_coords.latitude) /
-                    2,
-                  longitude:
-                    (selectedTrip.origin_coords.longitude +
-                      selectedTrip.dest_coords.longitude) /
-                    2,
-                  latitudeDelta: 0.015,
-                  longitudeDelta: 0.015,
-                }}
+                onMapReady={fitMapToRoute}
                 pitchEnabled={false}
                 rotateEnabled={false}
                 scrollEnabled={false}
                 zoomEnabled={false}
               >
-                <Marker coordinate={selectedTrip.origin_coords}>
-                  <View style={styles.originMarker} />
-                </Marker>
-                <Marker coordinate={selectedTrip.dest_coords}>
-                  <View style={styles.destinationMarker}>
-                    <View style={styles.destinationMarkerCore} />
-                  </View>
-                </Marker>
-                {getDrivenRoute(selectedTrip.polyline_hash) ? (
-                  <Polyline
-                    coordinates={getDrivenRoute(selectedTrip.polyline_hash)!}
-                    strokeWidth={5}
-                    strokeColor="#D32F2F"
-                    lineCap="round"
-                    lineJoin="round"
-                  />
-                ) : (
-                  <MapViewDirections
-                    origin={selectedTrip.origin_coords}
-                    destination={selectedTrip.dest_coords}
-                    apikey={GOOGLE_API_KEY}
-                    strokeWidth={4}
-                    strokeColor="#D32F2F"
-                  />
-                )}
+                {/* ✅ Default markers — anchor at tip, no offset issues */}
+                <Marker
+                  coordinate={selectedTrip.origin_coords}
+                  title="Pick-up"
+                  pinColor="#3B82F6"
+                />
+                <Marker
+                  coordinate={selectedTrip.dest_coords}
+                  title="Drop-off"
+                  pinColor="#D32F2F"
+                />
+
+                {/* ✅ Solid red if real trace, dashed gray if estimated */}
+                <Polyline
+                  coordinates={modalPolylineCoords}
+                  strokeWidth={isEstimatedRoute ? 3 : 5}
+                  strokeColor={isEstimatedRoute ? "#94A3B8" : "#D32F2F"}
+                  lineDashPattern={isEstimatedRoute ? [6, 4] : undefined}
+                  lineCap="round"
+                  lineJoin="round"
+                />
               </MapView>
+
+              {/* ✅ Badge is OUTSIDE MapView to avoid addViewAt crash */}
+              {isEstimatedRoute && (
+                <View style={styles.estimatedBadge}>
+                  <MaterialIcons
+                    name="info-outline"
+                    size={12}
+                    color="#FCD34D"
+                  />
+                  <Text style={styles.estimatedBadgeText}>Estimated route</Text>
+                </View>
+              )}
 
               <TouchableOpacity
                 style={styles.mapBackButton}
@@ -455,9 +479,6 @@ const HistoryScreen = () => {
   );
 };
 
-// ==========================================
-// STYLES
-// ==========================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
@@ -509,7 +530,6 @@ const styles = StyleSheet.create({
 
   listContent: { paddingTop: 24, paddingHorizontal: 16, paddingBottom: 100 },
 
-  // 🚀 NEW: Styles for Loading and Errors
   centerContainer: {
     flex: 1,
     justifyContent: "center",
@@ -618,7 +638,33 @@ const styles = StyleSheet.create({
   },
 
   modalContainer: { flex: 1, backgroundColor: "#F8FAFC" },
-  mapSection: { height: "35%", width: "100%", position: "relative" },
+
+  mapSection: {
+    height: "35%",
+    width: "100%",
+    position: "relative",
+  },
+
+  // ✅ Estimated route badge — positioned over map, outside MapView
+  estimatedBadge: {
+    position: "absolute",
+    top: 10,
+    left: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(15,23,42,0.65)",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 20,
+  },
+  estimatedBadgeText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "700",
+    letterSpacing: 0.3,
+  },
+
   mapBackButton: {
     position: "absolute",
     top: 50,
@@ -634,31 +680,6 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-  },
-
-  originMarker: {
-    width: 16,
-    height: 16,
-    borderRadius: 8,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 4,
-    borderColor: "#3B82F6",
-  },
-  destinationMarker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#D32F2F",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  destinationMarkerCore: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#FFFFFF",
   },
 
   receiptSection: {
@@ -792,7 +813,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#FFE4E6",
   },
-
   pdfBtn: {
     flex: 1,
     flexDirection: "row",

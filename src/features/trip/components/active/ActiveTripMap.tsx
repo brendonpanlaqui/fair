@@ -1,63 +1,231 @@
 import { LocationObjectCoords } from "expo-location";
+
 import React, { useEffect, useRef, useState } from "react";
+
 import { StyleSheet, View } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+
 import MapViewDirections from "react-native-maps-directions";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
+const getDistanceInMeters = (
+  lat1: number,
+
+  lon1: number,
+
+  lat2: number,
+
+  lon2: number,
+) => {
+  const R = 6371e3;
+
+  const p1 = (lat1 * Math.PI) / 180;
+
+  const p2 = (lat2 * Math.PI) / 180;
+
+  const dp = ((lat2 - lat1) * Math.PI) / 180;
+
+  const dl = ((lon2 - lon1) * Math.PI) / 180;
+
+  const a =
+    Math.sin(dp / 2) * Math.sin(dp / 2) +
+    Math.cos(p1) * Math.cos(p2) * Math.sin(dl / 2) * Math.sin(dl / 2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+  return R * c;
+};
+
 interface Props {
   mapCenter: { latitude: number; longitude: number };
-  currentLocation: LocationObjectCoords | null; // 🚀 Uses Expo's official strict typing
+
+  currentLocation: LocationObjectCoords | null;
+
   destLat: number | null;
+
   destLng: number | null;
+
   waypoints: { latitude: number; longitude: number }[];
+
   stopovers: any[];
+
   onRouteReady: (coords: { latitude: number; longitude: number }[]) => void;
+
+  onDestinationReached: () => void;
 }
 
 export const ActiveTripMap = ({
   mapCenter,
+
   currentLocation,
+
   destLat,
+
   destLng,
+
   waypoints,
+
   stopovers,
+
   onRouteReady,
+
+  onDestinationReached,
 }: Props) => {
   const mapRef = useRef<MapView>(null);
 
-  // 🚀 FIX 1: Start as null, then set it ONCE via useEffect
   const [lockedOrigin, setLockedOrigin] = useState<{
     latitude: number;
+
     longitude: number;
   } | null>(null);
 
-  // Wait for the GPS to lock on, then freeze the origin for the red line
+  const [routeCoords, setRouteCoords] = useState<
+    { latitude: number; longitude: number }[]
+  >([]);
+
   useEffect(() => {
     if (!lockedOrigin && currentLocation) {
       setLockedOrigin({
         latitude: currentLocation.latitude,
+
         longitude: currentLocation.longitude,
       });
     }
   }, [currentLocation, lockedOrigin]);
 
-  // 🚀 FIX 2: Gentle Camera Update
-  // We only animate the camera if we already have the route drawn,
-  // giving it that smooth 3D navigation feel without breaking the initial zoom.
   useEffect(() => {
-    if (currentLocation && lockedOrigin && mapRef.current) {
-      mapRef.current.animateCamera(
-        {
-          center: currentLocation,
-          pitch: 45, // 3D driving view
-          heading: currentLocation.heading || 0, // Faces the direction you are moving (if available)
-        },
-        { duration: 1000 },
+    if (currentLocation && destLat && destLng) {
+      const distanceToDest = getDistanceInMeters(
+        currentLocation.latitude,
+
+        currentLocation.longitude,
+
+        destLat,
+
+        destLng,
       );
+
+      if (distanceToDest < 50) {
+        onDestinationReached();
+
+        return;
+      }
+
+      if (routeCoords.length > 0) {
+        let closestIndex = 0;
+
+        let minDistance = Infinity;
+
+        for (let i = 0; i < routeCoords.length; i++) {
+          const dist = getDistanceInMeters(
+            currentLocation.latitude,
+
+            currentLocation.longitude,
+
+            routeCoords[i].latitude,
+
+            routeCoords[i].longitude,
+          );
+
+          if (dist < minDistance) {
+            minDistance = dist;
+
+            closestIndex = i;
+          }
+        }
+
+        if (closestIndex > 0 && minDistance < 100) {
+          setRouteCoords((prev) => prev.slice(closestIndex));
+        }
+      }
+
+      if (mapRef.current) {
+        mapRef.current.animateCamera(
+          {
+            center: currentLocation,
+
+            pitch: 45,
+
+            heading: currentLocation.heading || 0,
+          },
+
+          { duration: 1000 },
+        );
+      }
     }
-  }, [currentLocation, lockedOrigin]);
+  }, [currentLocation]);
+
+  // 🚀 ISOLATED RENDER FUNCTIONS (Guarantees no text string crashes)
+
+  const renderDestinationMarker = () => {
+    if (!destLat || !destLng) return null;
+
+    return <Marker coordinate={{ latitude: destLat, longitude: destLng }} />;
+  };
+
+  const renderRouteLine = () => {
+    if (!lockedOrigin || !destLat || !destLng || routeCoords.length > 0)
+      return null;
+
+    return (
+      <MapViewDirections
+        origin={lockedOrigin}
+        destination={{ latitude: destLat, longitude: destLng }}
+        waypoints={waypoints}
+        apikey={GOOGLE_API_KEY}
+        strokeWidth={0}
+        optimizeWaypoints={false}
+        onReady={(result) => {
+          setRouteCoords(result.coordinates);
+
+          onRouteReady(result.coordinates);
+
+          mapRef.current?.fitToCoordinates(result.coordinates, {
+            edgePadding: { top: 120, right: 40, bottom: 300, left: 40 },
+
+            animated: true,
+          });
+        }}
+      />
+    );
+  };
+
+  const renderDynamicLine = () => {
+    if (routeCoords.length === 0) return null;
+
+    return (
+      <Polyline
+        coordinates={routeCoords}
+        strokeWidth={6}
+        strokeColor="#E53935"
+        lineCap="round"
+        lineJoin="round"
+      />
+    );
+  };
+
+  const renderStopovers = () => {
+    if (!stopovers || stopovers.length === 0) return null;
+
+    return stopovers.map((stop, index) => {
+      const lat = Number(stop.latitude);
+
+      const lng = Number(stop.longitude);
+
+      if (isNaN(lat) || isNaN(lng)) return null;
+
+      return (
+        <Marker
+          key={stop.id || `stop-${index}`}
+          coordinate={{ latitude: lat, longitude: lng }}
+          title={`Stopover ${index + 1}`}
+          description={stop.name || "Passenger Stop"}
+        />
+      );
+    });
+  };
 
   return (
     <View style={styles.mapContainer}>
@@ -67,7 +235,9 @@ export const ActiveTripMap = ({
         style={StyleSheet.absoluteFillObject}
         initialRegion={{
           ...mapCenter,
+
           latitudeDelta: 0.02,
+
           longitudeDelta: 0.02,
         }}
         showsUserLocation={true}
@@ -75,59 +245,13 @@ export const ActiveTripMap = ({
         showsCompass={false}
         mapType="standard"
       >
-        {/* Destination Marker */}
-        {destLat && destLng && (
-          <Marker
-            coordinate={{ latitude: destLat, longitude: destLng }}
-            anchor={{ x: 0.5, y: 0.5 }}
-          >
-            <View style={styles.destinationMarker}>
-              <View style={styles.destinationMarkerCore} />
-            </View>
-          </Marker>
-        )}
+        {renderDestinationMarker()}
 
-        {/* Locked Route Line */}
-        {lockedOrigin && destLat && destLng && (
-          <MapViewDirections
-            origin={lockedOrigin}
-            destination={{ latitude: destLat, longitude: destLng }}
-            waypoints={waypoints}
-            apikey={GOOGLE_API_KEY}
-            strokeWidth={6}
-            strokeColor="#E53935"
-            optimizeWaypoints={false}
-            onReady={(result) => {
-              onRouteReady(result.coordinates);
-              // Zoom to show the whole route initially
-              mapRef.current?.fitToCoordinates(result.coordinates, {
-                edgePadding: { top: 120, right: 40, bottom: 300, left: 40 },
-                animated: true,
-              });
-            }}
-          />
-        )}
+        {renderRouteLine()}
 
-        {/* Stopovers */}
-        {stopovers.map((stop, index) => {
-          const lat = Number(stop.latitude);
-          const lng = Number(stop.longitude);
-          if (isNaN(lat) || isNaN(lng)) return null;
+        {renderDynamicLine()}
 
-          return (
-            <Marker
-              key={stop.id || `stop-${index}`}
-              coordinate={{ latitude: lat, longitude: lng }}
-              title={`Stopover ${index + 1}`}
-              description={stop.name || "Passenger Stop"}
-              anchor={{ x: 0.5, y: 0.5 }}
-            >
-              <View style={styles.stopoverMarker}>
-                <View style={styles.stopoverMarkerCore} />
-              </View>
-            </Marker>
-          );
-        })}
+        {renderStopovers()}
       </MapView>
     </View>
   );
@@ -135,38 +259,4 @@ export const ActiveTripMap = ({
 
 const styles = StyleSheet.create({
   mapContainer: { ...StyleSheet.absoluteFillObject },
-  destinationMarker: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    backgroundColor: "#E53935",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 6,
-  },
-  destinationMarkerCore: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#FFFFFF",
-  },
-  stopoverMarker: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: "#F59E0B",
-    borderWidth: 3,
-    borderColor: "#FFFFFF",
-    justifyContent: "center",
-    alignItems: "center",
-    elevation: 5,
-  },
-  stopoverMarkerCore: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "#FFFFFF",
-  },
 });
