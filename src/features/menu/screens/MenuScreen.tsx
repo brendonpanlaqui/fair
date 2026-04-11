@@ -1,8 +1,9 @@
 import { useAuth } from "@/src/hooks/AuthContext";
+import { api } from "@/src/services/api"; // 🚀 ADDED API IMPORT
 import { MaterialIcons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router"; // 🚀 ADDED useFocusEffect
 import { StatusBar } from "expo-status-bar";
-import React from "react";
+import React, { useCallback, useState } from "react"; // 🚀 ADDED hooks
 import {
   Alert,
   ScrollView,
@@ -48,8 +49,27 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { user, isGuest, logout } = useAuth();
 
-  // MOCK STATE: In a real app, this comes from Django (e.g., user.is_id_verified)
-  const isIdVerified = false;
+  // 🚀 LIVE STATES FROM DJANGO
+  const [isIdVerified, setIsIdVerified] = useState(false);
+  const [userType, setUserType] = useState("Regular");
+
+  // 🚀 FETCH PROFILE DATA EVERY TIME THIS SCREEN OPENS
+  useFocusEffect(
+    useCallback(() => {
+      if (!isGuest) {
+        const fetchProfileData = async () => {
+          try {
+            const response = await api.get("/users/me/");
+            setIsIdVerified(response.data.is_discount_verified);
+            setUserType(response.data.user_type);
+          } catch (error) {
+            console.warn("Failed to fetch profile status:", error);
+          }
+        };
+        fetchProfileData();
+      }
+    }, [isGuest]),
+  );
 
   const handleExit = () => {
     if (isGuest) {
@@ -142,7 +162,12 @@ export default function ProfileScreen() {
                     color="#D32F2F"
                     style={{ marginRight: 4 }}
                   />
-                  <Text style={styles.verifiedText}>Verified User</Text>
+                  {/* 🚀 DYNAMICALLY SHOWS "Student Verified", "Senior Verified", etc. */}
+                  <Text style={styles.verifiedText}>
+                    {userType === "Regular"
+                      ? "Verified User"
+                      : `${userType} Verified`}
+                  </Text>
                 </View>
               )}
             </View>

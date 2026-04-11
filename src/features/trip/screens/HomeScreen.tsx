@@ -1,12 +1,13 @@
 import MapHeader from "@/src/features/trip/components/setup/MapHeader";
-import { MapPickerModal } from "@/src/features/trip/components/setup/MapPickerModal"; // 🚀 Imported the modal
+import { MapPickerModal } from "@/src/features/trip/components/setup/MapPickerModal";
 import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
+import { useAuth } from "@/src/hooks/AuthContext";
 import { calculateDirectFare } from "@/src/utils/fareMatrix";
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Alert,
   Modal,
@@ -23,6 +24,8 @@ const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 const HomeScreen: React.FC = () => {
   const router = useRouter();
 
+  const { isDiscountVerified, userType } = useAuth();
+
   const [destination, setDestination] = useState<{
     latitude: number;
     longitude: number;
@@ -32,13 +35,11 @@ const HomeScreen: React.FC = () => {
   const [tripDistance, setTripDistance] = useState<number | null>(null);
   const [tripDuration, setTripDuration] = useState<number | null>(null);
 
-  // Bottom Sheet States
   const [isSheetVisible, setIsSheetVisible] = useState(false);
   const [selectedMode, setSelectedMode] = useState<"DIRECT" | "SPECIAL">(
     "DIRECT",
   );
 
-  // 🚀 NEW: State for Map Picker Modal
   const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
   const mapRef = useRef<MapView>(null);
@@ -51,23 +52,28 @@ const HomeScreen: React.FC = () => {
       }
     : { latitude: 15.149, longitude: 120.5779 };
 
+  const [destinationName, setDestinationName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (tripDistance) {
+      setCalculatedFare(calculateDirectFare(tripDistance, isDiscountVerified));
+    }
+  }, [isDiscountVerified, tripDistance]);
+
   const handlePlaceSelected = (
     coords: { latitude: number; longitude: number },
     name: string,
   ) => {
     const isLegal = isWithinAngelesCity(coords.latitude, coords.longitude);
-
     if (!isLegal) {
-      Alert.alert(
-        "Out of Bounds",
-        `${name} is outside the allowed franchise area for Angeles City tricycles.`,
-      );
+      Alert.alert("Out of Bounds", "...");
       setDestination(null);
+      setDestinationName(null); // 🚀 ADD THIS
       setCalculatedFare(null);
       return;
     }
-
     setDestination(coords);
+    setDestinationName(name); // 🚀 ADD THIS
   };
 
   const handleRouteReady = (result: any) => {
@@ -85,7 +91,7 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    const legalFare = calculateDirectFare(result.distance);
+    const legalFare = calculateDirectFare(result.distance, isDiscountVerified);
     setCalculatedFare(legalFare);
     setTripDistance(result.distance);
     setTripDuration(result.duration);
@@ -116,13 +122,11 @@ const HomeScreen: React.FC = () => {
   };
 
   const handleClearRoute = () => {
-    // 1. Clear all route data
     setDestination(null);
+    setDestinationName(null);
     setCalculatedFare(null);
     setTripDistance(null);
     setTripDuration(null);
-
-    // 2. Smoothly fly the camera back to the user's physical location
     handleCenterLocation();
   };
 
@@ -177,7 +181,6 @@ const HomeScreen: React.FC = () => {
         onPlaceSelected={handlePlaceSelected}
         hasDestination={destination !== null}
         onClear={handleClearRoute}
-        // 🚀 NEW: Hooked up the Choose on Map button
         onChooseOnMap={() => setIsMapPickerVisible(true)}
       />
 
@@ -195,7 +198,6 @@ const HomeScreen: React.FC = () => {
       {/* 4. FLOATING TRIP INFO */}
       {tripDistance && tripDuration && (
         <View style={styles.tripInfoCard}>
-          {/* Time Block */}
           <View style={styles.infoBlock}>
             <View style={styles.infoIconWrapper}>
               <MaterialCommunityIcons
@@ -213,10 +215,8 @@ const HomeScreen: React.FC = () => {
             </View>
           </View>
 
-          {/* Subtle Divider */}
           <View style={styles.infoDivider} />
 
-          {/* Distance Block */}
           <View style={styles.infoBlock}>
             <View style={styles.infoIconWrapper}>
               <MaterialCommunityIcons
@@ -251,11 +251,32 @@ const HomeScreen: React.FC = () => {
             size={26}
             color="#FFFFFF"
           />
-          <Text style={styles.primaryButtonText}>
-            {calculatedFare
-              ? `DIRECT FARE: ₱${calculatedFare}.00`
-              : "START NEW TRIP"}
-          </Text>
+          <View
+            style={{
+              flexDirection: "column",
+              alignItems: "flex-start",
+              justifyContent: "center",
+            }}
+          >
+            <Text style={styles.primaryButtonText}>
+              {calculatedFare
+                ? `DIRECT FARE: ₱${calculatedFare}.00`
+                : "START NEW TRIP"}
+            </Text>
+            {calculatedFare && isDiscountVerified && (
+              <Text
+                style={{
+                  color: "#FECACA",
+                  fontSize: 10,
+                  fontWeight: "bold",
+                  marginLeft: 12,
+                  marginTop: 2,
+                }}
+              >
+                ✓ {userType.toUpperCase()} DISCOUNT APPLIED
+              </Text>
+            )}
+          </View>
         </TouchableOpacity>
       </View>
 
@@ -308,6 +329,18 @@ const HomeScreen: React.FC = () => {
                   <View style={styles.badgeRed}>
                     <Text style={styles.badgeRedText}>LOCKED FARE</Text>
                   </View>
+                  {isDiscountVerified && (
+                    <View
+                      style={[
+                        styles.badgeRed,
+                        { backgroundColor: "#10B981", marginLeft: 4 },
+                      ]}
+                    >
+                      <Text style={styles.badgeRedText}>
+                        {userType.toUpperCase()} 20% OFF
+                      </Text>
+                    </View>
+                  )}
                 </View>
                 <Text style={styles.cardSubtext}>
                   Straight to your destination, no stopovers
@@ -386,6 +419,7 @@ const HomeScreen: React.FC = () => {
                     mode: selectedMode,
                     destLat: destination?.latitude,
                     destLng: destination?.longitude,
+                    destName: destinationName,
                     fare:
                       selectedMode === "DIRECT" ? calculatedFare : undefined,
                     distance:
@@ -407,7 +441,6 @@ const HomeScreen: React.FC = () => {
         </View>
       </Modal>
 
-      {/* 🚀 7. RENDER THE MAP PICKER MODAL */}
       <MapPickerModal
         visible={isMapPickerVisible}
         target="destination"
@@ -416,7 +449,6 @@ const HomeScreen: React.FC = () => {
         onClose={() => setIsMapPickerVisible(false)}
         onConfirm={(lat: number, lng: number, addressName: string) => {
           setIsMapPickerVisible(false);
-          // Pass the chosen location back into your existing route handler!
           handlePlaceSelected({ latitude: lat, longitude: lng }, addressName);
         }}
       />
@@ -424,9 +456,6 @@ const HomeScreen: React.FC = () => {
   );
 };
 
-// ==========================================
-// STYLES
-// ==========================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   mapArea: { flex: 1, position: "relative" },

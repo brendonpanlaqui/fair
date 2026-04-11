@@ -18,6 +18,8 @@ export const useTripSetup = (
   passedFare: number | null,
   destLat: number | null,
   destLng: number | null,
+  destName: string | null,
+  isDiscountVerified: boolean = false,
 ) => {
   const [finalDest, setFinalDest] = useState<{
     lat: number;
@@ -25,7 +27,7 @@ export const useTripSetup = (
     name: string;
   } | null>(
     destLat && destLng
-      ? { lat: destLat, lng: destLng, name: "Selected Destination" }
+      ? { lat: destLat, lng: destLng, name: destName || "Pinned Location" }
       : null,
   );
   const [stopovers, setStopovers] = useState<Stopover[]>([]);
@@ -37,6 +39,7 @@ export const useTripSetup = (
   );
   const [isCalculating, setIsCalculating] = useState(false);
 
+  // 🚀 EFFECT 1: FETCH DISTANCE (COSTS MONEY - RUN AS RARELY AS POSSIBLE)
   useEffect(() => {
     const calculateRoute = async () => {
       if (!finalDest) return;
@@ -45,14 +48,12 @@ export const useTripSetup = (
         finalDest.lat === destLat && finalDest.lng === destLng;
       const noStopovers = stopovers.length === 0;
 
-      if (isInitialDest && noStopovers && passedDistance && passedFare) {
+      if (isInitialDest && noStopovers && passedDistance) {
         setCalculatedDistance(passedDistance);
-        setCalculatedFare(passedFare);
         return;
       }
 
       setIsCalculating(true);
-
       const origin = { latitude: originLat, longitude: originLng };
       const destination = { latitude: finalDest.lat, longitude: finalDest.lng };
       const waypoints =
@@ -63,16 +64,17 @@ export const useTripSetup = (
             }))
           : [];
 
+      // This hits the Google API!
       const totalKm = await fetchRouteDistance(origin, destination, waypoints);
 
       if (totalKm) {
         setCalculatedDistance(totalKm);
-        setCalculatedFare(calculateDirectFare(totalKm));
       }
       setIsCalculating(false);
     };
 
     calculateRoute();
+    // ⚠️ NOTICE: isDiscountVerified is NOT in this array anymore!
   }, [
     stopovers,
     finalDest,
@@ -82,8 +84,17 @@ export const useTripSetup = (
     destLat,
     destLng,
     passedDistance,
-    passedFare,
   ]);
+
+  // 🚀 EFFECT 2: CALCULATE FARE (LOCAL MATH - 100% FREE)
+  // This runs instantly whenever the distance OR the discount status changes.
+  useEffect(() => {
+    if (calculatedDistance) {
+      setCalculatedFare(
+        calculateDirectFare(calculatedDistance, isDiscountVerified),
+      );
+    }
+  }, [calculatedDistance, isDiscountVerified]);
 
   const removeStopover = (id: string) =>
     setStopovers((prev) => prev.filter((stop) => stop.id !== id));
