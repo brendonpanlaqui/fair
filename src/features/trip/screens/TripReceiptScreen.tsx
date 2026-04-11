@@ -9,32 +9,43 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps"; // 🚀 Added map imports
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+
+// 🚀 IMPORT AUTH CONTEXT
+import { useAuth } from "@/src/hooks/AuthContext";
 
 const TripReceiptScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // Extract params or use Fallbacks for testing the UI
-  const totalFare = params.totalFare ? Number(params.totalFare) : 47.0;
+  // 🚀 GRAB GLOBAL DISCOUNT STATUS
+  const { isDiscountVerified, userType } = useAuth();
 
-  // 🚀 NEW: Extract actual fare and calculate the overcharge
-  const actualFare = params.actualFare ? Number(params.actualFare) : totalFare;
-  const overchargeAmount = actualFare - totalFare;
-
+  // Base parameters
   const baseFare = params.baseFare ? Number(params.baseFare) : 35.0;
   const succeedingFare = params.succeedingFare
     ? Number(params.succeedingFare)
     : 12.0;
+  const subtotal = baseFare + succeedingFare;
+
+  // 🚀 AUTOMATIC MATH BASED ON LGU STATUS
+  const discountAmount = isDiscountVerified ? Math.floor(subtotal * 0.2) : 0;
+  const legalTotalFare = subtotal - discountAmount;
+
+  // Overcharge Detection
+  const actualFare = params.actualFare
+    ? Number(params.actualFare)
+    : legalTotalFare;
+  const overchargeAmount = actualFare - legalTotalFare;
+
   const distance = (params.distance as string) || "3.5";
   const duration = (params.duration as string) || "12 mins";
   const date = (params.date as string) || "Oct 24, 2023";
   const time = (params.time as string) || "08:45 AM";
-  const discountType = (params.discountType as string) || "Student";
   const bodyNumber = (params.bodyNumber as string) || "0406";
   const tripId = (params.tripId as string) || "TRP-88172B";
 
-  // 🚀 NEW MAP PARAMS: Extracting the location data passed from the trip
+  // MAP PARAMS
   const originLat = params.originLat ? Number(params.originLat) : 15.1444;
   const originLng = params.originLng ? Number(params.originLng) : 120.5928;
   const destLat = params.destLat ? Number(params.destLat) : 15.1384;
@@ -42,13 +53,12 @@ const TripReceiptScreen = () => {
   const polylineHash = params.polylineHash as string | null;
 
   const mapRef = useRef<MapView>(null);
+
   const fitMapToRoute = () => {
     const coords = parsedRoute ?? [
       { latitude: originLat, longitude: originLng },
       { latitude: destLat, longitude: destLng },
     ];
-    // If the route is tiny (e.g. <300 m), fitToCoordinates zooms in too
-    // aggressively. Pad the bounding box so streets stay readable.
     const lats = coords.map((c) => c.latitude);
     const lngs = coords.map((c) => c.longitude);
     const latDelta = Math.max(Math.max(...lats) - Math.min(...lats), 0.004);
@@ -59,10 +69,10 @@ const TripReceiptScreen = () => {
       {
         latitude: centerLat,
         longitude: centerLng,
-        latitudeDelta: latDelta * 1.4, // 1.4 = ~40% padding on each axis
+        latitudeDelta: latDelta * 1.4,
         longitudeDelta: lngDelta * 1.4,
       },
-      0, // 0 ms = instant, no animation on a receipt
+      0,
     );
   };
 
@@ -77,18 +87,17 @@ const TripReceiptScreen = () => {
     if (polylineHash) {
       try {
         const coords = JSON.parse(polylineHash);
-        // Need at least 2 points to draw a line
         if (Array.isArray(coords) && coords.length >= 2) return coords;
       } catch (e) {
         console.warn("Failed to parse polyline on receipt");
       }
     }
-    // Fallback: straight line between origin and dest
     return [
       { latitude: originLat, longitude: originLng },
       { latitude: destLat, longitude: destLng },
     ];
   };
+
   const parsedRoute = getDrivenRoute();
   const isEstimatedRoute = !polylineHash || parsedRoute.length < 3;
 
@@ -115,7 +124,7 @@ const TripReceiptScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.receiptCard}>
-          {/* 🚀 NEW: THE RECEIPT MAP HEADER */}
+          {/* THE RECEIPT MAP HEADER */}
           <View style={styles.receiptMapContainer}>
             <MapView
               provider={PROVIDER_GOOGLE}
@@ -148,7 +157,6 @@ const TripReceiptScreen = () => {
               />
             </MapView>
 
-            {/* ✅ Regular Views go OUTSIDE MapView, overlaid via absolute position */}
             {isEstimatedRoute && (
               <View style={styles.estimatedBadge}>
                 <MaterialIcons name="info-outline" size={12} color="#FCD34D" />
@@ -162,7 +170,10 @@ const TripReceiptScreen = () => {
             <Text style={styles.totalLabel}>TOTAL PAYABLE</Text>
             <View style={styles.priceRow}>
               <Text style={styles.currencySymbol}>₱</Text>
-              <Text style={styles.totalAmount}>{totalFare.toFixed(2)}</Text>
+              {/* 🚀 DYNAMIC TOTAL DISPLAY */}
+              <Text style={styles.totalAmount}>
+                {legalTotalFare.toFixed(2)}
+              </Text>
             </View>
 
             <View style={styles.verifiedBadge}>
@@ -187,7 +198,7 @@ const TripReceiptScreen = () => {
 
           {/* Bottom Section: Breakdown & Details */}
           <View style={styles.detailsSection}>
-            {/* 🚀 NEW: THE OVERCHARGE WARNING BOX */}
+            {/* OVERCHARGE WARNING BOX */}
             {overchargeAmount > 0 ? (
               <View style={styles.overchargeAlert}>
                 <MaterialIcons name="error-outline" size={24} color="#DC2626" />
@@ -202,6 +213,7 @@ const TripReceiptScreen = () => {
               </View>
             ) : null}
 
+            {/* FARE BREAKDOWN */}
             <View style={styles.breakdownRow}>
               <View style={styles.breakdownItem}>
                 <Text style={styles.breakdownLabel}>BASE FARE</Text>
@@ -218,11 +230,15 @@ const TripReceiptScreen = () => {
               </View>
             </View>
 
-            {discountType !== "Regular" && (
+            {/* 🚀 DYNAMIC DISCOUNT ALERT */}
+            {isDiscountVerified && (
               <View style={styles.discountAlert}>
                 <MaterialIcons name="check-circle" size={18} color="#10B981" />
                 <Text style={styles.discountAlertText}>
-                  20% {discountType} Discount Applied
+                  {userType.toUpperCase()} DISCOUNT
+                </Text>
+                <Text style={styles.discountAmountText}>
+                  -₱{discountAmount.toFixed(2)}
                 </Text>
               </View>
             )}
@@ -322,7 +338,6 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     overflow: "hidden",
   },
-  // 🚀 NEW OVERCHARGE STYLES
   overchargeAlert: {
     flexDirection: "row",
     alignItems: "center",
@@ -350,7 +365,7 @@ const styles = StyleSheet.create({
     lineHeight: 18,
   },
   receiptMapContainer: {
-    height: 200, // taller = more route context visible
+    height: 200,
     width: "100%",
     position: "relative",
     backgroundColor: "#E2E8F0",
@@ -365,7 +380,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(15,23,42,0.65)",
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 20, // pill shape
+    borderRadius: 20,
   },
   estimatedBadgeText: {
     color: "#FFFFFF",
@@ -376,7 +391,7 @@ const styles = StyleSheet.create({
 
   totalSection: {
     padding: 32,
-    paddingTop: 24, // Reduced slightly since map is above it now
+    paddingTop: 24,
     alignItems: "center",
     backgroundColor: "#FFFFFF",
   },
@@ -478,13 +493,13 @@ const styles = StyleSheet.create({
   },
   breakdownValue: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
 
+  // 🚀 UPDATED DISCOUNT STYLES
   discountAlert: {
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
     backgroundColor: "#ECFDF5",
-    padding: 12,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 16,
     marginBottom: 20,
     borderWidth: 1,
     borderColor: "#A7F3D0",
@@ -493,7 +508,13 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     color: "#059669",
     fontSize: 13,
-    fontWeight: "bold",
+    fontWeight: "900",
+    flex: 1,
+  },
+  discountAmountText: {
+    color: "#059669",
+    fontSize: 14,
+    fontWeight: "900",
   },
 
   metaDataList: { gap: 16 },

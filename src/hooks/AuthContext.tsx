@@ -4,8 +4,10 @@ import { api } from "../services/api";
 
 interface AuthContextData {
   user: any;
-  isGuest: boolean; // <-- NEW
+  isGuest: boolean;
   loading: boolean;
+  isDiscountVerified: boolean;
+  userType: string;
   login: (email: string, password: string) => Promise<void>;
   register: (
     email: string,
@@ -16,20 +18,35 @@ interface AuthContextData {
   logout: () => Promise<void>;
   setUser: (user: any) => void;
   continueAsGuest: () => void;
+  verifyOtp: (email: string, otp: string) => Promise<void>;
+  refreshProfileStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextData>({} as AuthContextData);
 
 export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [user, setUser] = useState<any>(null);
-  const [isGuest, setIsGuest] = useState(false); // <-- NEW
+  const [isGuest, setIsGuest] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  const [isDiscountVerified, setIsDiscountVerified] = useState(false);
+  const [userType, setUserType] = useState("Regular");
+
+  const refreshProfileStatus = async () => {
+    try {
+      const response = await api.get("/users/me/");
+      setIsDiscountVerified(response.data.is_discount_verified);
+      setUserType(response.data.user_type);
+    } catch (error) {
+      console.warn("Failed to fetch profile status", error);
+    }
+  };
 
   useEffect(() => {
     const loadStorageData = async () => {
       try {
         const token = await SecureStore.getItemAsync("userToken");
-        const storedUser = await SecureStore.getItemAsync("userData"); // NEW
+        const storedUser = await SecureStore.getItemAsync("userData");
 
         if (token && storedUser) {
           setUser(JSON.parse(storedUser));
@@ -48,9 +65,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     loadStorageData();
   }, []);
 
+  useEffect(() => {
+    if (user && !isGuest) {
+      refreshProfileStatus();
+    }
+  }, [user, isGuest]);
+
   const login = async (email: string, password: string) => {
     try {
-      // The variables now perfectly match the JSON keys Django expects
       const payload = {
         email: email,
         password: password,
@@ -58,7 +80,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       const response = await api.post("/auth/login/", payload);
 
-      // Extract the data
       const {
         tokens,
         user_id,
@@ -69,7 +90,6 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
       await SecureStore.setItemAsync("userToken", tokens.access);
 
-      // Create the user object
       const userData = {
         id: user_id,
         email: userEmail,
@@ -77,9 +97,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         last_name: userlastName,
       };
 
-      // Save it to state AND to the secure vault
       setUser(userData);
-      await SecureStore.setItemAsync("userData", JSON.stringify(userData)); // NEW
+      await SecureStore.setItemAsync("userData", JSON.stringify(userData));
 
       setIsGuest(false);
     } catch (error) {
@@ -115,6 +134,8 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const continueAsGuest = () => {
     setIsGuest(true);
     setUser(null);
+    setIsDiscountVerified(false);
+    setUserType("Regular");
   };
 
   const verifyOtp = async (email: string, otp: string) => {
@@ -138,8 +159,11 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
 
   const logout = async () => {
     await SecureStore.deleteItemAsync("userToken");
+    await SecureStore.deleteItemAsync("userData");
     setUser(null);
     setIsGuest(false);
+    setIsDiscountVerified(false);
+    setUserType("Regular");
   };
 
   return (
@@ -148,11 +172,15 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         user,
         isGuest,
         loading,
+        isDiscountVerified,
+        userType,
         login,
         register,
         logout,
         setUser,
         continueAsGuest,
+        verifyOtp,
+        refreshProfileStatus,
       }}
     >
       {children}

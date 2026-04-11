@@ -27,6 +27,11 @@ interface MapHeaderProps {
 
 const STORAGE_KEY = "@fair_saved_places";
 
+// 🚀 SECURITY UPGRADE: Generate a random string to act as our Session Token
+const generateSessionToken = () => {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
 const MapHeader: React.FC<MapHeaderProps> = ({
   onPlaceSelected,
   onClear,
@@ -36,6 +41,9 @@ const MapHeader: React.FC<MapHeaderProps> = ({
 }) => {
   const autocompleteRef = useRef<GooglePlacesAutocompleteRef>(null);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
+
+  // 🚀 Initialize the session token
+  const [sessionToken, setSessionToken] = useState(generateSessionToken());
 
   useFocusEffect(
     useCallback(() => {
@@ -91,8 +99,11 @@ const MapHeader: React.FC<MapHeaderProps> = ({
           ref={autocompleteRef}
           enablePoweredByContainer={false}
           placeholder="Where are you going?"
-          debounce={400}
+          debounce={800} // Keeps API calls low while typing
           minLength={2}
+          GooglePlacesDetailsQuery={{
+            fields: "geometry,name", // STRICTLY fetches only needed data
+          }}
           fetchDetails={true}
           predefinedPlaces={predefinedPlaces}
           predefinedPlacesAlwaysVisible={true}
@@ -106,6 +117,10 @@ const MapHeader: React.FC<MapHeaderProps> = ({
 
             if (lat && lng) {
               onPlaceSelected({ latitude: lat, longitude: lng }, name);
+
+              // 🚀 SECURITY UPGRADE: Refresh the token AFTER a successful search
+              // This ensures the next search starts a brand new billing session.
+              setSessionToken(generateSessionToken());
             }
           }}
           query={{
@@ -115,6 +130,7 @@ const MapHeader: React.FC<MapHeaderProps> = ({
             location: "15.1444,120.5928",
             radius: "8000",
             strictbounds: true,
+            sessiontoken: sessionToken, // 🚀 Binds all keystrokes to one billable event
           }}
           renderRow={(rowData: any) => {
             const isSaved = rowData.isSavedPlace;
@@ -160,7 +176,7 @@ const MapHeader: React.FC<MapHeaderProps> = ({
               flexDirection: "row",
               alignItems: "center",
               height: 56,
-              elevation: 4, // Added shadow to separate from the button below
+              elevation: 4,
               shadowColor: "#0F172A",
               shadowOffset: { width: 0, height: 4 },
               shadowOpacity: 0.1,
@@ -176,7 +192,7 @@ const MapHeader: React.FC<MapHeaderProps> = ({
             },
             listView: {
               position: "absolute",
-              top: 64, // Pushes the dropdown list down slightly
+              top: 64,
               left: 0,
               right: 0,
               backgroundColor: "#FFFFFF",
@@ -224,7 +240,6 @@ const MapHeader: React.FC<MapHeaderProps> = ({
           }
         />
 
-        {/* 🚀 Moved Standalone Choose on Map Button Here */}
         {!hasDestination && (
           <TouchableOpacity
             style={styles.standaloneChooseOnMapBtn}
@@ -287,7 +302,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  // 🚀 Updated Styles for the Standalone Button
   standaloneChooseOnMapBtn: {
     flexDirection: "row",
     alignItems: "center",
@@ -295,7 +309,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderRadius: 16,
-    marginTop: 8, // Space between search bar and button
+    marginTop: 8,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     elevation: 3,
@@ -316,7 +330,7 @@ const styles = StyleSheet.create({
   chooseOnMapTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#0F172A", // Darker for better contrast outside the list
+    color: "#0F172A",
     marginBottom: 2,
   },
   chooseOnMapSubtext: {

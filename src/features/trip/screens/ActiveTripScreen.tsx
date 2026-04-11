@@ -1,3 +1,4 @@
+import { MaterialIcons } from "@expo/vector-icons"; // 🚀 Added for the badge icon
 import { Stack } from "expo-router";
 import React, { useState } from "react";
 import {
@@ -14,8 +15,14 @@ import { ActiveTripMap } from "../components/active/ActiveTripMap";
 import { DeviationModal } from "../components/active/DeviationModal";
 import { useActiveTrip } from "../hooks/useActiveTrip";
 
+// 🚀 IMPORT AUTH CONTEXT
+import { useAuth } from "@/src/hooks/AuthContext";
+
 const ActiveTripScreen = () => {
   const tripData = useActiveTrip();
+
+  // 🚀 GRAB GLOBAL DISCOUNT STATUS
+  const { isDiscountVerified, userType } = useAuth();
 
   // 🚀 1. State Management
   const [isPlottingRoute, setIsPlottingRoute] = useState(true);
@@ -24,7 +31,7 @@ const ActiveTripScreen = () => {
   );
   const [askedFare, setAskedFare] = useState("");
 
-  // 🚀 2. Safely Rendered Arrival UI (100% crash-proof strings)
+  // 🚀 2. Safely Rendered Arrival UI
   const renderArrivalScreen = () => {
     if (tripState !== "ARRIVED") return null;
     return (
@@ -42,6 +49,21 @@ const ActiveTripScreen = () => {
                 style={styles.fareText}
               >{`${tripData.fixedFare.toFixed(2)}`}</Text>
             </View>
+
+            {/* 🚀 NEW: REASSURE THE COMMUTER THE DISCOUNT IS ACTIVE */}
+            {isDiscountVerified && (
+              <View style={styles.discountBadge}>
+                <MaterialIcons
+                  name="check-circle"
+                  size={14}
+                  color="#10B981"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={styles.discountBadgeText}>
+                  {userType.toUpperCase()} 20% DISCOUNT APPLIED
+                </Text>
+              </View>
+            )}
           </View>
 
           <Text style={styles.inputLabel}>
@@ -94,7 +116,6 @@ const ActiveTripScreen = () => {
           setTripState("DRIVING");
           tripData.setRouteCoordinates(coords);
         }}
-        // Trigger the arrival screen when the map hook detects proximity
         onDestinationReached={() => setTripState("ARRIVED")}
       />
 
@@ -208,6 +229,24 @@ const styles = StyleSheet.create({
     fontSize: 40,
     fontWeight: "900",
     color: "#0F172A",
+  },
+  // 🚀 NEW BADGE STYLES
+  discountBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#ECFDF5",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+    marginTop: 8,
+    borderWidth: 1,
+    borderColor: "#A7F3D0",
+  },
+  discountBadgeText: {
+    color: "#059669",
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
   inputLabel: {
     alignSelf: "flex-start",

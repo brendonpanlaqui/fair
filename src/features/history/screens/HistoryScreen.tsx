@@ -49,10 +49,8 @@ const HistoryScreen = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // ✅ mapRef typed correctly — same fix as TripReceiptScreen
   const mapRef = useRef<MapView>(null);
 
-  // ✅ Fit map to the selected trip's route once the map is ready
   const fitMapToRoute = () => {
     if (!selectedTrip) return;
 
@@ -79,7 +77,6 @@ const HistoryScreen = () => {
     );
   };
 
-  // ✅ Require at least 2 points — same logic as TripReceiptScreen
   const getDrivenRoute = (hash?: string | null) => {
     if (!hash) return null;
     try {
@@ -215,7 +212,6 @@ const HistoryScreen = () => {
     </TouchableOpacity>
   );
 
-  // Derived values for the modal map — computed once selectedTrip is set
   const modalRoute = selectedTrip
     ? getDrivenRoute(selectedTrip.polyline_hash)
     : null;
@@ -319,7 +315,6 @@ const HistoryScreen = () => {
                 scrollEnabled={false}
                 zoomEnabled={false}
               >
-                {/* ✅ Default markers — anchor at tip, no offset issues */}
                 <Marker
                   coordinate={selectedTrip.origin_coords}
                   title="Pick-up"
@@ -331,7 +326,6 @@ const HistoryScreen = () => {
                   pinColor="#D32F2F"
                 />
 
-                {/* ✅ Solid red if real trace, dashed gray if estimated */}
                 <Polyline
                   coordinates={modalPolylineCoords}
                   strokeWidth={isEstimatedRoute ? 3 : 5}
@@ -342,7 +336,6 @@ const HistoryScreen = () => {
                 />
               </MapView>
 
-              {/* ✅ Badge is OUTSIDE MapView to avoid addViewAt crash */}
               {isEstimatedRoute && (
                 <View style={styles.estimatedBadge}>
                   <MaterialIcons
@@ -391,6 +384,29 @@ const HistoryScreen = () => {
               </View>
 
               <View style={styles.receiptDivider} />
+
+              {/* 🚀 NEW: ROUTE ADDRESS BLOCK ADDED HERE */}
+              <View style={styles.routeAddressesBlock}>
+                <View style={styles.addressRow}>
+                  <View style={styles.addressDotBlue} />
+                  <View style={styles.addressTextWrapper}>
+                    <Text style={styles.addressLabel}>PICK-UP</Text>
+                    <Text style={styles.addressValue} numberOfLines={1}>
+                      {selectedTrip.origin_name}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.addressConnector} />
+                <View style={styles.addressRow}>
+                  <View style={styles.addressDotRed} />
+                  <View style={styles.addressTextWrapper}>
+                    <Text style={styles.addressLabel}>DROP-OFF</Text>
+                    <Text style={styles.addressValue} numberOfLines={1}>
+                      {selectedTrip.destination_name}
+                    </Text>
+                  </View>
+                </View>
+              </View>
 
               <View style={styles.fareBreakdownBox}>
                 <Text style={styles.breakdownTitle}>FARE BREAKDOWN</Text>
@@ -645,7 +661,6 @@ const styles = StyleSheet.create({
     position: "relative",
   },
 
-  // ✅ Estimated route badge — positioned over map, outside MapView
   estimatedBadge: {
     position: "absolute",
     top: 10,
@@ -752,6 +767,51 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
     marginBottom: 24,
     borderStyle: "dashed",
+  },
+
+  // 🚀 NEW ROUTE ADDRESS STYLES ADDED HERE
+  routeAddressesBlock: {
+    marginBottom: 24,
+  },
+  addressRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  addressDotBlue: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#3B82F6",
+    marginRight: 16,
+  },
+  addressDotRed: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#D32F2F",
+    marginRight: 16,
+  },
+  addressConnector: {
+    width: 2,
+    height: 20,
+    backgroundColor: "#CBD5E1",
+    marginLeft: 4,
+    marginVertical: 4,
+  },
+  addressTextWrapper: {
+    flex: 1,
+  },
+  addressLabel: {
+    fontSize: 10,
+    fontWeight: "800",
+    color: "#94A3B8",
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  addressValue: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#0F172A",
   },
 
   fareBreakdownBox: {

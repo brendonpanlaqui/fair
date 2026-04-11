@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { api } from "../../../services/api";
 
 const ID_TYPES = [
   { id: "student", label: "Student ID", icon: "school" },
@@ -71,15 +72,46 @@ export default function VerifyIdScreen() {
     }
 
     setIsSubmitting(true);
-    // Simulated API Call
-    setTimeout(() => {
-      setIsSubmitting(false);
+
+    try {
+      // 1. Create a new FormData object (required for file uploads)
+      const formData = new FormData();
+      formData.append("discount_type", selectedType);
+
+      // 2. Format the image file for React Native upload
+      const filename = imageUri.split("/").pop() || "id_photo.jpg";
+      const match = /\.(\w+)$/.exec(filename);
+      const fileType = match ? `image/${match[1]}` : `image/jpeg`;
+
+      formData.append("id_photo", {
+        uri: imageUri,
+        name: filename,
+        type: fileType,
+      } as any); // Type cast needed for React Native FormData
+
+      // 3. Send to Django Backend
+      // NOTE: Update the URL to whatever your actual Django endpoint is
+      await api.post("/users/verify-id/", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+
+      // 4. Success handling
       Alert.alert(
         "Verification Submitted!",
         "Your ID has been sent to the LGU for review. You will be notified once your 20% discount is activated.",
         [{ text: "Done", onPress: () => router.back() }],
       );
-    }, 2000);
+    } catch (error: any) {
+      console.warn("Upload Error:", error);
+      Alert.alert(
+        "Upload Failed",
+        "Could not send your ID to the server. Please check your connection and try again.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (

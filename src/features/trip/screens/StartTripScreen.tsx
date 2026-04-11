@@ -16,6 +16,7 @@ import {
 import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplete";
 
 import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
+import { useAuth } from "@/src/hooks/AuthContext";
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { useCameraPermissions } from "expo-camera";
 import { useTripSetup } from "../hooks/useTripSetup";
@@ -24,17 +25,24 @@ import { MapPickerModal } from "../components/setup/MapPickerModal";
 import { OCRScannerModal } from "../components/setup/OCRScannerModal";
 import { RouteTimeline } from "../components/setup/RouteTimeline";
 
+const generateSessionToken = () => {
+  return Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
 const StartTripScreen: React.FC = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
+  const { isDiscountVerified, userType } = useAuth();
+
   const passedMode = (params.mode as string) || "SPECIAL";
   const passedDistance = params.distance ? Number(params.distance) : null;
   const passedFare = params.fare ? Number(params.fare) : null;
   const destLat = params.destLat ? Number(params.destLat) : null;
   const destLng = params.destLng ? Number(params.destLng) : null;
+  const destName = (params.destName as string) || null;
 
   const { currentLocation } = useLocationTracking();
   const originLat = currentLocation?.latitude || 15.149;
@@ -57,6 +65,8 @@ const StartTripScreen: React.FC = () => {
     passedFare,
     destLat,
     destLng,
+    destName,
+    isDiscountVerified,
   );
 
   const [isSearchModalVisible, setIsSearchModalVisible] = useState(false);
@@ -64,7 +74,7 @@ const StartTripScreen: React.FC = () => {
     "destination",
   );
   const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
-
+  const [sessionToken, setSessionToken] = useState(generateSessionToken());
   const [bodyNumber, setBodyNumber] = useState<string>("");
   const [plateNumber, setPlateNumber] = useState<string>("");
 
@@ -169,9 +179,23 @@ const StartTripScreen: React.FC = () => {
           color="#FFFFFF"
           style={{ marginRight: 8 }}
         />
-        <Text style={styles.submitButtonText}>
-          CONFIRM {passedMode} (₱{calculatedFare}.00)
-        </Text>
+        <View style={{ flexDirection: "column", alignItems: "center" }}>
+          <Text style={styles.submitButtonText}>
+            CONFIRM {passedMode} (₱{calculatedFare}.00)
+          </Text>
+          {isDiscountVerified && (
+            <Text
+              style={{
+                color: "#FECACA",
+                fontSize: 10,
+                fontWeight: "bold",
+                marginTop: -2,
+              }}
+            >
+              {userType.toUpperCase()} 20% DISCOUNT APPLIED
+            </Text>
+          )}
+        </View>
       </TouchableOpacity>
     );
   };
@@ -332,8 +356,11 @@ const StartTripScreen: React.FC = () => {
               }
               fetchDetails={true}
               enablePoweredByContainer={false}
-              debounce={400}
+              debounce={800}
               minLength={2}
+              GooglePlacesDetailsQuery={{
+                fields: "geometry,name",
+              }}
               onPress={(data, details = null) => {
                 if (details) {
                   const lat = details.geometry.location.lat;
@@ -364,6 +391,7 @@ const StartTripScreen: React.FC = () => {
                     });
                   }
                   setIsSearchModalVisible(false);
+                  setSessionToken(generateSessionToken());
                 }
               }}
               query={{
@@ -373,6 +401,7 @@ const StartTripScreen: React.FC = () => {
                 location: "15.1444,120.5928",
                 radius: "8000",
                 strictbounds: true,
+                sessiontoken: sessionToken,
               }}
               renderRow={(rowData) => {
                 const title = rowData.structured_formatting.main_text;
