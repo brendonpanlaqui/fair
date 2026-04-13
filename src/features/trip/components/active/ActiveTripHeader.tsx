@@ -33,50 +33,60 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
   return (
     <View style={styles.topOverlay} pointerEvents="box-none">
       <View style={styles.hudCard}>
+        {/* 🚀 PERFECTLY BALANCED TOP ROW */}
         <View style={styles.hudTopRow}>
           <TouchableOpacity
-            style={styles.backButton}
+            style={styles.iconButton}
             onPress={onBack}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
           >
-            <MaterialIcons name="arrow-back" size={22} color="#0F172A" />
+            <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
           </TouchableOpacity>
 
           <View style={styles.titleWrapper}>
             <Text style={styles.hudSubtitle}>{"ACTIVE RIDE"}</Text>
-            {/* 🚀 FIX: Forced to string */}
-            <Text style={styles.hudTitle}>{`Body #${bodyNumber}`}</Text>
+            {/* 🚀 CONTEXTUAL GROUPING: Verification is tied to the body number */}
+            <View style={styles.bodyNumberRow}>
+              <Text style={styles.hudTitle}>{`Body #${bodyNumber}`}</Text>
+              <MaterialIcons
+                name="verified"
+                size={16}
+                color="#10B981"
+                style={styles.verifiedIcon}
+              />
+            </View>
           </View>
 
           <TouchableOpacity
-            style={styles.sosButton}
+            style={[styles.iconButton, styles.sosButton]}
             activeOpacity={0.8}
             onPress={() => setSosVisible(true)}
           >
-            <MaterialIcons name="health-and-safety" size={16} color="#DC2626" />
-            <Text style={styles.sosText}>{"SOS"}</Text>
+            <MaterialIcons name="health-and-safety" size={24} color="#DC2626" />
           </TouchableOpacity>
         </View>
 
         <View style={styles.divider} />
 
+        {/* 🚀 CLEAN, TRANSACTIONAL BOTTOM ROW */}
         <View style={styles.hudBottomRow}>
           <View>
-            <Text style={styles.fareLabel}>{"CURRENT FARE"}</Text>
+            <Text style={styles.fareLabel}>{"GUARANTEED FARE"}</Text>
             <View style={styles.fareValueRow}>
               <Text style={styles.fareCurrency}>{"₱"}</Text>
-              {/* 🚀 FIX: Forced to string and formatted safely */}
               <Text style={styles.fareValue}>{`${fixedFare.toFixed(2)}`}</Text>
             </View>
           </View>
 
-          <View style={styles.verifiedBadge}>
-            <MaterialIcons name="verified" size={14} color="#10B981" />
-            <Text style={styles.verifiedText}>{"LGU Verified"}</Text>
+          {/* Replaced the green badge with a subtle pricing tag */}
+          <View style={styles.fareTagBadge}>
+            <MaterialIcons name="lock-outline" size={14} color="#64748B" />
+            <Text style={styles.fareTagText}>{"Fixed Rate"}</Text>
           </View>
         </View>
       </View>
 
+      {/* SOS MODAL (Unchanged but sanitized) */}
       <Modal
         visible={sosVisible}
         transparent={true}
@@ -88,7 +98,6 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>{"Emergency Center"}</Text>
-                {/* 🚀 FIX: Forced to string */}
                 <Text style={styles.modalSubtitle}>
                   {`Current Ride: Body #${bodyNumber}`}
                 </Text>
@@ -164,7 +173,7 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                 onPress={() => handleCall("09931696052")}
               >
                 <View
-                  style={[styles.actionIconBg, { backgroundColor: "#F1F5F9" }]}
+                  style={[styles.actionIconBg, { backgroundColor: "#F8FAFC" }]}
                 >
                   <MaterialIcons name="gavel" size={24} color="#0F172A" />
                 </View>
@@ -192,6 +201,7 @@ const styles = StyleSheet.create({
     right: 0,
     paddingTop: Platform.OS === "ios" ? 55 : 45,
     paddingHorizontal: 16,
+    zIndex: 100,
   },
   hudCard: {
     backgroundColor: "#FFFFFF",
@@ -199,62 +209,65 @@ const styles = StyleSheet.create({
     padding: 16,
     elevation: 8,
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.08,
+    shadowRadius: 16,
   },
   hudTopRow: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#F1F5F9",
+  // 🚀 Shared button style for perfect symmetry
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "#F8FAFC",
     justifyContent: "center",
     alignItems: "center",
+  },
+  sosButton: {
+    backgroundColor: "#FFF1F2",
+    borderWidth: 1,
+    borderColor: "#FECACA",
   },
   titleWrapper: { flex: 1, alignItems: "center" },
   hudSubtitle: {
     fontSize: 10,
     fontWeight: "900",
     color: "#94A3B8",
-    letterSpacing: 1,
-    marginBottom: 2,
+    letterSpacing: 1.5,
+    marginBottom: 4,
   },
-  hudTitle: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
-  sosButton: {
+  bodyNumberRow: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#FEF2F2",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: "#FECACA",
   },
-  sosText: {
-    color: "#DC2626",
+  hudTitle: {
+    fontSize: 18,
     fontWeight: "900",
-    fontSize: 12,
-    marginLeft: 4,
-    letterSpacing: 0.5,
+    color: "#0F172A",
+    letterSpacing: -0.5,
   },
-  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 12 },
+  verifiedIcon: {
+    marginLeft: 6,
+    marginTop: 2,
+  },
+  divider: { height: 1, backgroundColor: "#F1F5F9", marginVertical: 16 },
   hudBottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    alignItems: "flex-end",
     paddingHorizontal: 4,
+    paddingBottom: 4,
   },
   fareLabel: {
     fontSize: 10,
     fontWeight: "900",
     color: "#64748B",
-    letterSpacing: 1,
-    marginBottom: 2,
+    letterSpacing: 1.5,
+    marginBottom: 4,
   },
   fareValueRow: { flexDirection: "row", alignItems: "flex-start" },
   fareCurrency: {
@@ -262,39 +275,43 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#D32F2F",
     marginTop: 4,
-    marginRight: 2,
+    marginRight: 4,
   },
   fareValue: {
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: "900",
     color: "#0F172A",
     letterSpacing: -1,
   },
-  verifiedBadge: {
+  fareTagBadge: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#F0FDF4",
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 16,
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#A7F3D0",
+    borderColor: "#E2E8F0",
+    marginBottom: 4,
   },
-  verifiedText: {
-    color: "#059669",
-    fontSize: 12,
+  fareTagText: {
+    color: "#64748B",
+    fontSize: 11,
     fontWeight: "800",
     marginLeft: 4,
+    textTransform: "uppercase",
   },
+
+  // MODAL STYLES
   modalOverlay: {
     flex: 1,
-    backgroundColor: "rgba(15, 23, 42, 0.5)",
+    backgroundColor: "rgba(15, 23, 42, 0.6)",
     justifyContent: "flex-end",
   },
   modalContent: {
     backgroundColor: "#FFFFFF",
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    borderTopLeftRadius: 32,
+    borderTopRightRadius: 32,
     padding: 24,
     paddingBottom: Platform.OS === "ios" ? 40 : 24,
     maxHeight: "90%",
@@ -303,25 +320,25 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "flex-start",
-    marginBottom: 16,
+    marginBottom: 20,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: "900",
     color: "#0F172A",
     letterSpacing: -0.5,
   },
   modalSubtitle: {
-    fontSize: 13,
+    fontSize: 14,
     color: "#64748B",
     fontWeight: "600",
     marginTop: 4,
   },
   closeBtn: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: "#F1F5F9",
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "#F8FAFC",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -339,23 +356,28 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     padding: 16,
     borderRadius: 20,
-    marginBottom: 12,
+    marginBottom: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#F1F5F9",
     elevation: 2,
     shadowColor: "#0F172A",
-    shadowOffset: { width: 0, height: 2 },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.04,
     shadowRadius: 8,
   },
   actionIconBg: {
-    width: 44,
-    height: 44,
+    width: 48,
+    height: 48,
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 16,
   },
-  actionTitle: { color: "#0F172A", fontSize: 15, fontWeight: "800" },
-  actionSubtext: { color: "#64748B", fontSize: 12, marginTop: 2 },
+  actionTitle: {
+    color: "#0F172A",
+    fontSize: 16,
+    fontWeight: "800",
+    marginBottom: 2,
+  },
+  actionSubtext: { color: "#64748B", fontSize: 13, fontWeight: "500" },
 });

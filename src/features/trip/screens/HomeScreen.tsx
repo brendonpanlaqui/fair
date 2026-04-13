@@ -329,18 +329,6 @@ const HomeScreen: React.FC = () => {
                   <View style={styles.badgeRed}>
                     <Text style={styles.badgeRedText}>LOCKED FARE</Text>
                   </View>
-                  {isDiscountVerified && (
-                    <View
-                      style={[
-                        styles.badgeRed,
-                        { backgroundColor: "#10B981", marginLeft: 4 },
-                      ]}
-                    >
-                      <Text style={styles.badgeRedText}>
-                        {userType.toUpperCase()} 20% OFF
-                      </Text>
-                    </View>
-                  )}
                 </View>
                 <Text style={styles.cardSubtext}>
                   Straight to your destination, no stopovers

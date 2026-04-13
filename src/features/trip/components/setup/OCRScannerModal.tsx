@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { CameraView } from "expo-camera";
-import React from "react";
+import React, { useRef } from "react";
 import {
   ActivityIndicator,
   Modal,
@@ -14,7 +14,8 @@ interface Props {
   visible: boolean;
   isScanning: boolean;
   onClose: () => void;
-  onScan: () => void;
+  onScan: (base64Image: string) => void;
+  onScanStart: () => void;
 }
 
 export const OCRScannerModal = ({
@@ -22,7 +23,31 @@ export const OCRScannerModal = ({
   isScanning,
   onClose,
   onScan,
+  onScanStart,
 }: Props) => {
+  const cameraRef = useRef<CameraView>(null);
+
+  const handleTakePicture = async () => {
+    if (!cameraRef.current || isScanning) return;
+
+    try {
+      onScanStart();
+
+      // 🚀 Take a low-res base64 photo for super fast API uploading
+      const photo = await cameraRef.current.takePictureAsync({
+        base64: true,
+        quality: 0.3,
+      });
+
+      if (photo && photo.base64) {
+        onScan(photo.base64);
+      }
+    } catch (error) {
+      console.error("Camera error:", error);
+      onClose();
+    }
+  };
+
   return (
     <Modal
       visible={visible}
@@ -32,9 +57,13 @@ export const OCRScannerModal = ({
     >
       <View style={styles.cameraModalContainer}>
         {visible && (
-          <CameraView style={styles.camera} facing="back">
+          <CameraView style={styles.camera} facing="back" ref={cameraRef}>
             <View style={styles.cameraHeaderOverlay}>
-              <TouchableOpacity onPress={onClose} style={styles.cameraCloseBtn}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={styles.cameraCloseBtn}
+                disabled={isScanning}
+              >
                 <MaterialIcons name="close" size={28} color="#FFFFFF" />
               </TouchableOpacity>
               <Text style={styles.cameraHeaderTitle}>Scan Body Number</Text>
@@ -57,7 +86,7 @@ export const OCRScannerModal = ({
               <TouchableOpacity
                 style={styles.shutterButton}
                 activeOpacity={0.8}
-                onPress={onScan}
+                onPress={handleTakePicture}
                 disabled={isScanning}
               >
                 {isScanning ? (
@@ -67,8 +96,31 @@ export const OCRScannerModal = ({
                 )}
               </TouchableOpacity>
               <Text style={styles.shutterText}>
-                {isScanning ? "Processing Text..." : "Tap to Scan OCR"}
+                {isScanning ? "Processing Text..." : "Tap to Scan Body Number"}
               </Text>
+
+              {/* 🚀 THE DEV BYPASS BUTTON - Only shows during development! */}
+              {__DEV__ && (
+                <TouchableOpacity
+                  style={{
+                    marginTop: 20,
+                    padding: 10,
+                    backgroundColor: "rgba(255,255,255,0.2)",
+                    borderRadius: 8,
+                  }}
+                  onPress={() => {
+                    onScanStart();
+                    // Instantly trigger the mock bypass
+                    setTimeout(() => onScan("DEV_MOCK_SCAN_TRIGGER"), 500);
+                  }}
+                >
+                  <Text
+                    style={{ color: "#FFF", fontSize: 12, fontWeight: "bold" }}
+                  >
+                    🧪 DEV: Simulate Scan
+                  </Text>
+                </TouchableOpacity>
+              )}
             </View>
           </CameraView>
         )}

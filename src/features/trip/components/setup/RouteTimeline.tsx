@@ -22,243 +22,250 @@ export const RouteTimeline = ({
   onOpenSearch,
   onRemoveStopover,
 }: Props) => {
-  const destSubtext = isCalculating
-    ? "Calculating..."
-    : finalDest && calculatedDistance
-      ? `${calculatedDistance.toFixed(1)} km Total Distance`
-      : "REQUIRED FOR FARE";
-
-  if (mode === "DIRECT") {
+  // Renders the dots and text for the left side of the card
+  const renderRouteNodes = () => {
     return (
-      <View style={styles.routeBuilderContainer}>
-        <View style={styles.timelineLineDirect} />
-        <View style={styles.timelineRow}>
-          <View style={styles.iconContainerBlue}>
-            <MaterialIcons name="my-location" size={16} color="#3B82F6" />
+      <View style={styles.nodesContainer}>
+        {/* ORIGIN */}
+        <View style={styles.nodeRow}>
+          <View style={styles.iconCol}>
+            <View style={styles.originDot} />
+            <View style={styles.dottedLine} />
           </View>
-          <View style={styles.timelineTextContainer}>
-            <Text style={styles.locationTitle}>Current Location</Text>
-            <Text style={styles.locationSubtext}>ORIGIN</Text>
+          <View style={styles.textCol}>
+            <Text style={styles.nodeTextPrimary}>
+              {"Current Location (Origin)"}
+            </Text>
+            <Text style={styles.nodeTextSecondary}>{"to"}</Text>
           </View>
         </View>
 
+        {/* STOPOVERS (For Special Mode) */}
+        {mode === "SPECIAL" &&
+          stopovers.map((stop) => (
+            <View key={stop.id} style={styles.nodeRow}>
+              <View style={styles.iconCol}>
+                <View style={styles.stopoverDot} />
+                <View style={styles.dottedLine} />
+              </View>
+              <View
+                style={[
+                  styles.textCol,
+                  { flexDirection: "row", alignItems: "center" },
+                ]}
+              >
+                <Text
+                  style={[styles.nodeTextPrimary, { flex: 1 }]}
+                  numberOfLines={1}
+                >
+                  {stop.name}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => onRemoveStopover(stop.id)}
+                  style={{ padding: 4 }}
+                >
+                  <MaterialIcons name="close" size={16} color="#94A3B8" />
+                </TouchableOpacity>
+              </View>
+            </View>
+          ))}
+
+        {/* ADD STOPOVER BUTTON (For Special Mode) */}
+        {mode === "SPECIAL" && (
+          <View style={styles.nodeRow}>
+            <View style={styles.iconCol}>
+              <View style={styles.addStopoverDot} />
+              <View style={styles.dottedLine} />
+            </View>
+            <TouchableOpacity
+              style={styles.textCol}
+              onPress={() => onOpenSearch("stopover")}
+            >
+              <Text style={styles.addStopoverText}>{"Add Stopover"}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* DESTINATION */}
         <TouchableOpacity
-          style={[styles.timelineRow, { marginBottom: 0 }]}
+          style={styles.nodeRow}
           activeOpacity={0.7}
           onPress={() => onOpenSearch("destination")}
         >
-          <View style={styles.iconContainerGreen}>
-            <MaterialIcons name="check-circle" size={16} color="#10B981" />
+          <View style={styles.iconCol}>
+            <MaterialIcons
+              name="location-on"
+              size={18}
+              color="#D32F2F"
+              style={{ marginTop: -2 }}
+            />
           </View>
-          <View style={styles.timelineTextContainer}>
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <Text style={styles.locationTitle}>
-                {finalDest ? finalDest.name : "Tap to set destination..."}
-              </Text>
-              {finalDest && (
-                <View style={styles.lockedBadge}>
-                  <Text style={styles.lockedBadgeText}>POINT-TO-POINT</Text>
-                </View>
-              )}
-            </View>
+          <View style={styles.textCol}>
             <Text
               style={[
-                styles.locationSubtext,
-                !finalDest && { color: "#E53935", fontWeight: "bold" },
+                styles.nodeTextPrimary,
+                !finalDest && { color: "#94A3B8" },
               ]}
+              numberOfLines={1}
             >
-              {destSubtext}
+              {finalDest ? finalDest.name : "Tap to set destination"}
             </Text>
+            {finalDest && (
+              <Text style={styles.nodeTextSecondary}>
+                {mode === "DIRECT" ? "(POINT-TO-POINT)" : "(FINAL DESTINATION)"}
+              </Text>
+            )}
           </View>
         </TouchableOpacity>
       </View>
     );
-  }
+  };
 
   return (
-    <View style={styles.routeBuilderContainer}>
-      <View style={styles.timelineLine} />
-      <View style={styles.timelineRow}>
-        <View style={styles.iconContainerBlue}>
-          <MaterialIcons name="my-location" size={16} color="#3B82F6" />
-        </View>
-        <View style={styles.timelineTextContainer}>
-          <Text style={styles.locationTitle}>Current Location</Text>
-          <Text style={styles.locationSubtext}>ORIGIN</Text>
+    <View style={styles.card}>
+      <View style={styles.cardContent}>
+        {/* LEFT SIDE: Timeline */}
+        <View style={styles.leftSection}>{renderRouteNodes()}</View>
+
+        {/* VERTICAL DIVIDER */}
+        <View style={styles.verticalDivider} />
+
+        {/* RIGHT SIDE: Distance */}
+        <View style={styles.rightSection}>
+          {isCalculating ? (
+            <Text style={styles.distanceValue}>{"..."}</Text>
+          ) : (
+            <Text style={styles.distanceValue}>
+              {calculatedDistance
+                ? `${calculatedDistance.toFixed(1)} KM`
+                : "--"}
+            </Text>
+          )}
+          <Text style={styles.distanceLabel}>{"TOTAL\nDISTANCE"}</Text>
         </View>
       </View>
-
-      {stopovers.map((stop) => (
-        <View key={stop.id} style={styles.timelineRow}>
-          <View style={styles.iconContainerRedLight}>
-            <MaterialIcons name="schedule" size={16} color="#E53935" />
-          </View>
-          <View style={styles.timelineTextContainer}>
-            <Text style={styles.locationTitle}>{stop.name}</Text>
-            <Text style={styles.locationSubtext}>{stop.subtext}</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => onRemoveStopover(stop.id)}
-            style={styles.removeButton}
-          >
-            <MaterialIcons name="close" size={20} color="#94A3B8" />
-          </TouchableOpacity>
-        </View>
-      ))}
-
-      <View style={styles.timelineRow}>
-        <View style={styles.iconPlaceholder} />
-        <TouchableOpacity
-          style={styles.addStopoverBtn}
-          activeOpacity={0.7}
-          onPress={() => onOpenSearch("stopover")}
-        >
-          <MaterialIcons
-            name="add-circle-outline"
-            size={16}
-            color="#475569"
-            style={{ marginRight: 6 }}
-          />
-          <Text style={styles.addStopoverText}>Add Stopover</Text>
-        </TouchableOpacity>
-      </View>
-
-      <TouchableOpacity
-        style={[styles.timelineRow, { marginBottom: 0 }]}
-        activeOpacity={0.7}
-        onPress={() => onOpenSearch("destination")}
-      >
-        <View style={styles.iconContainerRed}>
-          <MaterialIcons name="location-on" size={16} color="#E53935" />
-        </View>
-        <View style={styles.timelineTextContainer}>
-          <Text style={styles.locationTitle}>
-            {finalDest ? finalDest.name : "Tap to set destination..."}
-          </Text>
-          <Text
-            style={[
-              styles.locationSubtext,
-              !finalDest && { color: "#E53935", fontWeight: "bold" },
-            ]}
-          >
-            {destSubtext}
-          </Text>
-        </View>
-      </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  routeBuilderContainer: {
+  card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
-    padding: 20,
-    marginBottom: 24,
-    elevation: 2,
+    padding: 16,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
     borderWidth: 1,
     borderColor: "#F1F5F9",
-    position: "relative",
   },
-  timelineLine: {
-    position: "absolute",
-    left: 33,
-    top: 40,
-    bottom: 40,
-    width: 2,
-    backgroundColor: "#E2E8F0",
-    zIndex: 0,
-  },
-  timelineLineDirect: {
-    position: "absolute",
-    left: 33,
-    top: 40,
-    height: 40,
-    width: 2,
-    backgroundColor: "#E2E8F0",
-    zIndex: 0,
-  },
-  timelineRow: {
+  cardContent: {
     flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 20,
-    zIndex: 1,
+    alignItems: "stretch",
   },
-  iconContainerBlue: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#EFF6FF",
+  leftSection: {
+    flex: 1,
+    paddingRight: 12,
+    justifyContent: "center",
+  },
+  rightSection: {
+    width: 80,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
+    paddingLeft: 12,
   },
-  iconContainerRedLight: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#FEF2F2",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
+  verticalDivider: {
+    width: 1,
+    backgroundColor: "#E2E8F0",
+    marginVertical: 4,
   },
-  iconContainerRed: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#FEF2F2",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
+  distanceValue: {
+    fontSize: 16,
+    fontWeight: "900",
+    color: "#0F172A",
+    textAlign: "center",
   },
-  iconContainerGreen: {
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    backgroundColor: "#ECFDF5",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  iconPlaceholder: { width: 28, height: 28, marginRight: 0 },
-  timelineTextContainer: { flex: 1, marginLeft: 16 },
-  locationTitle: { fontSize: 15, fontWeight: "bold", color: "#0F172A" },
-  locationSubtext: {
-    fontSize: 11,
+  distanceLabel: {
+    fontSize: 9,
     color: "#94A3B8",
+    textAlign: "center",
+    fontWeight: "700",
+    marginTop: 4,
+    letterSpacing: 0.5,
+  },
+
+  // Timeline Nodes
+  nodesContainer: {
+    flexDirection: "column",
+  },
+  nodeRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+  },
+  iconCol: {
+    width: 24,
+    alignItems: "center",
+    marginRight: 8,
+  },
+  textCol: {
+    flex: 1,
+    paddingBottom: 16,
+    justifyContent: "center",
+  },
+
+  // Dots & Lines
+  originDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 3,
+    borderColor: "#0891B2", // Matches the teal dot from the image
+    marginTop: 4,
+  },
+  stopoverDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: "#F59E0B",
+    marginTop: 4,
+  },
+  addStopoverDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 2,
+    borderColor: "#CBD5E1",
+    marginTop: 4,
+  },
+  dottedLine: {
+    width: 1,
+    flex: 1,
+    borderStyle: "dotted",
+    borderWidth: 1,
+    borderRadius: 1,
+    borderColor: "#CBD5E1",
+    marginTop: 4,
+    marginBottom: 4,
+  },
+
+  // Text
+  nodeTextPrimary: {
+    fontSize: 14,
+    color: "#0F172A",
+    fontWeight: "500",
+  },
+  nodeTextSecondary: {
+    fontSize: 11,
+    color: "#64748B",
     marginTop: 2,
     textTransform: "uppercase",
-    letterSpacing: 0.5,
-    fontWeight: "600",
   },
-  lockedBadge: {
-    backgroundColor: "#ECFDF5",
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginLeft: 8,
-    borderWidth: 1,
-    borderColor: "#A7F3D0",
+  addStopoverText: {
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "500",
+    fontStyle: "italic",
   },
-  lockedBadgeText: {
-    color: "#059669",
-    fontSize: 9,
-    fontWeight: "bold",
-    letterSpacing: 0.5,
-  },
-  removeButton: { padding: 4 },
-  addStopoverBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#F1F5F9",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    marginLeft: 16,
-  },
-  addStopoverText: { fontSize: 13, color: "#475569", fontWeight: "600" },
 });
