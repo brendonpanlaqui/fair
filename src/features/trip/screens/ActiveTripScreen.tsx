@@ -1,8 +1,10 @@
-import { MaterialIcons } from "@expo/vector-icons"; // 🚀 Added for the badge icon
-import { Stack } from "expo-router";
-import React, { useState } from "react";
+import { MaterialIcons } from "@expo/vector-icons";
+import { Stack, useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
+  BackHandler,
   StyleSheet,
   Text,
   TextInput,
@@ -19,19 +21,50 @@ import { useActiveTrip } from "../hooks/useActiveTrip";
 import { useAuth } from "@/src/hooks/AuthContext";
 
 const ActiveTripScreen = () => {
+  const router = useRouter();
   const tripData = useActiveTrip();
-
-  // 🚀 GRAB GLOBAL DISCOUNT STATUS
   const { isDiscountVerified, userType } = useAuth();
 
-  // 🚀 1. State Management
   const [isPlottingRoute, setIsPlottingRoute] = useState(true);
   const [tripState, setTripState] = useState<"LOADING" | "DRIVING" | "ARRIVED">(
     "LOADING",
   );
   const [askedFare, setAskedFare] = useState("");
 
-  // 🚀 2. Safely Rendered Arrival UI
+  // 🚀 THE INTERCEPTOR: Protects the user from accidentally killing the trip
+  const handleBackPress = () => {
+    Alert.alert(
+      "Cancel Tracking?",
+      "If you go back now, this trip will not be saved to your history.",
+      [
+        { text: "Keep Riding", style: "cancel" },
+        {
+          text: "Stop Tracking",
+          style: "destructive",
+          onPress: () => router.back(),
+        },
+      ],
+    );
+    return true; // Required for Android BackHandler to know we intercepted it
+  };
+
+  // 🚀 NATIVE ANDROID SWIPE PROTECTION
+  useEffect(() => {
+    const onHardwareBackPress = () => {
+      if (tripState === "DRIVING" || tripState === "LOADING") {
+        handleBackPress();
+        return true; // Block native back
+      }
+      return false; // Let them go back normally if they've already arrived
+    };
+
+    const subscription = BackHandler.addEventListener(
+      "hardwareBackPress",
+      onHardwareBackPress,
+    );
+    return () => subscription.remove();
+  }, [tripState]);
+
   const renderArrivalScreen = () => {
     if (tripState !== "ARRIVED") return null;
     return (
@@ -50,7 +83,6 @@ const ActiveTripScreen = () => {
               >{`${tripData.fixedFare.toFixed(2)}`}</Text>
             </View>
 
-            {/* 🚀 NEW: REASSURE THE COMMUTER THE DISCOUNT IS ACTIVE */}
             {isDiscountVerified && (
               <View style={styles.discountBadge}>
                 <MaterialIcons
@@ -119,7 +151,6 @@ const ActiveTripScreen = () => {
         onDestinationReached={() => setTripState("ARRIVED")}
       />
 
-      {/* 🚀 3. The Loading Overlay */}
       {isPlottingRoute && (
         <View style={styles.plottingOverlay}>
           <ActivityIndicator size="large" color="#D32F2F" />
@@ -130,13 +161,12 @@ const ActiveTripScreen = () => {
         </View>
       )}
 
-      {/* 🚀 4. Hide Header/Dashboard when Arrived so the Modal is clean */}
       {tripState !== "ARRIVED" && (
         <>
           <ActiveTripHeader
             bodyNumber={tripData.bodyNumber}
             fixedFare={tripData.fixedFare}
-            onBack={() => tripData.router.back()}
+            onBack={handleBackPress} // 🚀 Wires the interceptor to the header button
           />
           <ActiveTripDashboard
             estimatedMinutes={tripData.estimatedMinutes}
@@ -147,7 +177,6 @@ const ActiveTripScreen = () => {
         </>
       )}
 
-      {/* 🚀 5. Render Arrival Screen */}
       {renderArrivalScreen()}
 
       <DeviationModal
@@ -158,6 +187,8 @@ const ActiveTripScreen = () => {
     </View>
   );
 };
+
+// ... (KEEP ALL YOUR EXISTING STYLES)
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
@@ -230,7 +261,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#0F172A",
   },
-  // 🚀 NEW BADGE STYLES
   discountBadge: {
     flexDirection: "row",
     alignItems: "center",

@@ -32,7 +32,8 @@ export const ActiveTripDashboard = ({
   return (
     <>
       <View style={styles.bottomSheet}>
-        <View style={styles.dragHandle} />
+        {/* Subtle decorative notch, not an aggressive drag handle */}
+        <View style={styles.notch} />
 
         <View style={styles.statusRow}>
           <TouchableOpacity
@@ -41,7 +42,7 @@ export const ActiveTripDashboard = ({
             onPress={onSecretTrigger}
           >
             <MaterialIcons
-              name="alt-route"
+              name="near-me"
               size={14}
               color="#10B981"
               style={{ marginRight: 6 }}
@@ -49,17 +50,20 @@ export const ActiveTripDashboard = ({
             <Text style={styles.onRouteText}>{"ON ROUTE"}</Text>
           </TouchableOpacity>
 
-          <Text style={styles.updatedText}>{"GPS Active"}</Text>
+          {/* 🚀 UPGRADE: The "Live" GPS Indicator */}
+          <View style={styles.gpsContainer}>
+            <View style={styles.liveDot} />
+            <Text style={styles.updatedText}>{"GPS Active"}</Text>
+          </View>
         </View>
 
         <View style={styles.metricsGrid}>
           <View style={styles.metricCard}>
             <View style={styles.metricHeader}>
-              <MaterialIcons name="schedule" size={16} color="#64748B" />
+              <MaterialIcons name="schedule" size={16} color="#94A3B8" />
               <Text style={styles.metricLabel}>{"EST. ARRIVAL"}</Text>
             </View>
             <View style={styles.metricValueRow}>
-              {/* 🚀 FIX: Converting the number variable safely to a string */}
               <Text style={styles.metricValue}>{`${estimatedMinutes}`}</Text>
               <Text style={styles.metricUnit}>{"min"}</Text>
             </View>
@@ -67,11 +71,10 @@ export const ActiveTripDashboard = ({
 
           <View style={styles.metricCard}>
             <View style={styles.metricHeader}>
-              <MaterialIcons name="place" size={16} color="#64748B" />
+              <MaterialIcons name="moving" size={16} color="#94A3B8" />
               <Text style={styles.metricLabel}>{"DISTANCE"}</Text>
             </View>
             <View style={styles.metricValueRow}>
-              {/* 🚀 FIX: Stringifying the fixed distance */}
               <Text
                 style={styles.metricValue}
               >{`${lockedDistance.toFixed(1)}`}</Text>
@@ -85,16 +88,19 @@ export const ActiveTripDashboard = ({
           activeOpacity={0.9}
           onPress={() => setShowEndModal(true)}
         >
+          {/* changed from stop-circle to a check-circle */}
           <MaterialIcons
-            name="stop-circle"
+            name="check-circle"
             size={24}
             color="#FFFFFF"
             style={{ marginRight: 8 }}
           />
-          <Text style={styles.endTripText}>{"End Trip Now"}</Text>
+          {/* changed from End Trip Now */}
+          <Text style={styles.endTripText}>{"Complete Ride"}</Text>
         </TouchableOpacity>
       </View>
 
+      {/* 🚀 UPGRADED END TRIP MODAL */}
       <Modal
         visible={showEndModal}
         transparent={true}
@@ -105,14 +111,14 @@ export const ActiveTripDashboard = ({
           <View style={styles.modalContent}>
             <View style={styles.modalIconContainer}>
               <View style={styles.modalIconBg}>
-                <MaterialIcons name="location-on" size={32} color="#D32F2F" />
+                <MaterialIcons name="flag" size={32} color="#D32F2F" />
               </View>
             </View>
 
             <Text style={styles.modalTitle}>{"End this trip?"}</Text>
             <Text style={styles.modalSubtitle}>
               {
-                "Are you sure you have arrived at your destination? Your final fare and map-trace will be locked."
+                "Are you sure you have arrived at your destination? Your final fare and map-trace will be permanently locked."
               }
             </Text>
 
@@ -140,6 +146,9 @@ export const ActiveTripDashboard = ({
   );
 };
 
+// ==========================================
+// STYLES
+// ==========================================
 const styles = StyleSheet.create({
   bottomSheet: {
     position: "absolute",
@@ -154,14 +163,14 @@ const styles = StyleSheet.create({
     elevation: 24,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: -8 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 20,
   },
-  dragHandle: {
-    width: 48,
-    height: 6,
-    backgroundColor: "#E2E8F0",
-    borderRadius: 3,
+  notch: {
+    width: 40,
+    height: 4,
+    backgroundColor: "#F1F5F9", // Much lighter, softer gray
+    borderRadius: 2,
     alignSelf: "center",
     marginBottom: 24,
   },
@@ -187,25 +196,56 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     letterSpacing: 0.5,
   },
-  updatedText: { color: "#94A3B8", fontSize: 12, fontWeight: "600" },
-  metricsGrid: { flexDirection: "row", gap: 16, marginBottom: 24 },
+  gpsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  liveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: "#10B981", // Bright green
+    marginRight: 6,
+  },
+  updatedText: {
+    color: "#64748B",
+    fontSize: 11,
+    fontWeight: "800",
+    textTransform: "uppercase",
+  },
+  metricsGrid: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 24,
+  },
   metricCard: {
     flex: 1,
     backgroundColor: "#F8FAFC",
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#E2E8F0",
+    borderColor: "#F1F5F9", // Softer border than before
   },
-  metricHeader: { flexDirection: "row", alignItems: "center", marginBottom: 8 },
+  metricHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 8,
+  },
   metricLabel: {
-    color: "#64748B",
-    fontSize: 11,
+    color: "#94A3B8", // Receded label color
+    fontSize: 10,
     fontWeight: "900",
     marginLeft: 6,
-    letterSpacing: 0.5,
+    letterSpacing: 1,
   },
-  metricValueRow: { flexDirection: "row", alignItems: "baseline" },
+  metricValueRow: {
+    flexDirection: "row",
+    alignItems: "baseline",
+  },
   metricValue: {
     color: "#0F172A",
     fontSize: 32,
@@ -213,16 +253,16 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   metricUnit: {
-    color: "#64748B",
+    color: "#94A3B8", // Receded unit color to make numbers pop
     fontSize: 14,
-    fontWeight: "700",
+    fontWeight: "800",
     marginLeft: 4,
   },
   endTripButton: {
     flexDirection: "row",
     height: 60,
     borderRadius: 20,
-    backgroundColor: "#D32F2F",
+    backgroundColor: "#D32F2F", // Brand Crimson
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
@@ -234,9 +274,11 @@ const styles = StyleSheet.create({
   endTripText: {
     color: "#FFFFFF",
     fontSize: 17,
-    fontWeight: "bold",
+    fontWeight: "900",
     letterSpacing: 0.5,
   },
+
+  // 🚀 MODAL STYLES
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
@@ -255,15 +297,16 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#FEF2F2",
+    backgroundColor: "#FFF1F2", // Matched to brand pink
     justifyContent: "center",
     alignItems: "center",
   },
   modalTitle: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "900",
     color: "#0F172A",
     marginBottom: 8,
+    letterSpacing: -0.5,
   },
   modalSubtitle: {
     fontSize: 14,
@@ -281,19 +324,21 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-    elevation: 2,
+    elevation: 4,
     shadowColor: "#D32F2F",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
   },
-  confirmBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
+  confirmBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
   cancelBtn: {
     height: 56,
-    backgroundColor: "#F1F5F9",
+    backgroundColor: "#F8FAFC", // Softer neutral background
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
     borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
   },
-  cancelBtnText: { color: "#0F172A", fontSize: 16, fontWeight: "bold" },
+  cancelBtnText: { color: "#0F172A", fontSize: 16, fontWeight: "800" },
 });
