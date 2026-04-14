@@ -1,11 +1,12 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react"; // 🚀 Added useEffect
 import {
   ActivityIndicator,
   Alert,
   Modal,
+  PanResponder,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,6 +22,7 @@ import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { useCameraPermissions } from "expo-camera";
 import { useTripSetup } from "../hooks/useTripSetup";
 
+import TextRecognition from "@react-native-ml-kit/text-recognition";
 import { MapPickerModal } from "../components/setup/MapPickerModal";
 import { OCRScannerModal } from "../components/setup/OCRScannerModal";
 import { RouteTimeline } from "../components/setup/RouteTimeline";
@@ -79,12 +81,44 @@ const StartTripScreen: React.FC = () => {
   const [bodyNumber, setBodyNumber] = useState<string>("");
   const [plateNumber, setPlateNumber] = useState<string>("");
 
-  // 🚀 NEW STATE: Track how the body number was entered for UI feedback
   const [scanMethod, setScanMethod] = useState<"MANUAL" | "OCR">("MANUAL");
 
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isScanningOCR, setIsScanningOCR] = useState(false);
+
+  // 🚀 UX IMPROVEMENT 1: Auto-open modal if no destination is set
+  useEffect(() => {
+    if (!destLat || !destLng) {
+      setSearchTarget("destination");
+      setIsSearchModalVisible(true);
+    }
+  }, []);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      // 1. DO NOT block normal taps (allows typing in the input and clicking buttons)
+      onStartShouldSetPanResponder: () => false,
+      onStartShouldSetPanResponderCapture: () => false,
+
+      // 2. Claim the gesture if the user is swiping down
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        return gestureState.dy > 20 && Math.abs(gestureState.dx) < 30;
+      },
+
+      // 3. This is the magic: It overrides the Google Places ScrollView
+      // ONLY if the user is pulling down fast/hard.
+      onMoveShouldSetPanResponderCapture: (_, gestureState) => {
+        return gestureState.dy > 30 && gestureState.vy > 0.3;
+      },
+
+      onPanResponderRelease: (_, gestureState) => {
+        if (gestureState.dy > 40) {
+          setIsSearchModalVisible(false);
+        }
+      },
+    }),
+  ).current;
 
   const handleOpenScanner = async () => {
     if (!permission?.granted) {
@@ -100,38 +134,24 @@ const StartTripScreen: React.FC = () => {
     setIsCameraVisible(true);
   };
 
-  const handleProcessOCR = async (base64Image: string) => {
-    // 🛡️ DEV BYPASS
-    if (base64Image === "DEV_MOCK_SCAN_TRIGGER") {
+  const handleProcessOCR = async (imageUri: string) => {
+    // 🛡️ KEEP THE DEV BYPASS: Still useful for fast UI testing without taking photos!
+    if (imageUri === "DEV_MOCK_SCAN_TRIGGER") {
       setBodyNumber("2-2500");
-      setScanMethod("OCR"); // 🚀 Set state to OCR
+      setScanMethod("OCR");
       setIsCameraVisible(false);
       setIsScanningOCR(false);
       return;
     }
 
     try {
-      const response = await fetch(
-        `https://vision.googleapis.com/v1/images:annotate?key=${GOOGLE_API_KEY}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            requests: [
-              {
-                image: { content: base64Image },
-                features: [{ type: "TEXT_DETECTION" }],
-              },
-            ],
-          }),
-        },
-      );
+      // 🚀 MAGIC HAPPENS HERE: 100% Offline Machine Learning
+      const result = await TextRecognition.recognize(imageUri);
 
-      const data = await response.json();
-      const textAnnotations = data.responses[0]?.textAnnotations;
+      const fullText = result.text;
 
-      if (textAnnotations && textAnnotations.length > 0) {
-        const fullText = textAnnotations[0].description;
+      if (fullText && fullText.length > 0) {
+        // Our same smart Regex logic to find Angeles City TODA formats
         const bodyNumRegex = /\b(?:\d{1,2}-)?\d{3,4}\b/g;
         const matches = fullText.match(bodyNumRegex);
 
@@ -147,21 +167,20 @@ const StartTripScreen: React.FC = () => {
             )[0];
 
             setBodyNumber(bestMatch);
-            setScanMethod("OCR"); // 🚀 Set state to OCR
+            setScanMethod("OCR");
             setIsCameraVisible(false);
-            // 🚀 Removed the annoying success Alert! The UI handles it now.
           } else {
             setIsCameraVisible(false);
             Alert.alert(
               "Scan Failed",
-              "Could not isolate the body number from the text. Please enter it manually.",
+              "Could not isolate the body number from the text. Please try again or you may enter it manually.",
             );
           }
         } else {
           setIsCameraVisible(false);
           Alert.alert(
             "Scan Failed",
-            "No valid body number format detected. Please enter it manually.",
+            "No valid body number format detected. Please try again or you may enter it manually.",
           );
         }
       } else {
@@ -173,7 +192,7 @@ const StartTripScreen: React.FC = () => {
       }
     } catch (error) {
       setIsCameraVisible(false);
-      Alert.alert("Error", "Failed to connect to the OCR service.");
+      Alert.alert("Error", "Failed to run on-device ML Kit.");
       console.error(error);
     } finally {
       setIsScanningOCR(false);
@@ -231,10 +250,15 @@ const StartTripScreen: React.FC = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        contentContainerStyle={{ paddingBottom: 120 }} // 🚀 ADD THIS HERE!
+        showsVerticalScrollIndicator={false}
+      >
         <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 16 }]}>
           {"Your Route"}
         </Text>
+
         <RouteTimeline
           mode={passedMode}
           finalDest={finalDest}
@@ -250,110 +274,107 @@ const StartTripScreen: React.FC = () => {
 
         <Text style={styles.sectionTitle}>{"Tricycle Details"}</Text>
 
-        {/* 🚀 DYNAMIC SCANNER BOX: Morphs into a Success Card */}
-        {bodyNumber.length > 0 && scanMethod === "OCR" ? (
-          <View style={styles.successScannerBox}>
-            <View style={styles.successIconWrapper}>
-              <MaterialIcons name="check-circle" size={40} color="#10B981" />
+        <View style={styles.detailsCard}>
+          {bodyNumber.length > 0 && scanMethod === "OCR" ? (
+            <View style={styles.successScannerBox}>
+              <View style={styles.successIconWrapper}>
+                <MaterialIcons name="check-circle" size={40} color="#10B981" />
+              </View>
+              <Text style={styles.successBoxTitle}>Body Number Detected</Text>
+              <Text style={styles.successBoxSubtext}>
+                OCR successfully read the tricycle ID
+              </Text>
+              <TouchableOpacity
+                style={styles.retakeButton}
+                activeOpacity={0.8}
+                onPress={handleOpenScanner}
+              >
+                <MaterialIcons
+                  name="refresh"
+                  size={16}
+                  color="#64748B"
+                  style={{ marginRight: 6 }}
+                />
+                <Text style={styles.retakeButtonText}>Retake Photo</Text>
+              </TouchableOpacity>
             </View>
-            <Text style={styles.successBoxTitle}>Body Number Detected</Text>
-            <Text style={styles.successBoxSubtext}>
-              OCR successfully read the tricycle ID
-            </Text>
+          ) : (
             <TouchableOpacity
-              style={styles.retakeButton}
+              style={styles.giantScannerBox}
               activeOpacity={0.8}
               onPress={handleOpenScanner}
             >
               <MaterialIcons
-                name="refresh"
-                size={16}
-                color="#64748B"
-                style={{ marginRight: 6 }}
+                name="qr-code-scanner"
+                size={64}
+                color="#D32F2F"
+                style={{ marginBottom: 12 }}
               />
-              <Text style={styles.retakeButtonText}>Retake Photo</Text>
+              <Text style={styles.scannerBoxTitle}>
+                {"Scan Painted Body Number"}
+              </Text>
+              <Text style={styles.scannerBoxSubtext}>
+                {"Point camera at the number on the sidecar."}
+              </Text>
             </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.giantScannerBox}
-            activeOpacity={0.8}
-            onPress={handleOpenScanner}
-          >
-            <MaterialIcons
-              name="qr-code-scanner"
-              size={64}
-              color="#D32F2F"
-              style={{ marginBottom: 12 }}
-            />
-            <Text style={styles.scannerBoxTitle}>
-              {"Scan Painted Body Number"}
-            </Text>
-            <Text style={styles.scannerBoxSubtext}>
-              {"Point camera at the number on the sidecar."}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* FLOATING LABEL INPUTS */}
-        <View
-          style={[
-            styles.floatingInputWrapper,
-            bodyNumber.length > 0 ? styles.floatingInputSuccess : null,
-          ]}
-        >
-          <View style={styles.floatingLabelContainer}>
-            <Text style={styles.floatingLabelText}>
-              {"Body Number "}
-              <Text style={styles.floatingLabelSubtext}>{"(Required)"}</Text>
-            </Text>
-          </View>
-          <TextInput
-            style={styles.floatingInput}
-            placeholder="e.g., 0406"
-            placeholderTextColor="#94A3B8"
-            keyboardType="number-pad"
-            value={bodyNumber}
-            onChangeText={(text) => {
-              setBodyNumber(text);
-              // 🚀 If they manually edit the text after a scan, revert to manual mode
-              if (scanMethod === "OCR") {
-                setScanMethod("MANUAL");
-              }
-            }}
-          />
-          {/* Add a little checkmark inside the input if it's filled */}
-          {bodyNumber.length > 0 && (
-            <MaterialIcons
-              name="check-circle"
-              size={20}
-              color="#10B981"
-              style={{ position: "absolute", right: 16 }}
-            />
           )}
-        </View>
 
-        <View style={styles.floatingInputWrapper}>
-          <View style={styles.floatingLabelContainer}>
-            <Text style={styles.floatingLabelText}>
-              {"Plate Number "}
-              <Text style={styles.floatingLabelSubtext}>{"(Optional)"}</Text>
-            </Text>
+          {/* FLOATING LABEL INPUTS */}
+          <View
+            style={[
+              styles.floatingInputWrapper,
+              bodyNumber.length > 0 ? styles.floatingInputSuccess : null,
+            ]}
+          >
+            <View style={styles.floatingLabelContainer}>
+              <Text style={styles.floatingLabelText}>
+                {"Body Number "}
+                <Text style={styles.floatingLabelSubtext}>{"(Required)"}</Text>
+              </Text>
+            </View>
+            <TextInput
+              style={styles.floatingInput}
+              placeholder="e.g., 0406"
+              placeholderTextColor="#94A3B8"
+              keyboardType="number-pad"
+              value={bodyNumber}
+              onChangeText={(text) => {
+                setBodyNumber(text);
+                if (scanMethod === "OCR") {
+                  setScanMethod("MANUAL");
+                }
+              }}
+            />
+            {bodyNumber.length > 0 && (
+              <MaterialIcons
+                name="check-circle"
+                size={20}
+                color="#10B981"
+                style={{ position: "absolute", right: 16 }}
+              />
+            )}
           </View>
-          <TextInput
-            style={styles.floatingInput}
-            placeholder="e.g., ABC 1234"
-            placeholderTextColor="#94A3B8"
-            autoCapitalize="characters"
-            value={plateNumber}
-            onChangeText={setPlateNumber}
-          />
-        </View>
 
-        <View style={{ height: 100 }} />
+          <View style={[styles.floatingInputWrapper, { marginBottom: 0 }]}>
+            <View style={styles.floatingLabelContainer}>
+              <Text style={styles.floatingLabelText}>
+                {"Plate Number "}
+                <Text style={styles.floatingLabelSubtext}>{"(Optional)"}</Text>
+              </Text>
+            </View>
+            <TextInput
+              style={styles.floatingInput}
+              placeholder="e.g., ABC 1234"
+              placeholderTextColor="#94A3B8"
+              autoCapitalize="characters"
+              value={plateNumber}
+              onChangeText={setPlateNumber}
+            />
+          </View>
+        </View>
       </ScrollView>
 
-      {/* PREMIUM BOTTOM BUTTON */}
+      {/* PREMIUM SPLIT-LAYOUT BOTTOM BUTTON */}
       <View style={styles.bottomFooter}>
         <TouchableOpacity
           style={[
@@ -383,10 +404,10 @@ const StartTripScreen: React.FC = () => {
           ) : (
             <View style={styles.activeButtonRow}>
               <View style={styles.buttonTextColumn}>
-                <Text style={styles.verifyButtonText}>{"CONFIRM TRIP"}</Text>
+                <Text style={styles.verifyButtonText}>{"VERIFY & START"}</Text>
                 {isDiscountVerified ? (
                   <Text style={styles.verifyButtonSubtext}>
-                    {`${userType.toUpperCase()} 20% OFF`}
+                    {`✓ ${userType.toUpperCase()} 20% OFF`}
                   </Text>
                 ) : (
                   <Text style={styles.verifyButtonSubtext}>
@@ -448,7 +469,10 @@ const StartTripScreen: React.FC = () => {
             activeOpacity={1}
             onPress={() => setIsSearchModalVisible(false)}
           />
-          <View style={styles.searchModalContent}>
+
+          {/* 🚀 MOVED PAN HANDLERS HERE: Now the entire white sheet is swipeable */}
+          <View style={styles.searchModalContent} {...panResponder.panHandlers}>
+            {/* We removed the extra View wrapper that used to be here */}
             <View style={styles.sheetDragHandle} />
             <View style={styles.searchModalHeader}>
               <Text style={styles.searchModalTitle}>
@@ -463,136 +487,157 @@ const StartTripScreen: React.FC = () => {
                 <MaterialIcons name="close" size={24} color="#64748B" />
               </TouchableOpacity>
             </View>
-            <GooglePlacesAutocomplete
-              placeholder={
-                searchTarget === "stopover"
-                  ? "Where do you want to stop?"
-                  : "Where are you heading?"
-              }
-              fetchDetails={true}
-              enablePoweredByContainer={false}
-              debounce={800}
-              minLength={2}
-              GooglePlacesDetailsQuery={{ fields: "geometry,name" }}
-              onPress={(data, details = null) => {
-                if (details) {
-                  const lat = details.geometry.location.lat;
-                  const lng = details.geometry.location.lng;
-                  if (!isWithinAngelesCity(lat, lng)) {
-                    Alert.alert(
-                      "Out of Bounds",
-                      "Locations must be within Angeles City limits.",
-                    );
-                    return;
-                  }
-                  if (searchTarget === "stopover") {
-                    setStopovers((prev) => [
-                      ...prev,
-                      {
-                        id: Math.random().toString(),
-                        name: data.structured_formatting.main_text,
-                        subtext: "Stopover (Driver Waits)",
-                        latitude: lat,
-                        longitude: lng,
-                      },
-                    ]);
-                  } else {
-                    setFinalDest({
-                      lat,
-                      lng,
-                      name: data.structured_formatting.main_text,
-                    });
-                  }
-                  setIsSearchModalVisible(false);
-                  setSessionToken(generateSessionToken());
+
+            <View style={{ flex: 1, position: "relative", marginTop: 12 }}>
+              <GooglePlacesAutocomplete
+                placeholder={
+                  searchTarget === "stopover"
+                    ? "Where do you want to stop?"
+                    : "Where are you heading?"
                 }
-              }}
-              query={{
-                key: GOOGLE_API_KEY,
-                language: "en",
-                components: "country:ph",
-                location: "15.1444,120.5928",
-                radius: "8000",
-                strictbounds: true,
-                sessiontoken: sessionToken,
-              }}
-              renderRow={(rowData) => (
-                <View style={styles.customRow}>
-                  <View style={styles.rowIconContainer}>
-                    <MaterialIcons
-                      name="location-on"
-                      size={20}
-                      color="#94A3B8"
-                    />
-                  </View>
-                  <View style={styles.rowTextContainer}>
-                    <Text style={styles.rowTitle} numberOfLines={1}>
-                      {rowData.structured_formatting.main_text}
-                    </Text>
-                    <Text style={styles.rowSubtitle} numberOfLines={1}>
-                      {rowData.structured_formatting.secondary_text ||
-                        "Angeles City, Pampanga"}
-                    </Text>
-                  </View>
-                </View>
-              )}
-              // @ts-ignore
-              ListHeaderComponent={() => (
-                <TouchableOpacity
-                  style={styles.chooseOnMapBtn}
-                  onPress={() => {
+                fetchDetails={true}
+                enablePoweredByContainer={false}
+                debounce={800}
+                minLength={2}
+                GooglePlacesDetailsQuery={{ fields: "geometry,name" }}
+                onPress={(data, details = null) => {
+                  if (details) {
+                    const lat = details.geometry.location.lat;
+                    const lng = details.geometry.location.lng;
+                    if (!isWithinAngelesCity(lat, lng)) {
+                      Alert.alert(
+                        "Out of Bounds",
+                        "Locations must be within Angeles City limits.",
+                      );
+                      return;
+                    }
+                    if (searchTarget === "stopover") {
+                      setStopovers((prev) => [
+                        ...prev,
+                        {
+                          id: Math.random().toString(),
+                          name: data.structured_formatting.main_text,
+                          subtext: "Stopover (Driver Waits)",
+                          latitude: lat,
+                          longitude: lng,
+                        },
+                      ]);
+                    } else {
+                      setFinalDest({
+                        lat,
+                        lng,
+                        name: data.structured_formatting.main_text,
+                      });
+                    }
                     setIsSearchModalVisible(false);
-                    setTimeout(() => setIsMapPickerVisible(true), 300);
-                  }}
-                >
-                  <View style={styles.chooseOnMapIconBg}>
-                    <MaterialIcons name="place" size={20} color="#D32F2F" />
+                    setSessionToken(generateSessionToken());
+                  }
+                }}
+                query={{
+                  key: GOOGLE_API_KEY,
+                  language: "en",
+                  components: "country:ph",
+                  location: "15.1444,120.5928",
+                  radius: "8000",
+                  strictbounds: true,
+                  sessiontoken: sessionToken,
+                }}
+                renderRow={(rowData) => (
+                  <View style={styles.customRow}>
+                    <View style={styles.rowIconContainer}>
+                      <MaterialIcons
+                        name="location-on"
+                        size={20}
+                        color="#94A3B8"
+                      />
+                    </View>
+                    <View style={styles.rowTextContainer}>
+                      <Text style={styles.rowTitle} numberOfLines={1}>
+                        {rowData.structured_formatting.main_text}
+                      </Text>
+                      <Text style={styles.rowSubtitle} numberOfLines={1}>
+                        {rowData.structured_formatting.secondary_text ||
+                          "Angeles City, Pampanga"}
+                      </Text>
+                    </View>
                   </View>
-                  <View>
-                    <Text style={styles.chooseOnMapTitle}>
-                      {"Choose on Map"}
-                    </Text>
-                    <Text style={styles.chooseOnMapSubtext}>
-                      {"Pinpoint your exact location"}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              )}
-              styles={{
-                container: { flex: 1, marginTop: 12 },
-                textInputContainer: {
-                  backgroundColor: "#F8FAFC",
-                  borderRadius: 16,
-                  paddingHorizontal: 12,
-                  marginBottom: 16,
-                  borderWidth: 1,
-                  borderColor: "#E2E8F0",
-                  flexDirection: "row",
-                  alignItems: "center",
-                },
-                textInput: {
-                  height: 52,
-                  color: "#0F172A",
-                  fontSize: 16,
-                  backgroundColor: "transparent",
-                  margin: 0,
-                  padding: 0,
-                },
-                separator: { height: 1, backgroundColor: "#F1F5F9" },
-              }}
-              textInputProps={{
-                autoFocus: true,
-                placeholderTextColor: "#94A3B8",
-              }}
-              renderLeftButton={() => (
+                )}
+                styles={{
+                  container: { flex: 0 }, // 🚀 Prevents pushing the map button down
+                  textInputContainer: {
+                    backgroundColor: "#F8FAFC",
+                    borderRadius: 16,
+                    paddingHorizontal: 12,
+                    borderWidth: 1,
+                    borderColor: "#E2E8F0",
+                    flexDirection: "row",
+                    alignItems: "center",
+                    height: 56, // Fixed height
+                  },
+                  textInput: {
+                    height: 52,
+                    color: "#0F172A",
+                    fontSize: 16,
+                    backgroundColor: "transparent",
+                    margin: 0,
+                    padding: 0,
+                  },
+                  listView: {
+                    // 🚀 Makes search results float OVER the map button
+                    position: "absolute",
+                    top: 64,
+                    left: 0,
+                    right: 0,
+                    backgroundColor: "#FFFFFF",
+                    borderRadius: 16,
+                    elevation: 10,
+                    shadowColor: "#0F172A",
+                    shadowOffset: { width: 0, height: 6 },
+                    shadowOpacity: 0.15,
+                    shadowRadius: 12,
+                    zIndex: 9999,
+                  },
+                  separator: { height: 1, backgroundColor: "#F1F5F9" },
+                }}
+                textInputProps={{
+                  autoFocus: true,
+                  placeholderTextColor: "#94A3B8",
+                }}
+                renderLeftButton={() => (
+                  <MaterialIcons
+                    name="search"
+                    size={22}
+                    color="#94A3B8"
+                    style={{ marginRight: 8 }}
+                  />
+                )}
+              />
+
+              {/* 🚀 STANDALONE MAP BUTTON: Now always visible below the input */}
+              <TouchableOpacity
+                style={styles.standaloneChooseOnMapBtn}
+                onPress={() => {
+                  setIsSearchModalVisible(false);
+                  setTimeout(() => setIsMapPickerVisible(true), 300);
+                }}
+              >
+                <View style={styles.chooseOnMapIconBg}>
+                  <MaterialIcons name="place" size={20} color="#D32F2F" />
+                </View>
+                <View>
+                  <Text style={styles.chooseOnMapTitle}>{"Choose on Map"}</Text>
+                  <Text style={styles.chooseOnMapSubtext}>
+                    {"Pinpoint your exact location"}
+                  </Text>
+                </View>
                 <MaterialIcons
-                  name="search"
-                  size={22}
-                  color="#94A3B8"
-                  style={{ marginRight: 8 }}
+                  name="chevron-right"
+                  size={24}
+                  color="#CBD5E1"
+                  style={{ marginLeft: "auto" }}
                 />
-              )}
-            />
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -617,25 +662,39 @@ const styles = StyleSheet.create({
   backButton: { padding: 4, marginLeft: -4 },
   headerTitle: { color: "#0F172A", fontSize: 18, fontWeight: "900" },
   content: { flex: 1, padding: 20 },
+
   sectionTitle: {
     fontSize: 20,
     fontWeight: "700",
     color: "#0F172A",
-    marginTop: 32,
-    marginBottom: 16,
+    marginTop: 24,
+    marginBottom: 12,
   },
 
-  // 🚀 EXISTING SCANNER BOX
+  detailsCard: {
+    backgroundColor: "#FFFFFF",
+    borderRadius: 16,
+    padding: 16,
+    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+    marginBottom: 24,
+  },
+
   giantScannerBox: {
     backgroundColor: "#FFF1F2",
     borderWidth: 2,
     borderColor: "#FECACA",
     borderStyle: "dashed",
-    borderRadius: 24,
-    paddingVertical: 40,
+    borderRadius: 16,
+    paddingVertical: 32,
     paddingHorizontal: 20,
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   scannerBoxTitle: {
     fontSize: 18,
@@ -645,16 +704,15 @@ const styles = StyleSheet.create({
   },
   scannerBoxSubtext: { fontSize: 13, color: "#64748B" },
 
-  // 🚀 NEW SUCCESS SCANNER UI
   successScannerBox: {
     backgroundColor: "#ECFDF5",
     borderWidth: 2,
     borderColor: "#A7F3D0",
-    borderRadius: 24,
-    paddingVertical: 32,
+    borderRadius: 16,
+    paddingVertical: 24,
     paddingHorizontal: 20,
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   successIconWrapper: {
     backgroundColor: "#FFFFFF",
@@ -699,7 +757,6 @@ const styles = StyleSheet.create({
     color: "#64748B",
   },
 
-  // FLOATING LABELS
   floatingInputWrapper: {
     borderWidth: 1,
     borderColor: "#E2E8F0",
@@ -711,7 +768,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   floatingInputSuccess: {
-    borderColor: "#10B981", // Turns green when filled
+    borderColor: "#10B981",
     borderWidth: 2,
   },
   floatingLabelContainer: {
@@ -731,7 +788,6 @@ const styles = StyleSheet.create({
     height: "100%",
   },
 
-  // PREMIUM BOTTOM BUTTON
   bottomFooter: {
     position: "absolute",
     bottom: 0,
@@ -749,8 +805,17 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 24,
+    elevation: 4,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
-  verifyButtonDisabled: { backgroundColor: "#E2E8F0" },
+  verifyButtonDisabled: {
+    backgroundColor: "#E2E8F0",
+    elevation: 0,
+    shadowOpacity: 0,
+  },
   activeButtonRow: {
     width: "100%",
     flexDirection: "row",
@@ -784,7 +849,6 @@ const styles = StyleSheet.create({
     letterSpacing: -0.5,
   },
 
-  // MODALS
   searchModalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
@@ -803,7 +867,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#CBD5E1",
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 20,
+    marginBottom: 8, // Tighter margin
   },
   searchModalHeader: {
     flexDirection: "row",
@@ -847,14 +911,23 @@ const styles = StyleSheet.create({
     marginBottom: 2,
   },
   rowSubtitle: { fontSize: 13, color: "#64748B", fontWeight: "500" },
-  chooseOnMapBtn: {
+
+  // 🚀 New Standalone Button Style
+  standaloneChooseOnMapBtn: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 16,
+    marginTop: 16,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    elevation: 3,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 6,
   },
   chooseOnMapIconBg: {
     width: 36,
@@ -868,7 +941,7 @@ const styles = StyleSheet.create({
   chooseOnMapTitle: {
     fontSize: 16,
     fontWeight: "800",
-    color: "#D32F2F",
+    color: "#0F172A",
     marginBottom: 2,
   },
   chooseOnMapSubtext: { fontSize: 13, color: "#64748B", fontWeight: "500" },

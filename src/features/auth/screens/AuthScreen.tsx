@@ -1,4 +1,4 @@
-import { AntDesign, MaterialIcons } from "@expo/vector-icons";
+import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
@@ -268,19 +268,9 @@ const AuthScreen = () => {
 
         <View style={styles.dividerRow}>
           <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR CONTINUE WITH</Text>
+          <Text style={styles.dividerText}>OR</Text>
           <View style={styles.dividerLine} />
         </View>
-
-        <TouchableOpacity style={styles.googleBtn} activeOpacity={0.8}>
-          <AntDesign
-            name="google"
-            size={20}
-            color="#0F172A"
-            style={{ marginRight: 12 }}
-          />
-          <Text style={styles.googleBtnText}>Google</Text>
-        </TouchableOpacity>
 
         <TouchableOpacity
           style={styles.guestBtn}
@@ -293,9 +283,9 @@ const AuthScreen = () => {
           <Text style={styles.guestBtnText}>Continue as Guest</Text>
           <MaterialIcons
             name="arrow-forward"
-            size={16}
-            color="#64748B"
-            style={{ marginLeft: 4 }}
+            size={18}
+            color="#0F172A"
+            style={{ marginLeft: 8 }}
           />
         </TouchableOpacity>
       </ScrollView>
@@ -321,8 +311,8 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 60,
-    paddingBottom: 24,
+    paddingTop: 50, // Reduced from 60
+    paddingBottom: 20, // Reduced from 24
   },
   logoText: {
     color: "#C62828",
@@ -331,80 +321,76 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     letterSpacing: -1,
   },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 40, flexGrow: 1 },
+  scrollContent: { paddingHorizontal: 24, paddingBottom: 24, flexGrow: 1 },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#F1F5F9",
     borderRadius: 12,
     padding: 4,
-    marginBottom: 32,
+    marginBottom: 24, // Reduced from 32
   },
-  tab: { flex: 1, paddingVertical: 12, alignItems: "center", borderRadius: 8 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 8 },
   activeTab: { backgroundColor: "#FFFFFF", elevation: 2 },
   tabText: { fontSize: 14, fontWeight: "600", color: "#64748B" },
   activeTabText: { color: "#C62828", fontWeight: "bold" },
-  titleContainer: { marginBottom: 32 },
+  titleContainer: { marginBottom: 24 }, // Reduced from 32
   title: {
-    fontSize: 32,
+    fontSize: 28, // Slightly tighter font size
     fontWeight: "bold",
     color: "#0F172A",
-    marginBottom: 8,
+    marginBottom: 6,
     letterSpacing: -0.5,
   },
-  subtitle: { fontSize: 16, color: "#64748B" },
-  formContainer: { marginBottom: 16 },
+  subtitle: { fontSize: 15, color: "#64748B" },
+  formContainer: { marginBottom: 12 }, // Tighter space before submit
   row: { flexDirection: "row", justifyContent: "space-between" },
   helperText: {
     color: "#64748B",
     fontSize: 12,
     marginTop: -12,
-    marginBottom: 20,
+    marginBottom: 16,
   },
   forgotPassword: { alignSelf: "flex-end", marginTop: -4 },
   forgotPasswordText: { color: "#C62828", fontSize: 14, fontWeight: "700" },
   submitBtn: {
     backgroundColor: "#C62828",
-    height: 56,
+    height: 54, // Tighter height
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 32,
-    elevation: 8,
+    marginBottom: 24, // Reduced from 32
+    elevation: 4, // Subtle shadow adjustment
+    shadowColor: "#C62828",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
   },
   submitBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "bold" },
-  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 32 },
+  dividerRow: { flexDirection: "row", alignItems: "center", marginBottom: 24 },
   dividerLine: { flex: 1, height: 1, backgroundColor: "#E2E8F0" },
   dividerText: {
     marginHorizontal: 16,
     color: "#94A3B8",
     fontSize: 12,
-    fontWeight: "600",
+    fontWeight: "700",
     letterSpacing: 1,
   },
-  googleBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    height: 56,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    borderRadius: 12,
-    backgroundColor: "#FFFFFF",
-  },
-  googleBtnText: { fontSize: 16, fontWeight: "600", color: "#0F172A" },
   guestBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    marginTop: 20,
-    paddingVertical: 8,
+    height: 54, // Matches primary button height
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    borderRadius: 12,
+    backgroundColor: "#F8FAFC", // Light background to distinguish it
   },
-  guestBtnText: { fontSize: 14, fontWeight: "600", color: "#64748B" },
+  guestBtnText: { fontSize: 15, fontWeight: "700", color: "#0F172A" },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 24,
+    paddingVertical: 20, // Tighter footer
     borderTopWidth: 1,
     borderTopColor: "#F1F5F9",
   },

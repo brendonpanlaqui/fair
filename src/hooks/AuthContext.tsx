@@ -71,6 +71,24 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, isGuest]);
 
+  // Add this inside your AuthContext provider:
+  const loginWithGoogle = async (idToken: string) => {
+    try {
+      // Send the token to your Django backend to verify it and log the user in
+      const response = await axios.post(`${API_URL}/auth/google/`, {
+        token: idToken,
+      });
+      const { access, refresh, user } = response.data;
+
+      // Save tokens and set user state just like normal login
+      await AsyncStorage.setItem("accessToken", access);
+      await AsyncStorage.setItem("refreshToken", refresh);
+      setUser(user);
+    } catch (error) {
+      throw error;
+    }
+  };
+
   const login = async (email: string, password: string) => {
     try {
       const payload = {
