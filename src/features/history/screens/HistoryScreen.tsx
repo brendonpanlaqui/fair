@@ -16,6 +16,9 @@ import {
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 import { api } from "../../../services/api";
 
+// 🚀 IMPORT AUTH CONTEXT
+import { useAuth } from "../../../hooks/AuthContext";
+
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.x:8000/api";
@@ -39,6 +42,9 @@ interface TripRecord {
 
 const HistoryScreen = () => {
   const router = useRouter();
+
+  // 🚀 GET USER STATE TO DETERMINE IF GUEST
+  const { user } = useAuth();
 
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
     "All",
@@ -89,6 +95,13 @@ const HistoryScreen = () => {
   };
 
   const fetchTripHistory = async (isPullToRefresh = false) => {
+    // 🚀 BYPASS FETCH IF GUEST
+    if (!user) {
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
     try {
       if (!isPullToRefresh) setIsLoading(true);
       setError(null);
@@ -107,7 +120,7 @@ const HistoryScreen = () => {
 
   useEffect(() => {
     fetchTripHistory();
-  }, []);
+  }, [user]); // 🚀 Re-run if user state changes
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -243,11 +256,14 @@ const HistoryScreen = () => {
             style={[styles.filterTab, filter === tab && styles.filterTabActive]}
             onPress={() => setFilter(tab as any)}
             activeOpacity={0.8}
+            // 🚀 Disable tabs if they are a guest
+            disabled={!user}
           >
             <Text
               style={[
                 styles.filterText,
                 filter === tab && styles.filterTextActive,
+                !user && { color: "#CBD5E1" }, // Gray out if guest
               ]}
             >
               {tab}
@@ -256,7 +272,30 @@ const HistoryScreen = () => {
         ))}
       </View>
 
-      {isLoading ? (
+      {/* 🚀 GUEST UI LOGIC ADDED HERE */}
+      {!user ? (
+        <View style={styles.guestContainer}>
+          <View style={styles.guestIconWrapper}>
+            <MaterialIcons
+              name="history-toggle-off"
+              size={48}
+              color="#D32F2F"
+            />
+          </View>
+          <Text style={styles.guestTitle}>Guest Mode</Text>
+          <Text style={styles.guestText}>
+            Create an account or sign in to save your ride history, view digital
+            receipts, and track your expenses.
+          </Text>
+          <TouchableOpacity
+            style={styles.guestLoginBtn}
+            activeOpacity={0.8}
+            onPress={() => router.replace("/")} // Sends them back to Auth screen
+          >
+            <Text style={styles.guestLoginBtnText}>Sign In / Register</Text>
+          </TouchableOpacity>
+        </View>
+      ) : isLoading ? (
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#D32F2F" />
           <Text style={styles.loadingText}>Fetching your rides...</Text>
@@ -296,10 +335,13 @@ const HistoryScreen = () => {
         />
       )}
 
+      {/* MODAL REMAINS UNCHANGED */}
       <Modal
         visible={selectedTrip !== null}
         animationType="slide"
-        transparent={false}
+        transparent={true}
+        statusBarTranslucent={true}
+        onRequestClose={() => setSelectedTrip(null)}
       >
         {selectedTrip && (
           <View style={styles.modalContainer}>
@@ -385,7 +427,6 @@ const HistoryScreen = () => {
 
               <View style={styles.receiptDivider} />
 
-              {/* 🚀 NEW: ROUTE ADDRESS BLOCK ADDED HERE */}
               <View style={styles.routeAddressesBlock}>
                 <View style={styles.addressRow}>
                   <View style={styles.addressDotBlue} />
@@ -583,6 +624,55 @@ const styles = StyleSheet.create({
   },
   retryButtonText: { color: "#D32F2F", fontWeight: "bold", fontSize: 14 },
 
+  // 🚀 NEW GUEST UI STYLES
+  guestContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingTop: 40,
+  },
+  guestIconWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#FFF1F2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  guestTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#0F172A",
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  guestText: {
+    fontSize: 15,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  guestLoginBtn: {
+    backgroundColor: "#D32F2F",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  guestLoginBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+
   card: {
     backgroundColor: "#FFFFFF",
     borderRadius: 16,
@@ -769,7 +859,6 @@ const styles = StyleSheet.create({
     borderStyle: "dashed",
   },
 
-  // 🚀 NEW ROUTE ADDRESS STYLES ADDED HERE
   routeAddressesBlock: {
     marginBottom: 24,
   },

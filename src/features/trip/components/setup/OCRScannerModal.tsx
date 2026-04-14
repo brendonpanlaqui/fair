@@ -3,6 +3,7 @@ import { CameraView } from "expo-camera";
 import React, { useRef } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Modal,
   StyleSheet,
   Text,
@@ -14,7 +15,7 @@ interface Props {
   visible: boolean;
   isScanning: boolean;
   onClose: () => void;
-  onScan: (base64Image: string) => void;
+  onScan: (imageUri: string) => void; // 🚀 Changed to expect a local file path
   onScanStart: () => void;
 }
 
@@ -33,14 +34,13 @@ export const OCRScannerModal = ({
     try {
       onScanStart();
 
-      // 🚀 Take a low-res base64 photo for super fast API uploading
+      // 🚀 Take a standard photo. No base64 conversion needed anymore!
       const photo = await cameraRef.current.takePictureAsync({
-        base64: true,
-        quality: 0.3,
+        quality: 0.5,
       });
 
-      if (photo && photo.base64) {
-        onScan(photo.base64);
+      if (photo && photo.uri) {
+        onScan(photo.uri); // Pass the local file path to ML Kit
       }
     } catch (error) {
       console.error("Camera error:", error);
@@ -57,87 +57,122 @@ export const OCRScannerModal = ({
     >
       <View style={styles.cameraModalContainer}>
         {visible && (
-          <CameraView style={styles.camera} facing="back" ref={cameraRef}>
-            <View style={styles.cameraHeaderOverlay}>
-              <TouchableOpacity
-                onPress={onClose}
-                style={styles.cameraCloseBtn}
-                disabled={isScanning}
-              >
-                <MaterialIcons name="close" size={28} color="#FFFFFF" />
-              </TouchableOpacity>
-              <Text style={styles.cameraHeaderTitle}>Scan Body Number</Text>
-              <View style={{ width: 28 }} />
-            </View>
+          <>
+            <CameraView
+              style={StyleSheet.absoluteFillObject}
+              facing="back"
+              ref={cameraRef}
+            />
 
-            <View style={styles.cameraTargetContainer}>
-              <View style={styles.targetBox}>
-                <View style={[styles.corner, styles.topLeft]} />
-                <View style={[styles.corner, styles.topRight]} />
-                <View style={[styles.corner, styles.bottomLeft]} />
-                <View style={[styles.corner, styles.bottomRight]} />
-                <Text style={styles.targetInstructions}>
-                  Align painted number inside the box
+            <View style={styles.absoluteOverlay} pointerEvents="box-none">
+              <View style={styles.cameraHeaderOverlay}>
+                <TouchableOpacity
+                  onPress={onClose}
+                  style={styles.cameraCloseBtn}
+                  disabled={isScanning}
+                >
+                  <MaterialIcons name="close" size={28} color="#FFFFFF" />
+                </TouchableOpacity>
+
+                <View style={{ flexDirection: "row", alignItems: "center" }}>
+                  <Text style={styles.cameraHeaderTitle}>Scan Body Number</Text>
+                  <TouchableOpacity
+                    style={{ marginLeft: 8, padding: 4 }}
+                    onPress={() => {
+                      Alert.alert(
+                        "Why scan?",
+                        "Angeles City Ordinance 296 strictly prohibits unregistered 'colorum' tricycles.\n\nScanning the painted body number ensures you are riding a legitimate, LGU-verified tricycle for your own safety.",
+                      );
+                    }}
+                  >
+                    <MaterialIcons
+                      name="help-outline"
+                      size={22}
+                      color="#FFFFFF"
+                    />
+                  </TouchableOpacity>
+                </View>
+                <View style={{ width: 28 }} />
+              </View>
+
+              <View style={styles.cameraTargetContainer} pointerEvents="none">
+                <View style={styles.targetBox}>
+                  <View style={[styles.corner, styles.topLeft]} />
+                  <View style={[styles.corner, styles.topRight]} />
+                  <View style={[styles.corner, styles.bottomLeft]} />
+                  <View style={[styles.corner, styles.bottomRight]} />
+                  <Text style={styles.targetInstructions}>
+                    Align painted number inside the box
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.cameraFooterOverlay}>
+                <TouchableOpacity
+                  style={styles.shutterButton}
+                  activeOpacity={0.8}
+                  onPress={handleTakePicture}
+                  disabled={isScanning}
+                >
+                  {isScanning ? (
+                    <ActivityIndicator size="large" color="#E53935" />
+                  ) : (
+                    <View style={styles.shutterInner} />
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.shutterText}>
+                  {isScanning ? "Processing Offline..." : "Tap to Scan OCR"}
                 </Text>
+
+                {/* DEV BYPASS BUTTON */}
+                {__DEV__ && (
+                  <TouchableOpacity
+                    style={{
+                      marginTop: 20,
+                      padding: 10,
+                      backgroundColor: "rgba(255,255,255,0.2)",
+                      borderRadius: 8,
+                    }}
+                    onPress={() => {
+                      onScanStart();
+                      setTimeout(() => onScan("DEV_MOCK_SCAN_TRIGGER"), 500);
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#FFF",
+                        fontSize: 12,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      🧪 DEV: Simulate Scan
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
-
-            <View style={styles.cameraFooterOverlay}>
-              <TouchableOpacity
-                style={styles.shutterButton}
-                activeOpacity={0.8}
-                onPress={handleTakePicture}
-                disabled={isScanning}
-              >
-                {isScanning ? (
-                  <ActivityIndicator size="large" color="#E53935" />
-                ) : (
-                  <View style={styles.shutterInner} />
-                )}
-              </TouchableOpacity>
-              <Text style={styles.shutterText}>
-                {isScanning ? "Processing Text..." : "Tap to Scan Body Number"}
-              </Text>
-
-              {/* 🚀 THE DEV BYPASS BUTTON - Only shows during development! */}
-              {__DEV__ && (
-                <TouchableOpacity
-                  style={{
-                    marginTop: 20,
-                    padding: 10,
-                    backgroundColor: "rgba(255,255,255,0.2)",
-                    borderRadius: 8,
-                  }}
-                  onPress={() => {
-                    onScanStart();
-                    // Instantly trigger the mock bypass
-                    setTimeout(() => onScan("DEV_MOCK_SCAN_TRIGGER"), 500);
-                  }}
-                >
-                  <Text
-                    style={{ color: "#FFF", fontSize: 12, fontWeight: "bold" }}
-                  >
-                    🧪 DEV: Simulate Scan
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
-          </CameraView>
+          </>
         )}
       </View>
     </Modal>
   );
 };
 
+// ... KEEP YOUR EXISTING STYLES AT THE BOTTOM ...
 const styles = StyleSheet.create({
   cameraModalContainer: { flex: 1, backgroundColor: "#000000" },
-  camera: { flex: 1, justifyContent: "space-between" },
+  absoluteOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: "space-between",
+    zIndex: 10,
+  },
   cameraHeaderOverlay: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingTop: 50,
     paddingHorizontal: 20,
+    zIndex: 20,
   },
   cameraCloseBtn: {
     padding: 8,
@@ -186,7 +221,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: "hidden",
   },
-  cameraFooterOverlay: { paddingBottom: 50, alignItems: "center" },
+  cameraFooterOverlay: {
+    paddingBottom: 50,
+    alignItems: "center",
+    zIndex: 20,
+  },
   shutterButton: {
     width: 72,
     height: 72,

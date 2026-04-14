@@ -14,13 +14,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import { useAuth } from "../../../hooks/AuthContext"; // 🚀 Added Auth context
-import { api } from "../../../services/api"; // 🚀 Added API
+import { useAuth } from "../../../hooks/AuthContext";
+import { api } from "../../../services/api";
 
 // 1. EXTENDED ERD INTERFACE
 interface ReportRecord {
   report_id: string;
-  trip: string | null; // Changed to match Django's FK field name
+  trip: string | null;
   body_number: string;
   violation_type: string;
   passenger_comments: string;
@@ -54,6 +54,13 @@ const ReportScreen = () => {
 
   // --- API FETCH LOGIC ---
   const fetchReports = async (isPullToRefresh = false) => {
+    // BYPASS FETCH IF GUEST
+    if (!user) {
+      setIsLoading(false);
+      setIsRefreshing(false);
+      return;
+    }
+
     try {
       if (!isPullToRefresh) setIsLoading(true);
       const response = await api.get<ReportRecord[]>("/reports/history/");
@@ -68,7 +75,7 @@ const ReportScreen = () => {
 
   useEffect(() => {
     fetchReports();
-  }, []);
+  }, [user]);
 
   const onRefresh = () => {
     setIsRefreshing(true);
@@ -77,12 +84,12 @@ const ReportScreen = () => {
 
   // UX MAGIC: Auto-open form if routed from HistoryScreen
   useEffect(() => {
-    if (params.tripId && params.bodyNumber) {
+    if (params.tripId && params.bodyNumber && user) {
       setNewTripId(params.tripId as string);
       setNewBodyNumber(params.bodyNumber as string);
       setIsFormVisible(true);
     }
-  }, [params]);
+  }, [params, user]);
 
   const formatDate = (isoString: string) => {
     return new Date(isoString).toLocaleDateString("en-PH", {
@@ -120,7 +127,6 @@ const ReportScreen = () => {
         report_id: `TKT-${Math.floor(10000 + Math.random() * 90000)}`,
         user: user?.id,
         trip: newTripId || null,
-        // 🚀 ADD THIS LINE: Send the manually typed body number if no trip ID exists
         manual_body_number: newTripId ? null : newBodyNumber,
         violation_type: newViolation,
         passenger_comments: newComments,
@@ -194,56 +200,105 @@ const ReportScreen = () => {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* 1. BRAND RED HEADER (Centered like History Screen) */}
+      {/* 1. BRAND RED HEADER */}
       <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Support Center</Text>
         <Text style={styles.headerSubtitle}>Track and file complaints</Text>
       </View>
 
-      {/* 2. THE OVERLAPPING ACTION PILL (Replaces the FAB) */}
+      {/* 2. THE OVERLAPPING ACTION PILL (ALWAYS VISIBLE BUT DISABLED FOR GUESTS) */}
       <View style={styles.actionWrapper}>
         <TouchableOpacity
-          style={styles.actionPill}
+          // 🚀 Change style dynamically if guest
+          style={[
+            styles.actionPill,
+            !user && {
+              backgroundColor: "#F8FAFC",
+              elevation: 0,
+              shadowOpacity: 0,
+              borderWidth: 1,
+              borderColor: "#E2E8F0",
+            },
+          ]}
           activeOpacity={0.9}
+          // 🚀 Locks the button completely
+          disabled={!user}
           onPress={() => {
             setNewTripId("");
             setNewBodyNumber("");
             setIsFormVisible(true);
           }}
         >
-          <MaterialIcons name="add-circle" size={22} color="#D32F2F" />
-          <Text style={styles.actionPillText}>FILE NEW REPORT</Text>
+          <MaterialIcons
+            name="add-circle"
+            size={22}
+            color={!user ? "#CBD5E1" : "#D32F2F"} // 🚀 Gray out icon if guest
+          />
+          <Text
+            style={[
+              styles.actionPillText,
+              !user && { color: "#94A3B8" }, // 🚀 Gray out text if guest
+            ]}
+          >
+            FILE NEW REPORT
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 3. THE LIST */}
-      <FlatList
-        data={reports}
-        keyExtractor={(item) => item.report_id}
-        renderItem={renderTicketCard}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={isRefreshing}
-            onRefresh={onRefresh}
-            tintColor="#D32F2F"
-            colors={["#D32F2F"]}
-          />
-        }
-        ListEmptyComponent={() => (
-          <View style={styles.emptyStateContainer}>
-            <View style={styles.emptyStateIconCircle}>
-              <MaterialIcons name="gavel" size={40} color="#94A3B8" />
-            </View>
-            <Text style={styles.emptyStateTitle}>No reports filed</Text>
-            <Text style={styles.emptyStateSubtitle}>
-              If you experience overcharging or unsafe driving, file a report
-              here.
-            </Text>
+      {/* 3. CONDITIONAL BODY (GUEST VS LOGGED IN) */}
+      {!user ? (
+        <View style={styles.guestContainer}>
+          <View style={styles.guestIconWrapper}>
+            <MaterialIcons name="security" size={48} color="#D32F2F" />
           </View>
-        )}
-      />
+          <Text style={styles.guestTitle}>Guest Mode</Text>
+          <Text style={styles.guestText}>
+            To prevent false complaints, filing a report with the Angeles City
+            PTRO requires a verified account. Sign in to track and manage your
+            support tickets.
+          </Text>
+          <TouchableOpacity
+            style={styles.guestLoginBtn}
+            activeOpacity={0.8}
+            onPress={() => router.replace("/")}
+          >
+            <Text style={styles.guestLoginBtnText}>Sign In / Register</Text>
+          </TouchableOpacity>
+        </View>
+      ) : isLoading ? (
+        <View style={styles.centerContainer}>
+          <ActivityIndicator size="large" color="#D32F2F" />
+          <Text style={styles.loadingText}>Fetching your reports...</Text>
+        </View>
+      ) : (
+        <FlatList
+          data={reports}
+          keyExtractor={(item) => item.report_id}
+          renderItem={renderTicketCard}
+          contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor="#D32F2F"
+              colors={["#D32F2F"]}
+            />
+          }
+          ListEmptyComponent={() => (
+            <View style={styles.emptyStateContainer}>
+              <View style={styles.emptyStateIconCircle}>
+                <MaterialIcons name="gavel" size={40} color="#94A3B8" />
+              </View>
+              <Text style={styles.emptyStateTitle}>No reports filed</Text>
+              <Text style={styles.emptyStateSubtitle}>
+                If you experience overcharging or unsafe driving, file a report
+                here.
+              </Text>
+            </View>
+          )}
+        />
+      )}
 
       {/* ========================================== */}
       {/* 4. TICKET DETAILS MODAL (READ-ONLY) */}
@@ -440,7 +495,6 @@ const ReportScreen = () => {
                 }}
               >
                 <Text style={styles.inputLabel}>TRICYCLE BODY NUMBER</Text>
-                {/* 🚀 Show a badge if it's auto-filled from history */}
                 {newTripId !== "" && (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <MaterialIcons name="verified" size={14} color="#10B981" />
@@ -459,7 +513,6 @@ const ReportScreen = () => {
               </View>
 
               <TextInput
-                // 🚀 Change style if it's locked
                 style={[
                   styles.input,
                   newTripId !== "" && {
@@ -472,7 +525,7 @@ const ReportScreen = () => {
                 placeholder="e.g. 0406"
                 keyboardType="number-pad"
                 placeholderTextColor="#94A3B8"
-                editable={newTripId === ""} // 🚀 LOCKS THE FIELD if there is a trip ID
+                editable={newTripId === ""} // LOCKS THE FIELD if there is a trip ID
               />
             </View>
 
@@ -564,7 +617,6 @@ const ReportScreen = () => {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
-  // 1. BRAND RED HEADER (Matches History Screen)
   redHeaderBackground: {
     backgroundColor: "#D32F2F", // Brand Crimson Red
     paddingTop: 65,
@@ -586,6 +638,69 @@ const styles = StyleSheet.create({
     color: "#FECACA",
     marginTop: 4,
     textAlign: "center",
+  },
+
+  // 🚀 NEW GUEST UI STYLES
+  guestContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 32,
+    paddingTop: 20, // Reduced since action pill takes up space
+  },
+  guestIconWrapper: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: "#FFF1F2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  guestTitle: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#0F172A",
+    marginBottom: 12,
+    letterSpacing: -0.5,
+  },
+  guestText: {
+    fontSize: 15,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  guestLoginBtn: {
+    backgroundColor: "#D32F2F",
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 16,
+    elevation: 4,
+    shadowColor: "#D32F2F",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+  },
+  guestLoginBtnText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "bold",
+    letterSpacing: 0.5,
+  },
+
+  // LOADING / CENTER STATE STYLES
+  centerContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingTop: 60,
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: "#64748B",
+    fontWeight: "600",
   },
 
   // 2. THE OVERLAPPING ACTION PILL
