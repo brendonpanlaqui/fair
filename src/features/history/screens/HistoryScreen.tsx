@@ -1,5 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import * as Print from "expo-print";
 import { useRouter } from "expo-router";
+import * as Sharing from "expo-sharing";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -14,15 +16,14 @@ import {
   View,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
-import { api } from "../../../services/api";
-
-// 🚀 IMPORT AUTH CONTEXT
 import { useAuth } from "../../../hooks/AuthContext";
+import { api } from "../../../services/api";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.x:8000/api";
 
+// matches what my Django backend (TripHistorySerializer) sends.
 interface TripRecord {
   trip_id: string;
   body_number: string;
@@ -42,19 +43,20 @@ interface TripRecord {
 
 const HistoryScreen = () => {
   const router = useRouter();
-
-  // 🚀 GET USER STATE TO DETERMINE IF GUEST
+  // grab the currently logged-in user to check if they are a guest or authenticated.
   const { user } = useAuth();
 
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
     "All",
   );
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
+  // array of data fetched from the Django API.
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // reference to the MapView component to zoom and fit the route when the modal opens.
   const mapRef = useRef<MapView>(null);
 
   const fitMapToRoute = () => {
@@ -65,13 +67,19 @@ const HistoryScreen = () => {
       selectedTrip.dest_coords,
     ];
 
+    // extract all latitudes and longitudes into separate arrays to calculate the bounding box.
     const lats = coords.map((c: { latitude: number }) => c.latitude);
     const lngs = coords.map((c: { longitude: number }) => c.longitude);
+
+    // calculate the difference between the max and min coordinates to find the bounding box.
     const latDelta = Math.max(Math.max(...lats) - Math.min(...lats), 0.004);
     const lngDelta = Math.max(Math.max(...lngs) - Math.min(...lngs), 0.004);
+
+    // find the exact center point between the max and min coordinates.
     const centerLat = (Math.max(...lats) + Math.min(...lats)) / 2;
     const centerLng = (Math.max(...lngs) + Math.min(...lngs)) / 2;
 
+    // this naman, animate the map camera to fit the calculated bounding box (multiplied by 1.4 for some padding).
     mapRef.current?.animateToRegion(
       {
         latitude: centerLat,
@@ -86,6 +94,7 @@ const HistoryScreen = () => {
   const getDrivenRoute = (hash?: string | null) => {
     if (!hash) return null;
     try {
+      // polyline breadcrumbs are stored as a JSON string in the database. We need to parse it back into an array of coordinates.
       const coords = JSON.parse(hash);
       if (Array.isArray(coords) && coords.length >= 2) return coords;
     } catch (e) {
@@ -95,7 +104,7 @@ const HistoryScreen = () => {
   };
 
   const fetchTripHistory = async (isPullToRefresh = false) => {
-    // 🚀 BYPASS FETCH IF GUEST
+    // if we don't have a user (which means they are a guest), skip the fetch.
     if (!user) {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -105,6 +114,8 @@ const HistoryScreen = () => {
     try {
       if (!isPullToRefresh) setIsLoading(true);
       setError(null);
+      // request to my Django backend to get the trip history for the logged-in user.
+      // so, it returns an array of objects that match the TripRecord interface to my TripHistorySerializer.
       const response = await api.get<TripRecord[]>("/trips/history/");
       setTrips(response.data);
     } catch (err) {
@@ -120,13 +131,15 @@ const HistoryScreen = () => {
 
   useEffect(() => {
     fetchTripHistory();
-  }, [user]); // 🚀 Re-run if user state changes
+  }, [user]); // run this effect whenever the user changes (e.g. when they log in or out).
 
+  // when they swipe down, load again
   const onRefresh = () => {
     setIsRefreshing(true);
     fetchTripHistory(true);
   };
 
+  // for filtering the displayed trips based on the selected tab (All, Completed, Cancelled).
   const filteredData = trips.filter(
     (trip) => filter === "All" || trip.status === filter,
   );
@@ -140,14 +153,101 @@ const HistoryScreen = () => {
     });
   };
 
-  const handleExportPDF = () => {
-    Alert.alert(
-      "Generating PDF",
-      `Official E-Receipt for Trip ${selectedTrip?.trip_id} has been saved to your device downloads.`,
-      [{ text: "OK" }],
-    );
+  const handleExportPDF = async () => {
+    if (!selectedTrip) return;
+
+    try {
+      // calculate the fare breakdown details to show on the receipt.
+      const distanceFare = (selectedTrip.computed_fare - 35).toFixed(2);
+      const excessDistance = (
+        selectedTrip.total_distance_km - 1 > 0
+          ? selectedTrip.total_distance_km - 1
+          : 0
+      ).toFixed(1);
+      const totalPaid = (
+        selectedTrip.computed_fare - selectedTrip.discount_applied
+      ).toFixed(2);
+
+      const htmlContent = `
+        <html>
+          <head>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
+            <style>
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #0F172A; }
+              .header { text-align: center; border-bottom: 2px solid #D32F2F; padding-bottom: 20px; margin-bottom: 30px; }
+              .title { font-size: 28px; font-weight: 900; color: #D32F2F; margin: 0; letter-spacing: -1px; }
+              .subtitle { font-size: 14px; color: #64748B; margin-top: 5px; font-weight: 600; }
+              .section { margin-bottom: 30px; }
+              .section-title { color: #94A3B8; font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; }
+              .row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
+              .label { font-weight: 600; color: #475569; }
+              .value { font-weight: 700; text-align: right; max-width: 60%; }
+              .thick-divider { border-bottom: 2px solid #E2E8F0; margin: 15px 0; }
+              .total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
+              .total-label { font-size: 18px; font-weight: 900; color: #0F172A; }
+              .total-value { font-size: 24px; font-weight: 900; color: #D32F2F; }
+              .discount { color: #10B981; }
+              .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #94A3B8; font-weight: 500; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1 class="title">FAIR APP E-RECEIPT</h1>
+              <p class="subtitle">Official Digital Receipt</p>
+            </div>
+            <div class="section">
+              <div class="section-title">Trip Details</div>
+              <div class="row"><span class="label">Trip ID</span> <span class="value">${selectedTrip.trip_id}</span></div>
+              <div class="row"><span class="label">Date & Time</span> <span class="value">${formatDate(selectedTrip.timestamp)}</span></div>
+              <div class="row"><span class="label">Tricycle Body #</span> <span class="value">${selectedTrip.body_number}</span></div>
+              <div class="row"><span class="label">Ride Mode</span> <span class="value">${selectedTrip.trip_mode}</span></div>
+              <div class="row"><span class="label">Status</span> <span class="value">${selectedTrip.status}</span></div>
+            </div>
+            <div class="section">
+              <div class="section-title">Route Information</div>
+              <div class="row"><span class="label">Pick-up</span> <span class="value">${selectedTrip.origin_name}</span></div>
+              <div class="row"><span class="label">Drop-off</span> <span class="value">${selectedTrip.destination_name}</span></div>
+              <div class="row"><span class="label">Total Distance</span> <span class="value">${selectedTrip.total_distance_km.toFixed(1)} km</span></div>
+            </div>
+            <div class="section">
+              <div class="section-title">Fare Breakdown</div>
+              <div class="row"><span class="label">Base Fare (1st km)</span> <span class="value">PHP 35.00</span></div>
+              <div class="row"><span class="label">Distance Fare (${excessDistance} km)</span> <span class="value">PHP ${distanceFare}</span></div>
+              ${selectedTrip.discount_applied > 0 ? `<div class="row discount"><span class="label discount">Legal Discount (20%)</span> <span class="value discount">- PHP ${selectedTrip.discount_applied.toFixed(2)}</span></div>` : ""}
+              <div class="thick-divider"></div>
+              <div class="total-row"><span class="total-label">TOTAL PAID</span> <span class="total-value">PHP ${totalPaid}</span></div>
+            </div>
+            <div class="footer">
+              <p>Thank you for commuting safely with Fair App.</p>
+              <p>Angeles City Public Transportation Regulatory Office</p>
+            </div>
+          </body>
+        </html>
+      `;
+
+      // generate pdf locally
+      const { uri } = await Print.printToFileAsync({
+        html: htmlContent,
+        base64: false,
+      });
+
+      // let the user save it to their downloads/files
+      if (await Sharing.isAvailableAsync()) {
+        await Sharing.shareAsync(uri, {
+          UTI: ".pdf",
+          mimeType: "application/pdf",
+          dialogTitle: "Save Receipt",
+        });
+      } else {
+        Alert.alert("Error", "File sharing is not supported on this device.");
+      }
+    } catch (error) {
+      console.warn("PDF Error:", error);
+      Alert.alert("Error", "Failed to generate the receipt.");
+    }
   };
 
+  // scrolling list of trips, as you tap on a card, it sets the selectedTrip state which opens the modal and shows the receipt details for that trip.
   const renderTripCard = ({ item }: { item: TripRecord }) => (
     <TouchableOpacity
       style={styles.card}
@@ -225,10 +325,12 @@ const HistoryScreen = () => {
     </TouchableOpacity>
   );
 
+  // draw the route on the map in the modal, with polyline breadcrumbs if available.
   const modalRoute = selectedTrip
     ? getDrivenRoute(selectedTrip.polyline_hash)
     : null;
 
+  // kung wala, just draw a dash straight line between origin and destination.
   const isEstimatedRoute =
     !selectedTrip?.polyline_hash || !modalRoute || modalRoute.length < 3;
 
@@ -242,6 +344,7 @@ const HistoryScreen = () => {
     <View style={styles.container}>
       <StatusBar style="light" />
 
+      {/* HEADER */}
       <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Ride History</Text>
         <Text style={styles.headerSubtitle}>
@@ -249,6 +352,7 @@ const HistoryScreen = () => {
         </Text>
       </View>
 
+      {/* FILTER TABS */}
       <View style={styles.filterWrapper}>
         {["All", "Completed", "Cancelled"].map((tab) => (
           <TouchableOpacity
@@ -256,14 +360,13 @@ const HistoryScreen = () => {
             style={[styles.filterTab, filter === tab && styles.filterTabActive]}
             onPress={() => setFilter(tab as any)}
             activeOpacity={0.8}
-            // 🚀 Disable tabs if they are a guest
-            disabled={!user}
+            disabled={!user} // if guest
           >
             <Text
               style={[
                 styles.filterText,
                 filter === tab && styles.filterTextActive,
-                !user && { color: "#CBD5E1" }, // Gray out if guest
+                !user && { color: "#CBD5E1" }, // gray kung guest
               ]}
             >
               {tab}
@@ -272,7 +375,7 @@ const HistoryScreen = () => {
         ))}
       </View>
 
-      {/* 🚀 GUEST UI LOGIC ADDED HERE */}
+      {/* GUEST UI */}
       {!user ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
@@ -290,7 +393,7 @@ const HistoryScreen = () => {
           <TouchableOpacity
             style={styles.guestLoginBtn}
             activeOpacity={0.8}
-            onPress={() => router.replace("/")} // Sends them back to Auth screen
+            onPress={() => router.replace("/")} // goes to AuthScreen
           >
             <Text style={styles.guestLoginBtnText}>Sign In / Register</Text>
           </TouchableOpacity>
@@ -335,7 +438,7 @@ const HistoryScreen = () => {
         />
       )}
 
-      {/* MODAL REMAINS UNCHANGED */}
+      {/* RECEIPT MODAL (Only visible if selectedTrip is not null) */}
       <Modal
         visible={selectedTrip !== null}
         animationType="slide"
@@ -345,6 +448,7 @@ const HistoryScreen = () => {
       >
         {selectedTrip && (
           <View style={styles.modalContainer}>
+            {/* THE MAP */}
             <View style={styles.mapSection}>
               <MapView
                 key={selectedTrip.trip_id}
@@ -389,6 +493,7 @@ const HistoryScreen = () => {
                 </View>
               )}
 
+              {/* Close Button on Top Left */}
               <TouchableOpacity
                 style={styles.mapBackButton}
                 onPress={() => setSelectedTrip(null)}
@@ -397,6 +502,7 @@ const HistoryScreen = () => {
               </TouchableOpacity>
             </View>
 
+            {/* RECEIPT (The white box that overlays the bottom of the map) */}
             <View style={styles.receiptSection}>
               <View style={styles.receiptDragHandle} />
 
@@ -449,6 +555,7 @@ const HistoryScreen = () => {
                 </View>
               </View>
 
+              {/* FARE BREAKDOWN BOX */}
               <View style={styles.fareBreakdownBox}>
                 <Text style={styles.breakdownTitle}>FARE BREAKDOWN</Text>
 
@@ -497,6 +604,7 @@ const HistoryScreen = () => {
 
               <View style={{ flex: 1 }} />
 
+              {/* BOTTOM ACTIONS (Report / Export) */}
               <View style={styles.receiptActions}>
                 <TouchableOpacity
                   style={styles.reportBtn}
@@ -624,7 +732,6 @@ const styles = StyleSheet.create({
   },
   retryButtonText: { color: "#D32F2F", fontWeight: "bold", fontSize: 14 },
 
-  // 🚀 NEW GUEST UI STYLES
   guestContainer: {
     flex: 1,
     justifyContent: "center",

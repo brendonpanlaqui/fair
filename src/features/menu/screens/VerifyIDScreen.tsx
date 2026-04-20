@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { api } from "../../../services/api";
 
+// match what the Django backend expects.
 const ID_TYPES = [
   { id: "student", label: "Student ID", icon: "school" },
   { id: "senior", label: "Senior Citizen", icon: "elderly" },
@@ -23,15 +24,18 @@ const ID_TYPES = [
 
 export default function VerifyIdScreen() {
   const router = useRouter();
+
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // opens camera or photo library based on their choice
   const pickImage = async () => {
     Alert.alert("Upload ID", "Choose an option", [
       {
         text: "Take Photo",
         onPress: async () => {
+          // camera permission
           const permission = await ImagePicker.requestCameraPermissionsAsync();
           if (!permission.granted) {
             Alert.alert(
@@ -40,10 +44,12 @@ export default function VerifyIdScreen() {
             );
             return;
           }
+          // open camera, save bandwith by making quality 0.8
           const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
             quality: 0.8,
           });
+          // if they took a photo and didn't cancel, save the URI to state to show a preview and upload later
           if (!result.canceled && result.assets[0].uri) {
             setImageUri(result.assets[0].uri);
           }
@@ -52,6 +58,7 @@ export default function VerifyIdScreen() {
       {
         text: "Choose from Gallery",
         onPress: async () => {
+          // media library permission
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
             quality: 0.8,
@@ -65,7 +72,9 @@ export default function VerifyIdScreen() {
     ]);
   };
 
+  // once user taps submit
   const handleSubmit = async () => {
+    // ensure they actually picked an ID type and uploaded a photo.
     if (!selectedType || !imageUri) {
       Alert.alert("Incomplete", "Please select an ID type and upload a photo.");
       return;
@@ -74,30 +83,29 @@ export default function VerifyIdScreen() {
     setIsSubmitting(true);
 
     try {
-      // 1. Create a new FormData object (required for file uploads)
+      // to send from Django, we need to use FormData to mimic a form submission with a file upload.
       const formData = new FormData();
       formData.append("discount_type", selectedType);
 
-      // 2. Format the image file for React Native upload
+      // extract file extension to tell Django what kind of image it is (jpeg, png, etc.)
       const filename = imageUri.split("/").pop() || "id_photo.jpg";
       const match = /\.(\w+)$/.exec(filename);
       const fileType = match ? `image/${match[1]}` : `image/jpeg`;
 
+      // the framework requires this exact structure { uri, name, type } for file uploads.
       formData.append("id_photo", {
         uri: imageUri,
         name: filename,
         type: fileType,
-      } as any); // Type cast needed for React Native FormData
+      } as any);
 
-      // 3. Send to Django Backend
-      // NOTE: Update the URL to whatever your actual Django endpoint is
+      // send POST request sa Django and set Content-Type header to "multipart/form-data" so Django knows a file is coming.
       await api.post("/users/verify-id/", formData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
       });
 
-      // 4. Success handling
       Alert.alert(
         "Verification Submitted!",
         "Your ID has been sent to the LGU for review. You will be notified once your 20% discount is activated.",
@@ -131,7 +139,7 @@ export default function VerifyIdScreen() {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* 1. ID TYPE SELECTION */}
+        {/* ID TYPE */}
         <Text style={styles.sectionTitle}>Select ID Type</Text>
         <Text style={styles.sectionSubtitle}>
           Choose the type of government-issued ID you are uploading.
@@ -166,7 +174,7 @@ export default function VerifyIdScreen() {
           })}
         </View>
 
-        {/* 2. FARE DISCOUNT VERIFICATION (Based on your Mockup) */}
+        {/* UPLOAD PHOTO */}
         <Text style={styles.sectionTitle}>Fare Discount Verification</Text>
         <Text style={styles.sectionSubtitle}>
           Upload a clear photo of your ID to qualify for discounted fares
@@ -178,6 +186,7 @@ export default function VerifyIdScreen() {
           activeOpacity={0.8}
           onPress={pickImage}
         >
+          {/* show image if available, otherwise show placeholder */}
           {imageUri ? (
             <Image source={{ uri: imageUri }} style={styles.previewImage} />
           ) : (
@@ -202,7 +211,6 @@ export default function VerifyIdScreen() {
           </TouchableOpacity>
         )}
 
-        {/* 3. WHY VERIFY CARD (Based on your Mockup) */}
         <View style={styles.whyVerifyCard}>
           <MaterialIcons
             name="verified-user"
@@ -220,7 +228,6 @@ export default function VerifyIdScreen() {
         </View>
       </ScrollView>
 
-      {/* FIXED FOOTER (Based on your Mockup) */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={[
@@ -231,6 +238,7 @@ export default function VerifyIdScreen() {
           disabled={!selectedType || !imageUri || isSubmitting}
           onPress={handleSubmit}
         >
+          {/* show a spinner while the upload request is happening */}
           {isSubmitting ? (
             <ActivityIndicator color="#FFFFFF" />
           ) : (
@@ -279,7 +287,6 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
 
-  // Type Selector
   typeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -308,11 +315,10 @@ const styles = StyleSheet.create({
   },
   typeLabelActive: { color: "#C62828" },
 
-  // Upload Area (Matches mockup exactly)
   uploadBox: {
-    backgroundColor: "#FFF5F5", // Very light red
+    backgroundColor: "#FFF5F5",
     borderWidth: 1.5,
-    borderColor: "#FECACA", // Red dashed line
+    borderColor: "#FECACA",
     borderStyle: "dashed",
     borderRadius: 16,
     padding: 32,
@@ -325,7 +331,7 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: "#FFE4E6", // Slightly darker red circle
+    backgroundColor: "#FFE4E6",
     justifyContent: "center",
     alignItems: "center",
     marginBottom: 16,
@@ -354,7 +360,6 @@ const styles = StyleSheet.create({
   retakeTextBtn: { alignSelf: "center", marginBottom: 32, padding: 8 },
   retakeText: { color: "#C62828", fontSize: 14, fontWeight: "bold" },
 
-  // Why Verify Card
   whyVerifyCard: {
     flexDirection: "row",
     backgroundColor: "#F8FAFC",
@@ -371,7 +376,6 @@ const styles = StyleSheet.create({
   },
   whyVerifyText: { fontSize: 12, color: "#64748B", lineHeight: 18 },
 
-  // Footer
   footer: {
     position: "absolute",
     bottom: 0,

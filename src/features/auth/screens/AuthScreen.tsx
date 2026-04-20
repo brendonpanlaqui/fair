@@ -16,7 +16,7 @@ import { useAuth } from "../../../hooks/AuthContext";
 
 const AuthScreen = () => {
   const router = useRouter();
-  const { login, register, continueAsGuest } = useAuth();
+  const { login, register, continueAsGuest, resendOtp } = useAuth();
 
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -58,17 +58,30 @@ const AuthScreen = () => {
       confirmPassword: "",
     };
 
+    // Email Validation
     if (!email.includes("@") || !email.includes(".")) {
       newErrors.email = "Please enter a valid email format";
       isValid = false;
     }
 
-    if (password.length < 8) {
-      newErrors.password = "Minimum 8 characters required";
-      isValid = false;
-    }
+    if (isLogin) {
+      // Basic validation for Login
+      if (!password) {
+        newErrors.password = "Password is required";
+        isValid = false;
+      }
+    } else {
+      // Strict Modern Password Validation for Registration
+      // Requires: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+      const strongPasswordRegex =
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.])[A-Za-z\d@$!%*?&.]{8,}$/;
 
-    if (!isLogin) {
+      if (!strongPasswordRegex.test(password)) {
+        newErrors.password =
+          "Must contain 8+ characters, uppercase, number, & symbol";
+        isValid = false;
+      }
+
       if (!firstName.trim()) {
         newErrors.firstName = "Required";
         isValid = false;
@@ -110,10 +123,52 @@ const AuthScreen = () => {
         );
       }
     } catch (error: any) {
+      // 1. Check for your exact Django response flags
+      const requiresOtp = error.response?.data?.requires_otp;
+      const unverifiedEmail = error.response?.data?.email || email;
+      const backendError = error.response?.data?.error;
+
+      // 2. Handle the Unverified Account Case explicitly
+      if (isLogin && requiresOtp) {
+        setIsLoading(false);
+
+        Alert.alert(
+          "Account Not Verified",
+          backendError ||
+            "You haven't verified your email yet. Would you like us to send a new code?",
+          [
+            { text: "Cancel", style: "cancel" },
+            {
+              text: "Send Code & Verify",
+              onPress: async () => {
+                try {
+                  setIsLoading(true); // Turn button spinner on while requesting new code
+                  await resendOtp(unverifiedEmail);
+                  router.push({
+                    pathname: "/otp",
+                    params: { email: unverifiedEmail },
+                  });
+                } catch (resendError) {
+                  Alert.alert(
+                    "Error",
+                    "Could not send a new code. Please try again.",
+                  );
+                } finally {
+                  setIsLoading(false);
+                }
+              },
+            },
+          ],
+        );
+        return; // Stop execution here
+      }
+
+      // 3. Handle standard form errors (404 Not Found, 401 Invalid Password, etc.)
       const errorMessage =
-        error.response?.data?.error ||
+        backendError ||
         error.response?.data?.email?.[0] ||
         "Authentication failed.";
+
       isLogin
         ? setErrors((prev) => ({ ...prev, password: errorMessage }))
         : setErrors((prev) => ({ ...prev, email: errorMessage }));
@@ -222,8 +277,11 @@ const AuthScreen = () => {
             }}
             error={errors.password}
           />
-          {isLogin && !errors.password && (
-            <Text style={styles.helperText}>Minimum 8 characters required</Text>
+          {/* Updated Helper Text to show only on Registration */}
+          {!isLogin && !errors.password && (
+            <Text style={styles.helperText}>
+              Minimum of 8 characters, 1 uppercase, 1 number, 1 symbol
+            </Text>
           )}
 
           {!isLogin && (
@@ -311,8 +369,8 @@ const styles = StyleSheet.create({
   header: {
     alignItems: "center",
     justifyContent: "center",
-    paddingTop: 50, // Reduced from 60
-    paddingBottom: 20, // Reduced from 24
+    paddingTop: 60,
+    paddingBottom: 30,
   },
   logoText: {
     color: "#C62828",
@@ -327,22 +385,22 @@ const styles = StyleSheet.create({
     backgroundColor: "#F1F5F9",
     borderRadius: 12,
     padding: 4,
-    marginBottom: 24, // Reduced from 32
+    marginBottom: 24,
   },
   tab: { flex: 1, paddingVertical: 10, alignItems: "center", borderRadius: 8 },
   activeTab: { backgroundColor: "#FFFFFF", elevation: 2 },
   tabText: { fontSize: 14, fontWeight: "600", color: "#64748B" },
   activeTabText: { color: "#C62828", fontWeight: "bold" },
-  titleContainer: { marginBottom: 24 }, // Reduced from 32
+  titleContainer: { marginBottom: 24 },
   title: {
-    fontSize: 28, // Slightly tighter font size
+    fontSize: 28,
     fontWeight: "bold",
     color: "#0F172A",
     marginBottom: 6,
     letterSpacing: -0.5,
   },
   subtitle: { fontSize: 15, color: "#64748B" },
-  formContainer: { marginBottom: 12 }, // Tighter space before submit
+  formContainer: { marginBottom: 12 },
   row: { flexDirection: "row", justifyContent: "space-between" },
   helperText: {
     color: "#64748B",
@@ -354,12 +412,12 @@ const styles = StyleSheet.create({
   forgotPasswordText: { color: "#C62828", fontSize: 14, fontWeight: "700" },
   submitBtn: {
     backgroundColor: "#C62828",
-    height: 54, // Tighter height
+    height: 54,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24, // Reduced from 32
-    elevation: 4, // Subtle shadow adjustment
+    marginBottom: 24,
+    elevation: 4,
     shadowColor: "#C62828",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -379,18 +437,18 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    height: 54, // Matches primary button height
+    height: 54,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: 12,
-    backgroundColor: "#F8FAFC", // Light background to distinguish it
+    backgroundColor: "#F8FAFC",
   },
   guestBtnText: { fontSize: 15, fontWeight: "700", color: "#0F172A" },
   footer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 20, // Tighter footer
+    paddingVertical: 20,
     borderTopWidth: 1,
     borderTopColor: "#F1F5F9",
   },

@@ -21,9 +21,9 @@ import { api } from "../../../services/api";
 const OTPScreen = () => {
   const router = useRouter();
   const { email } = useLocalSearchParams();
-  const { setUser } = useAuth() as any;
+  // 🚀 Pull resendOtp from your context here
+  const { setUser, resendOtp } = useAuth() as any;
 
-  // 🚀 Just one simple string state now!
   const [otpCode, setOtpCode] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
@@ -92,11 +92,8 @@ const OTPScreen = () => {
     setIsResending(true);
 
     try {
-      // 2. Call your Django backend to trigger the new email
-      // (Make sure this URL matches your actual Django urls.py)
-      await api.post("/auth/resend-otp/", {
-        email: email,
-      });
+      // 🚀 2. Use the clean context function instead of manual API call
+      await resendOtp(email as string);
 
       Alert.alert(
         "Code Resent",
@@ -105,7 +102,7 @@ const OTPScreen = () => {
 
       // 3. Reset the UI for the new attempt
       setTimeLeft(60); // Start the 5-minute countdown again
-      setOtpCode(""); // 🚀 Clear out the old digits so the boxes are empty
+      setOtpCode(""); // Clear out the old digits so the boxes are empty
     } catch (error: any) {
       console.error("❌ RESEND CRASH:", error);
       const errorMessage =
@@ -143,7 +140,6 @@ const OTPScreen = () => {
           </Text>
         </View>
 
-        {/* 🚀 Our incredibly clean reusable component */}
         <OTPInput code={otpCode} setCode={setOtpCode} maxLength={6} />
 
         <View style={styles.timerContainer}>

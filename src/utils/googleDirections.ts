@@ -9,6 +9,7 @@ export interface Coordinate {
  * Asks Google for the total driving distance of a multi-stop route.
  * @returns Total distance in kilometers
  */
+
 export const fetchRouteDistance = async (
   origin: Coordinate,
   destination: Coordinate,
@@ -18,7 +19,7 @@ export const fetchRouteDistance = async (
     const originStr = `${origin.latitude},${origin.longitude}`;
     const destStr = `${destination.latitude},${destination.longitude}`;
 
-    // Format waypoints for Google API (e.g., "lat,lng|lat,lng")
+    // format waypoints for Google API (e.g., "lat,lng|lat,lng")
     const waypointsStr =
       waypoints.length > 0
         ? `&waypoints=${waypoints.map((wp) => `${wp.latitude},${wp.longitude}`).join("|")}`
@@ -31,13 +32,13 @@ export const fetchRouteDistance = async (
 
     if (data.status === "OK") {
       let totalMeters = 0;
-      // Google returns an array of "legs" (Origin -> WP1 -> WP2 -> Dest)
-      // We must add all the legs together to get the total trip distance.
+      // google returns an array of "legs" (Origin -> WP1 -> WP2 -> Dest)
+      // add all the legs together to get the total trip distance.
       data.routes[0].legs.forEach((leg: any) => {
         totalMeters += leg.distance.value;
       });
 
-      return totalMeters / 1000; // Convert to Kilometers
+      return totalMeters / 1000; // convert to kilometers
     } else {
       console.error(
         "Google Directions Error:",

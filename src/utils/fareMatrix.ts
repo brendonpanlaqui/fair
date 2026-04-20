@@ -15,7 +15,7 @@ export const calculateDirectFare = (
 
   let totalFare = BASE_FARE;
 
-  // Calculate succeeding kilometers if distance is greater than 1km
+  // calculate succeeding kilometers if distance is greater than 1 kilometer
   if (distanceInKm > BASE_KM) {
     const excessDistance = distanceInKm - BASE_KM;
     const roundedExcessDistance = Math.ceil(excessDistance);
@@ -23,10 +23,9 @@ export const calculateDirectFare = (
     totalFare += excessFare;
   }
 
-  // Apply the 20% legal discount if the passenger qualifies
+  // apply the 20% legal discount if the passenger qualifies
   if (isDiscounted) {
-    // 20% off means they pay 80% of the fare.
-    // We use Math.floor to match the exact values in the PTRO matrix (e.g., 65 * 0.8 = 52)
+    // pay only 80% of the total fare
     totalFare = Math.floor(totalFare * 0.8);
   }
 

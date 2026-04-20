@@ -17,7 +17,7 @@ import {
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 
-// 1. EXTENDED ERD INTERFACE
+// again match the Django (ReportHistorySerializer)
 interface ReportRecord {
   report_id: string;
   trip: string | null;
@@ -31,30 +31,30 @@ interface ReportRecord {
 
 const ReportScreen = () => {
   const router = useRouter();
+  // grab the parameters passed in the URL (e.g., ?tripId=123&bodyNumber=0406)
   const params = useLocalSearchParams();
-  const { user } = useAuth(); // Grab the logged-in user
+  const { user } = useAuth(); // the logged-in user
 
-  // STATES
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportRecord | null>(
     null,
   );
+  // controls whether the "File a Complaint" form pop-up is visible
   const [isFormVisible, setIsFormVisible] = useState(false);
 
-  // FETCH STATES
+  // used to show loading spinners while waiting for Django
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // NEW REPORT FORM STATES
+  // holds the data the user types into the form
   const [newTripId, setNewTripId] = useState("");
   const [newBodyNumber, setNewBodyNumber] = useState("");
   const [newViolation, setNewViolation] = useState("Overcharging");
   const [newComments, setNewComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // --- API FETCH LOGIC ---
   const fetchReports = async (isPullToRefresh = false) => {
-    // BYPASS FETCH IF GUEST
+    // if guest, skip the API call
     if (!user) {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -63,6 +63,7 @@ const ReportScreen = () => {
 
     try {
       if (!isPullToRefresh) setIsLoading(true);
+      // request the user's report history from Django
       const response = await api.get<ReportRecord[]>("/reports/history/");
       setReports(response.data);
     } catch (err) {
@@ -82,7 +83,7 @@ const ReportScreen = () => {
     fetchReports(true);
   };
 
-  // UX MAGIC: Auto-open form if routed from HistoryScreen
+  // it assumes the user wants to report that specific trip, so it opens the form automatically.
   useEffect(() => {
     if (params.tripId && params.bodyNumber && user) {
       setNewTripId(params.tripId as string);
@@ -116,6 +117,7 @@ const ReportScreen = () => {
   };
 
   const handleSubmitReport = async () => {
+    // to provide comments to at least describe the incident
     if (!newComments) {
       Alert.alert("Required", "Please provide details about the incident.");
       return;
@@ -123,6 +125,7 @@ const ReportScreen = () => {
 
     setIsSubmitting(true);
     try {
+      // yung payload para sa Django
       const payload = {
         report_id: `TKT-${Math.floor(10000 + Math.random() * 90000)}`,
         user: user?.id,
@@ -132,8 +135,10 @@ const ReportScreen = () => {
         passenger_comments: newComments,
       };
 
+      // sends the report to the backend
       await api.post("/reports/submit/", payload);
 
+      // kung tapos na, close the form, reset the fields, and refresh the report list to show the new ticket
       fetchReports();
       setIsFormVisible(false);
       setNewComments("");
@@ -200,16 +205,15 @@ const ReportScreen = () => {
     <View style={styles.container}>
       <StatusBar style="light" />
 
-      {/* 1. BRAND RED HEADER */}
+      {/* HEADER */}
       <View style={styles.redHeaderBackground}>
         <Text style={styles.headerTitle}>Support Center</Text>
         <Text style={styles.headerSubtitle}>Track and file complaints</Text>
       </View>
 
-      {/* 2. THE OVERLAPPING ACTION PILL (ALWAYS VISIBLE BUT DISABLED FOR GUESTS) */}
+      {/* (ALWAYS VISIBLE BUT DISABLED FOR GUESTS) */}
       <View style={styles.actionWrapper}>
         <TouchableOpacity
-          // 🚀 Change style dynamically if guest
           style={[
             styles.actionPill,
             !user && {
@@ -221,8 +225,7 @@ const ReportScreen = () => {
             },
           ]}
           activeOpacity={0.9}
-          // 🚀 Locks the button completely
-          disabled={!user}
+          disabled={!user} // if guest
           onPress={() => {
             setNewTripId("");
             setNewBodyNumber("");
@@ -232,12 +235,12 @@ const ReportScreen = () => {
           <MaterialIcons
             name="add-circle"
             size={22}
-            color={!user ? "#CBD5E1" : "#D32F2F"} // 🚀 Gray out icon if guest
+            color={!user ? "#CBD5E1" : "#D32F2F"} // if guest
           />
           <Text
             style={[
               styles.actionPillText,
-              !user && { color: "#94A3B8" }, // 🚀 Gray out text if guest
+              !user && { color: "#94A3B8" }, // if guest
             ]}
           >
             FILE NEW REPORT
@@ -245,7 +248,7 @@ const ReportScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 3. CONDITIONAL BODY (GUEST VS LOGGED IN) */}
+      {/* (GUEST VS LOGGED IN) */}
       {!user ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
@@ -300,9 +303,7 @@ const ReportScreen = () => {
         />
       )}
 
-      {/* ========================================== */}
-      {/* 4. TICKET DETAILS MODAL (READ-ONLY) */}
-      {/* ========================================== */}
+      {/* opens when a user taps a specific ticket card from the list */}
       <Modal
         visible={selectedReport !== null}
         animationType="slide"
@@ -352,6 +353,7 @@ const ReportScreen = () => {
                 ]}
               >
                 <Text style={styles.detailLabel}>EVIDENCE LEVEL</Text>
+                {/* if linked to specific trip, otherwise manual report*/}
                 {selectedReport.trip ? (
                   <View style={{ flexDirection: "row", alignItems: "center" }}>
                     <MaterialIcons
@@ -423,7 +425,7 @@ const ReportScreen = () => {
                 </Text>
               </View>
 
-              {/* ADMIN RESPONSE */}
+              {/* only shows when admin provide response */}
               {selectedReport.admin_response ? (
                 <View style={styles.adminBox}>
                   <View style={styles.adminBoxHeader}>
@@ -449,9 +451,7 @@ const ReportScreen = () => {
         </View>
       </Modal>
 
-      {/* ========================================== */}
-      {/* 5. NEW REPORT FORM MODAL */}
-      {/* ========================================== */}
+      {/* REPORT FORM MODAL */}
       <Modal
         visible={isFormVisible}
         animationType="slide"
@@ -525,7 +525,7 @@ const ReportScreen = () => {
                 placeholder="e.g. 0406"
                 keyboardType="number-pad"
                 placeholderTextColor="#94A3B8"
-                editable={newTripId === ""} // LOCKS THE FIELD if there is a trip ID
+                editable={newTripId === ""} // if linked from the HistoryScreen
               />
             </View>
 
@@ -611,14 +611,11 @@ const ReportScreen = () => {
   );
 };
 
-// ==========================================
-// STYLES
-// ==========================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
 
   redHeaderBackground: {
-    backgroundColor: "#D32F2F", // Brand Crimson Red
+    backgroundColor: "#D32F2F",
     paddingTop: 65,
     paddingHorizontal: 24,
     paddingBottom: 45,
@@ -640,13 +637,12 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  // 🚀 NEW GUEST UI STYLES
   guestContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 32,
-    paddingTop: 20, // Reduced since action pill takes up space
+    paddingTop: 20,
   },
   guestIconWrapper: {
     width: 96,
@@ -689,7 +685,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // LOADING / CENTER STATE STYLES
   centerContainer: {
     flex: 1,
     justifyContent: "center",
@@ -703,10 +698,9 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 
-  // 2. THE OVERLAPPING ACTION PILL
   actionWrapper: {
     alignItems: "center",
-    marginTop: -28, // Pulls the pill up to overlap the border
+    marginTop: -28,
     zIndex: 10,
   },
   actionPill: {
@@ -714,10 +708,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     paddingHorizontal: 24,
     paddingVertical: 14,
-    borderRadius: 28, // Fully rounded
+    borderRadius: 28,
     alignItems: "center",
     elevation: 8,
-    shadowColor: "#0F172A", // Soft slate shadow
+    shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,
     shadowRadius: 12,
@@ -729,8 +723,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     marginLeft: 8,
   },
-
-  // 3. THE LIST
   listContent: {
     paddingTop: 24,
     paddingHorizontal: 16,
@@ -798,7 +790,6 @@ const styles = StyleSheet.create({
   bodyNumberText: { fontSize: 13, fontWeight: "800", color: "#334155" },
   dateText: { fontSize: 12, color: "#94A3B8", fontWeight: "600" },
 
-  // EMPTY STATE
   emptyStateContainer: {
     alignItems: "center",
     justifyContent: "center",
@@ -827,7 +818,6 @@ const styles = StyleSheet.create({
     lineHeight: 20,
   },
 
-  // --- TICKET DETAILS MODAL ---
   modalOverlay: {
     flex: 1,
     justifyContent: "flex-end",
@@ -925,14 +915,13 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
   },
 
-  // --- NEW REPORT FORM MODAL ---
   fullModalContainer: { flex: 1, backgroundColor: "#FFFFFF" },
   fullModalHeader: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 55, // Ensure status bar clearance
+    paddingTop: 55,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
@@ -941,7 +930,7 @@ const styles = StyleSheet.create({
   formContent: { flex: 1, padding: 24 },
   warningBanner: {
     flexDirection: "row",
-    backgroundColor: "#FFF1F2", // Match your active tabs
+    backgroundColor: "#FFF1F2",
     padding: 16,
     borderRadius: 16,
     borderWidth: 1,
@@ -951,7 +940,7 @@ const styles = StyleSheet.create({
   warningText: {
     flex: 1,
     fontSize: 12,
-    color: "#BE123C", // Deeper red for text
+    color: "#BE123C",
     marginLeft: 12,
     lineHeight: 18,
     fontWeight: "500",

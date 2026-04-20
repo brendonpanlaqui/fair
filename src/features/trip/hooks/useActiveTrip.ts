@@ -34,7 +34,7 @@ export const useActiveTrip = () => {
   }));
 
   // 2. Location & ETA Math
-  const { currentLocation, drivenTrace } = useLocationTracking();
+  const { currentLocation, drivenTrace, stopTracking } = useLocationTracking();
   const mapCenter = currentLocation
     ? {
         latitude: currentLocation.latitude,
@@ -79,6 +79,8 @@ export const useActiveTrip = () => {
           style: "destructive",
           onPress: async () => {
             try {
+              await stopTracking();
+
               const base = 35;
               const succeeding = Math.max(0, fixedFare - base);
               const generatedTripId = `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
