@@ -1,9 +1,9 @@
 import { useAuth } from "@/src/hooks/AuthContext";
-import { api } from "@/src/services/api"; // 🚀 ADDED API IMPORT
+import { api } from "@/src/services/api";
 import { MaterialIcons } from "@expo/vector-icons";
-import { useFocusEffect, useRouter } from "expo-router"; // 🚀 ADDED useFocusEffect
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useState } from "react"; // 🚀 ADDED hooks
+import React, { useCallback, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -13,9 +13,7 @@ import {
   View,
 } from "react-native";
 
-// ==========================================
-// REUSABLE MENU ITEM COMPONENT
-// ==========================================
+// mostly UI with API calls to fetch the user's verification status. AuthContext provides the user info and logout function, while the api service is used to fetch the latest profile data from Django.
 interface MenuItemProps {
   icon: keyof typeof MaterialIcons.glyphMap;
   title: string;
@@ -47,18 +45,21 @@ const MenuItem: React.FC<MenuItemProps> = ({
 
 export default function ProfileScreen() {
   const router = useRouter();
+  // provides user info and logout function
   const { user, isGuest, logout } = useAuth();
 
-  // 🚀 LIVE STATES FROM DJANGO
+  // hold the live data fetched from my Django.
   const [isIdVerified, setIsIdVerified] = useState(false);
   const [userType, setUserType] = useState("Regular");
 
-  // 🚀 FETCH PROFILE DATA EVERY TIME THIS SCREEN OPENS
+  // refresh everytime user goes to this screen, if guest then skip
   useFocusEffect(
     useCallback(() => {
+      // guest don't have profile data anyway
       if (!isGuest) {
         const fetchProfileData = async () => {
           try {
+            // GET request to Django's get_user_profile view
             const response = await api.get("/users/me/");
             setIsIdVerified(response.data.is_discount_verified);
             setUserType(response.data.user_type);
@@ -74,9 +75,10 @@ export default function ProfileScreen() {
   const handleExit = () => {
     if (isGuest) {
       logout();
-      router.replace("/auth");
+      router.replace("/auth"); //redirect to auth screen after logging out as guest
       return;
     }
+    // for logged-in users, double-check if they actually want to log out.
     Alert.alert("Log Out", "Are you sure you want to log out of Fair?", [
       { text: "Cancel", style: "cancel" },
       {
@@ -94,6 +96,7 @@ export default function ProfileScreen() {
   };
 
   const handleApplyDiscount = () => {
+    // must create an account first, if guest
     if (isGuest) {
       Alert.alert(
         "Account Required",
@@ -104,6 +107,7 @@ export default function ProfileScreen() {
         ],
       );
     } else {
+      // navigate to this screen to submit ID for verification
       router.push("/(menu)/verify-id");
     }
   };
@@ -117,26 +121,32 @@ export default function ProfileScreen() {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
-        {/* 1. RED HEADER */}
+        {/* HEADER */}
         <View style={styles.redHeaderBackground}>
           <Text style={styles.headerTitle}>Menu</Text>
-          <TouchableOpacity style={styles.bellButton}>
-            <MaterialIcons
-              name="notifications-none"
-              size={28}
-              color="#FFFFFF"
-            />
-            <View style={styles.notificationDot} />
-          </TouchableOpacity>
         </View>
 
-        {/* 2. OVERLAPPING PROFILE CARD */}
+        {/* PROFILE CARD */}
         <View style={styles.profileCardWrapper}>
-          <TouchableOpacity style={styles.profileCard} activeOpacity={0.9}>
+          <TouchableOpacity
+            style={styles.profileCard}
+            activeOpacity={0.9}
+            onPress={() => {
+              if (isGuest) {
+                Alert.alert(
+                  "Guest Mode",
+                  "Please sign in to manage account settings.",
+                );
+              } else {
+                router.push("/manage-account"); // 👈 Update this to match your actual route name
+              }
+            }}
+          >
             <View style={styles.avatarContainer}>
               <MaterialIcons name="person" size={36} color="#D32F2F" />
             </View>
             <View style={styles.profileInfo}>
+              {/* show user's name, or a fallback if the name is missing/they are a guest */}
               <Text style={styles.profileName}>
                 {isGuest
                   ? "Guest User"
@@ -145,7 +155,7 @@ export default function ProfileScreen() {
                     : user?.email?.split("@")[0] || "Fair User"}
               </Text>
 
-              {/* SMART VERIFICATION LOGIC */}
+              {/* logic based on their status */}
               {isGuest && (
                 <Text style={styles.guestSubtitle}>
                   Sign in to save preferences
@@ -162,7 +172,7 @@ export default function ProfileScreen() {
                     color="#D32F2F"
                     style={{ marginRight: 4 }}
                   />
-                  {/* 🚀 DYNAMICALLY SHOWS "Student Verified", "Senior Verified", etc. */}
+                  {/* shows verification status */}
                   <Text style={styles.verifiedText}>
                     {userType === "Regular"
                       ? "Verified User"
@@ -175,7 +185,7 @@ export default function ProfileScreen() {
         </View>
 
         <View style={styles.menuContent}>
-          {/* SMART BANNER: Only shows if they haven't verified their ID */}
+          {/* show only if not verified or is guest */}
           {(!isIdVerified || isGuest) && (
             <>
               <Text style={styles.sectionLabel}>FARE DISCOUNTS</Text>
@@ -207,7 +217,6 @@ export default function ProfileScreen() {
             </>
           )}
 
-          {/* SECTION: RIDE PREFERENCES */}
           <Text style={styles.sectionLabel}>RIDE PREFERENCES</Text>
           <View style={styles.sectionContainer}>
             <MenuItem
@@ -215,6 +224,7 @@ export default function ProfileScreen() {
               title="Saved Places"
               subtitle="Home, CCA Campus, Nepo Mall"
               onPress={() => {
+                // prevent guests from saving places since it uses AsyncStorage tied to accounts
                 if (isGuest)
                   Alert.alert(
                     "Guest Mode",
@@ -225,7 +235,6 @@ export default function ProfileScreen() {
             />
           </View>
 
-          {/* SECTION: CONSOLIDATED LEGAL & SUPPORT */}
           <Text style={styles.sectionLabel}>LEGAL & SUPPORT</Text>
           <View style={styles.sectionContainer}>
             <MenuItem
@@ -243,7 +252,7 @@ export default function ProfileScreen() {
             />
           </View>
 
-          {/* 3. DYNAMIC LOGOUT / LOGIN BUTTON */}
+          {/* (Changes colors depending on if it's a guest or real user) */}
           <TouchableOpacity
             style={[
               styles.exitBtn,
@@ -268,7 +277,6 @@ export default function ProfileScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* FOOTER METADATA */}
           <View style={styles.footerData}>
             <Text style={styles.versionText}>FAIR APP v1.0.0</Text>
             <Text style={styles.creditText}>
@@ -281,9 +289,6 @@ export default function ProfileScreen() {
   );
 }
 
-// ==========================================
-// STYLES
-// ==========================================
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   scrollContent: { paddingBottom: 40 },
@@ -305,7 +310,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     letterSpacing: -1,
   },
-  bellButton: { position: "absolute", right: 24, top: 65, padding: 4 },
+  settingsButton: { position: "absolute", right: 24, top: 65, padding: 4 },
   notificationDot: {
     position: "absolute",
     top: 4,

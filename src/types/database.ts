@@ -1,5 +1,3 @@
-// src/types/database.ts
-
 export type AuthProvider = "Local" | "Google";
 export type UserType = "Regular" | "Student" | "Senior" | "PWD";
 export type TricycleStatus = "Active" | "Suspended";
@@ -46,7 +44,7 @@ export interface FareMatrix {
 
 export interface Trip {
   trip_id: string;
-  user_id: string | null; 
+  user_id: string | null;
   body_number: string;
   matrix_id: number;
   trip_mode: TripMode;

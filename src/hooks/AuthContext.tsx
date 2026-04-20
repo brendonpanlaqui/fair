@@ -19,6 +19,7 @@ interface AuthContextData {
   setUser: (user: any) => void;
   continueAsGuest: () => void;
   verifyOtp: (email: string, otp: string) => Promise<void>;
+  resendOtp: (email: string) => Promise<void>;
   refreshProfileStatus: () => Promise<void>;
 }
 
@@ -71,56 +72,33 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   }, [user, isGuest]);
 
-  // Add this inside your AuthContext provider:
-  const loginWithGoogle = async (idToken: string) => {
-    try {
-      // Send the token to your Django backend to verify it and log the user in
-      const response = await axios.post(`${API_URL}/auth/google/`, {
-        token: idToken,
-      });
-      const { access, refresh, user } = response.data;
-
-      // Save tokens and set user state just like normal login
-      await AsyncStorage.setItem("accessToken", access);
-      await AsyncStorage.setItem("refreshToken", refresh);
-      setUser(user);
-    } catch (error) {
-      throw error;
-    }
-  };
-
   const login = async (email: string, password: string) => {
     try {
-      const payload = {
-        email: email,
-        password: password,
-      };
-
+      const payload = { email, password };
       const response = await api.post("/auth/login/", payload);
 
       const {
         tokens,
         user_id,
         email: userEmail,
-        first_name: userfirstName,
-        last_name: userlastName,
+        first_name,
+        last_name,
       } = response.data;
 
       await SecureStore.setItemAsync("userToken", tokens.access);
 
-      const userData = {
-        id: user_id,
-        email: userEmail,
-        first_name: userfirstName,
-        last_name: userlastName,
-      };
-
+      const userData = { id: user_id, email: userEmail, first_name, last_name };
       setUser(userData);
       await SecureStore.setItemAsync("userData", JSON.stringify(userData));
-
       setIsGuest(false);
-    } catch (error) {
-      console.error("Login Error:", error);
+    } catch (error: any) {
+      const requiresOtp = error.response?.data?.requires_otp;
+      if (!requiresOtp) {
+        const cleanMessage =
+          error.response?.data?.error ||
+          error.response?.data?.detail ||
+          "Please check your internet connection and try again.";
+      }
       throw error;
     }
   };
@@ -133,18 +111,16 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   ) => {
     try {
       const payload = {
-        email: email,
+        email,
         username: email,
-        password: password,
+        password,
         first_name: firstName,
         last_name: lastName,
         user_type: "Regular",
       };
-
       const response = await api.post("/auth/register/", payload);
       return response.data;
-    } catch (error) {
-      console.error("Registration Error:", error);
+    } catch (error: any) {
       throw error;
     }
   };
@@ -175,6 +151,14 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     setUser(userData);
   };
 
+  const resendOtp = async (email: string) => {
+    try {
+      await api.post("/auth/resend-otp/", { email });
+    } catch (error: any) {
+      throw error;
+    }
+  };
+
   const logout = async () => {
     await SecureStore.deleteItemAsync("userToken");
     await SecureStore.deleteItemAsync("userData");
@@ -198,6 +182,7 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         setUser,
         continueAsGuest,
         verifyOtp,
+        resendOtp,
         refreshProfileStatus,
       }}
     >
