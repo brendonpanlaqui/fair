@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { ActivityIndicator, View } from "react-native";
 import "react-native-reanimated";
+import "../src/features/trip/services/BackgroundLocationService";
 
 import { AuthProvider, useAuth } from "@/src/hooks/AuthContext";
 import { useColorScheme } from "@/src/hooks/use-color-scheme";

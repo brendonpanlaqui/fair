@@ -47,6 +47,8 @@ export default function VerifyIdScreen() {
           // open camera, save bandwith by making quality 0.8
           const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ["images"],
+            allowsEditing: true,
+            aspect: [8, 5],
             quality: 0.8,
           });
           // if they took a photo and didn't cancel, save the URI to state to show a preview and upload later
@@ -61,6 +63,8 @@ export default function VerifyIdScreen() {
           // media library permission
           const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ["images"],
+            allowsEditing: true,
+            aspect: [8, 5],
             quality: 0.8,
           });
           if (!result.canceled && result.assets[0].uri) {

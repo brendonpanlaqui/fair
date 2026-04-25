@@ -14,34 +14,42 @@ import {
   View,
 } from "react-native";
 
-import { OTPInput } from "../../../components/ui/OTPInput"; // 👈 Update this path if needed
+import { OTPInput } from "../../../components/ui/OTPInput";
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 
 const OTPScreen = () => {
   const router = useRouter();
+  // get the parameter passed from the previous screen (email address) to know which account we're verifying
   const { email } = useLocalSearchParams();
-  // 🚀 Pull resendOtp from your context here
   const { setUser, resendOtp } = useAuth() as any;
 
+  // state to hold the OTP code entered by the user (6 digits)
   const [otpCode, setOtpCode] = useState("");
+  // manage loading states for both verifying the OTP and resending it, to provide user feedback and prevent multiple submissions
   const [isLoading, setIsLoading] = useState(false);
   const [isResending, setIsResending] = useState(false);
+  // manage the 60-second countdown timer for OTP expiration
   const [timeLeft, setTimeLeft] = useState(60);
 
+  // countdown timer effect
   useEffect(() => {
     if (timeLeft <= 0) return;
+    // decrese the timer every second until it reaches 0, at which point the user can request a new OTP
     const timerId = setInterval(() => setTimeLeft((prev) => prev - 1), 1000);
-    return () => clearInterval(timerId);
+    return () => clearInterval(timerId); // cleaner to prevent memory leaks if the component unmounts before timer finishes
   }, [timeLeft]);
 
+  // format to minutes:seconds for display in the UI, e.g. "01:00"
   const formatTime = (seconds: number) => {
     const m = Math.floor(seconds / 60);
     const s = seconds % 60;
     return `${m < 10 ? "0" : ""}${m}:${s < 10 ? "0" : ""}${s}`;
   };
 
+  // submit the entered OTP code to the backend for verification
   const handleVerify = async () => {
+    // ensure the user has entered a full 6-digit code before sending to backend
     if (otpCode.length < 6) {
       Alert.alert("Incomplete", "Please enter the full 6-digit code.");
       return;
@@ -50,11 +58,13 @@ const OTPScreen = () => {
     setIsLoading(true);
 
     try {
+      // post to backend to verify, which returns user data and tokens if successful (or an error if invalid/expired)
       const response = await api.post("/auth/verify-otp/", {
         email: email,
         otp: otpCode,
       });
 
+      // destructure the relevant data from the response for storing and updating auth state
       const {
         tokens,
         user_id,
@@ -63,20 +73,23 @@ const OTPScreen = () => {
         last_name,
       } = response.data;
 
+      // store jwt access token securely for authenticated requests in the future
       if (tokens && tokens.access) {
         await SecureStore.setItemAsync("userToken", tokens.access);
       }
 
+      // basic data to identify the user in the app, stored securely and also set in global context for easy access across the app
       const userData = { id: user_id, email: userEmail, first_name, last_name };
       await SecureStore.setItemAsync("userData", JSON.stringify(userData));
 
+      // update global auth context with the logged-in user's data so that other components can access it and know the user is authenticated
       if (typeof setUser === "function") {
         setUser(userData);
       }
 
       router.replace("/(tabs)");
     } catch (error: any) {
-      console.error("❌ OTP CRASH:", error);
+      // display an error
       const errorMessage =
         error.response?.data?.error || "Invalid verification code.";
       Alert.alert("Verification Failed", errorMessage);
@@ -85,14 +98,15 @@ const OTPScreen = () => {
     }
   };
 
+  // request new code to be sent
   const handleResend = async () => {
-    // 1. Safety check: Don't allow clicking if the timer is still running
+    // prevent resend if the timer is still active, as the user should wait until the current code expires before requesting a new one
     if (timeLeft > 0) return;
 
     setIsResending(true);
 
     try {
-      // 🚀 2. Use the clean context function instead of manual API call
+      // reuse function for backend endpoint
       await resendOtp(email as string);
 
       Alert.alert(
@@ -100,11 +114,11 @@ const OTPScreen = () => {
         "A new 6-digit code has been sent to your email.",
       );
 
-      // 3. Reset the UI for the new attempt
-      setTimeLeft(60); // Start the 5-minute countdown again
-      setOtpCode(""); // Clear out the old digits so the boxes are empty
+      // reset UI for new code
+      setTimeLeft(60); // 1-minute coundown
+      setOtpCode("");
     } catch (error: any) {
-      console.error("❌ RESEND CRASH:", error);
+      // if the resend limit is reached or network fails
       const errorMessage =
         error.response?.data?.error ||
         "Could not resend code. Please try again.";
@@ -115,6 +129,7 @@ const OTPScreen = () => {
   };
 
   return (
+    // to avoid keyboard covering of input fields
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -140,8 +155,10 @@ const OTPScreen = () => {
           </Text>
         </View>
 
+        {/* boxes to enter OTP */}
         <OTPInput code={otpCode} setCode={setOtpCode} maxLength={6} />
 
+        {/* display the active countdown timer */}
         <View style={styles.timerContainer}>
           <MaterialIcons name="access-time" size={16} color="#64748B" />
           <Text style={styles.timerText}>
@@ -149,6 +166,7 @@ const OTPScreen = () => {
           </Text>
         </View>
 
+        {/* verify button */}
         <TouchableOpacity
           style={[styles.verifyBtn, isLoading && { opacity: 0.7 }]}
           activeOpacity={0.9}
@@ -162,6 +180,7 @@ const OTPScreen = () => {
           )}
         </TouchableOpacity>
 
+        {/* resend when timer hits 0 */}
         <View style={styles.resendContainer}>
           <Text style={styles.resendText}>Didn't receive code? </Text>
           <TouchableOpacity

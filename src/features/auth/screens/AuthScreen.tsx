@@ -16,17 +16,21 @@ import { useAuth } from "../../../hooks/AuthContext";
 
 const AuthScreen = () => {
   const router = useRouter();
+  // get the auth functions from context
   const { login, register, continueAsGuest, resendOtp } = useAuth();
 
+  // state to toggle between login and register modes
   const [isLogin, setIsLogin] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
 
+  // form input states
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
 
+  // state to track form validation errors
   const [errors, setErrors] = useState({
     firstName: "",
     lastName: "",
@@ -35,8 +39,10 @@ const AuthScreen = () => {
     confirmPassword: "",
   });
 
+  // function to switch between login and register modes
   const toggleMode = (mode: "login" | "register") => {
     setIsLogin(mode === "login");
+    // clear errors when switching modes
     setErrors({
       firstName: "",
       lastName: "",
@@ -44,10 +50,12 @@ const AuthScreen = () => {
       password: "",
       confirmPassword: "",
     });
+    // clear passwords for security
     setPassword("");
     setConfirmPassword("");
   };
 
+  // function to validate form inputs before submission
   const validateForm = () => {
     let isValid = true;
     let newErrors = {
@@ -58,21 +66,21 @@ const AuthScreen = () => {
       confirmPassword: "",
     };
 
-    // Email Validation
+    // basic email format validation
     if (!email.includes("@") || !email.includes(".")) {
       newErrors.email = "Please enter a valid email format";
       isValid = false;
     }
 
     if (isLogin) {
-      // Basic validation for Login
+      // basic validation for login
       if (!password) {
         newErrors.password = "Password is required";
         isValid = false;
       }
     } else {
-      // Strict Modern Password Validation for Registration
-      // Requires: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
+      // strict modern password validation for registration
+      // requires: 8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 special char
       const strongPasswordRegex =
         /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&.])[A-Za-z\d@$!%*?&.]{8,}$/;
 
@@ -82,6 +90,7 @@ const AuthScreen = () => {
         isValid = false;
       }
 
+      // required fields for registration
       if (!firstName.trim()) {
         newErrors.firstName = "Required";
         isValid = false;
@@ -90,6 +99,7 @@ const AuthScreen = () => {
         newErrors.lastName = "Required";
         isValid = false;
       }
+      // check if passwords match
       if (password !== confirmPassword) {
         newErrors.confirmPassword = "Passwords do not match";
         isValid = false;
@@ -100,15 +110,18 @@ const AuthScreen = () => {
     return isValid;
   };
 
+  // handle form submission for login or registration
   const handleSubmit = async () => {
     if (!validateForm()) return;
     setIsLoading(true);
 
     try {
       if (isLogin) {
+        // attempt to log in
         await login(email, password);
         router.replace("/(tabs)");
       } else {
+        // attempt to register
         await register(email, password, firstName, lastName);
         Alert.alert(
           "Code Sent!",
@@ -116,6 +129,7 @@ const AuthScreen = () => {
           [
             {
               text: "OK",
+              // navigate to otp screen after successful registration
               onPress: () =>
                 router.push({ pathname: "/otp", params: { email } }),
             },
@@ -123,12 +137,12 @@ const AuthScreen = () => {
         );
       }
     } catch (error: any) {
-      // 1. Check for your exact Django response flags
+      // 1. check for your exact django response flags
       const requiresOtp = error.response?.data?.requires_otp;
       const unverifiedEmail = error.response?.data?.email || email;
       const backendError = error.response?.data?.error;
 
-      // 2. Handle the Unverified Account Case explicitly
+      // 2. handle the unverified account case explicitly
       if (isLogin && requiresOtp) {
         setIsLoading(false);
 
@@ -142,7 +156,8 @@ const AuthScreen = () => {
               text: "Send Code & Verify",
               onPress: async () => {
                 try {
-                  setIsLoading(true); // Turn button spinner on while requesting new code
+                  // turn button spinner on while requesting new code
+                  setIsLoading(true);
                   await resendOtp(unverifiedEmail);
                   router.push({
                     pathname: "/otp",
@@ -160,15 +175,16 @@ const AuthScreen = () => {
             },
           ],
         );
-        return; // Stop execution here
+        return; // stop execution here
       }
 
-      // 3. Handle standard form errors (404 Not Found, 401 Invalid Password, etc.)
+      // 3. handle standard form errors (404 not found, 401 invalid password, etc.)
       const errorMessage =
         backendError ||
         error.response?.data?.email?.[0] ||
         "Authentication failed.";
 
+      // display error on the appropriate field
       isLogin
         ? setErrors((prev) => ({ ...prev, password: errorMessage }))
         : setErrors((prev) => ({ ...prev, email: errorMessage }));
@@ -187,10 +203,12 @@ const AuthScreen = () => {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {/* logo section */}
         <View style={styles.header}>
           <Text style={styles.logoText}>fair</Text>
         </View>
 
+        {/* tabs to switch between login and registration */}
         <View style={styles.tabContainer}>
           <TouchableOpacity
             style={[styles.tab, isLogin && styles.activeTab]}
@@ -210,6 +228,7 @@ const AuthScreen = () => {
           </TouchableOpacity>
         </View>
 
+        {/* dynamic title and subtitle based on mode */}
         <View style={styles.titleContainer}>
           <Text style={styles.title}>
             {isLogin ? "Welcome Back" : "Create an account"}
@@ -221,7 +240,9 @@ const AuthScreen = () => {
           </Text>
         </View>
 
+        {/* form input fields */}
         <View style={styles.formContainer}>
+          {/* show first and last name only on registration */}
           {!isLogin && (
             <View style={styles.row}>
               <View style={{ flex: 1, marginRight: 8 }}>
@@ -252,6 +273,7 @@ const AuthScreen = () => {
             </View>
           )}
 
+          {/* email field used in both modes */}
           <InputField
             label="Email Address"
             icon="mail-outline"
@@ -265,6 +287,7 @@ const AuthScreen = () => {
             error={errors.email}
           />
 
+          {/* password field used in both modes */}
           <InputField
             label="Password"
             icon="lock-outline"
@@ -277,13 +300,14 @@ const AuthScreen = () => {
             }}
             error={errors.password}
           />
-          {/* Updated Helper Text to show only on Registration */}
+          {/* updated helper text to show only on registration */}
           {!isLogin && !errors.password && (
             <Text style={styles.helperText}>
               Minimum of 8 characters, 1 uppercase, 1 number, 1 symbol
             </Text>
           )}
 
+          {/* confirm password only on registration */}
           {!isLogin && (
             <InputField
               label="Confirm Password"
@@ -299,6 +323,7 @@ const AuthScreen = () => {
             />
           )}
 
+          {/* forgot password link only on login */}
           {isLogin && (
             <TouchableOpacity
               style={styles.forgotPassword}
@@ -309,6 +334,7 @@ const AuthScreen = () => {
           )}
         </View>
 
+        {/* submit button */}
         <TouchableOpacity
           style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
           activeOpacity={0.9}
@@ -330,6 +356,7 @@ const AuthScreen = () => {
           <View style={styles.dividerLine} />
         </View>
 
+        {/* guest login button */}
         <TouchableOpacity
           style={styles.guestBtn}
           onPress={() => {
@@ -348,6 +375,7 @@ const AuthScreen = () => {
         </TouchableOpacity>
       </ScrollView>
 
+      {/* footer with link to switch modes */}
       <View style={styles.footer}>
         <Text style={styles.footerText}>
           {isLogin ? "Don't have an account? " : "Already have an account? "}

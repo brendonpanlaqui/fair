@@ -41,7 +41,12 @@ const ActiveTripScreen = () => {
         {
           text: "Stop Tracking",
           style: "destructive",
-          onPress: () => router.back(),
+          onPress: async () => {
+            // 🚀 1. KILL THE BACKGROUND TRACKER FIRST!
+            await tripData.stopTracking();
+            // 2. Then navigate away
+            router.back();
+          },
         },
       ],
     );

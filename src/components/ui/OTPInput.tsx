@@ -15,7 +15,7 @@ export const OTPInput: React.FC<OTPInputProps> = ({
   const hiddenInputRef = useRef<TextInput>(null);
   const [isFocused, setIsFocused] = useState(true);
 
-  // Creates an empty array of the correct length to map our visual boxes
+  // empty array just to map and render the correct number of boxes based on maxLength
   const boxArray = new Array(maxLength).fill(0);
 
   const handlePress = () => {
@@ -24,12 +24,12 @@ export const OTPInput: React.FC<OTPInputProps> = ({
 
   return (
     <View style={styles.container}>
-      {/* 1. VISUAL BOXES */}
+      {/* OTP BOXES */}
       <Pressable style={styles.inputsContainer} onPress={handlePress}>
         {boxArray.map((_, index) => {
           const digit = code[index] || "";
 
-          // Determine which box should have the red "active" border
+          // red "active" border only on the current box (the one being typed into)
           const isCurrentBox =
             index === code.length ||
             (index === maxLength - 1 && code.length === maxLength);
@@ -44,14 +44,13 @@ export const OTPInput: React.FC<OTPInputProps> = ({
         })}
       </Pressable>
 
-      {/* 2. THE REAL, HIDDEN TEXT INPUT */}
       <TextInput
         ref={hiddenInputRef}
         value={code}
         onChangeText={setCode}
         maxLength={maxLength}
         keyboardType="number-pad"
-        textContentType="oneTimeCode" // 🚀 Tells iOS/Android to listen for SMS codes!
+        textContentType="oneTimeCode"
         style={styles.hiddenInput}
         onFocus={() => setIsFocused(true)}
         onBlur={() => setIsFocused(false)}

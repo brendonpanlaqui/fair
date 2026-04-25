@@ -138,7 +138,7 @@ export default function ProfileScreen() {
                   "Please sign in to manage account settings.",
                 );
               } else {
-                router.push("/manage-account"); // 👈 Update this to match your actual route name
+                router.push("/manage-account"); 
               }
             }}
           >
@@ -180,6 +180,9 @@ export default function ProfileScreen() {
                   </Text>
                 </View>
               )}
+            </View>
+            <View style={{ paddingLeft: 8 }}>
+              <MaterialIcons name="chevron-right" size={28} color="#CBD5E1" />
             </View>
           </TouchableOpacity>
         </View>

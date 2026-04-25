@@ -34,7 +34,8 @@ export const useActiveTrip = () => {
   }));
 
   // 2. Location & ETA Math
-  const { currentLocation, drivenTrace, stopTracking } = useLocationTracking();
+  const { currentLocation, drivenTrace, stopTracking } =
+    useLocationTracking(true);
   const mapCenter = currentLocation
     ? {
         latitude: currentLocation.latitude,
@@ -142,15 +143,37 @@ export const useActiveTrip = () => {
                 },
               });
             } catch (error: any) {
-              console.log("\n--- DJANGO REJECTED THE TRIP ---");
+              console.log("\n--- API ERROR ---");
               console.log(
                 JSON.stringify(error.response?.data || error.message, null, 2),
               );
-              console.log("--------------------------------\n");
-              Alert.alert(
-                "Sync Failed",
-                "Check your Expo terminal to see exactly what Django rejected!",
-              );
+
+              let errorTitle = "Trip Save Failed";
+              let errorMessage =
+                "Something went wrong while saving your trip. Please try again.";
+
+              // Handle generic DRF detail errors or Fare Matrix issues
+              if (error.response?.data) {
+                const errorData = error.response.data;
+                if (errorData.fare_matrix) {
+                  errorTitle = "Invalid Fare Matrix";
+                  errorMessage =
+                    "There is an issue with the selected fare matrix. Please try again.";
+                } else if (errorData.detail) {
+                  errorMessage = errorData.detail;
+                }
+              }
+              // Check if it's a network issue (no internet)
+              else if (
+                error.message &&
+                error.message.toLowerCase().includes("network")
+              ) {
+                errorTitle = "No Internet Connection";
+                errorMessage =
+                  "We couldn't connect to the server. Please check your data or Wi-Fi and try again.";
+              }
+
+              Alert.alert(errorTitle, errorMessage);
             }
           },
         },
@@ -158,8 +181,9 @@ export const useActiveTrip = () => {
     );
   };
 
-  const handleReportDeviation = () => {
+  const handleReportDeviation = async () => {
     setIsDeviationWarningVisible(false);
+    await stopTracking();
     router.replace({
       pathname: "/report",
       params: { tripId: "TRP-LIVE", bodyNumber, violation: "Detour" },
@@ -207,5 +231,6 @@ export const useActiveTrip = () => {
     handleSecretDeviationTrigger,
     handleEndTrip,
     handleReportDeviation,
+    stopTracking,
   };
 };
