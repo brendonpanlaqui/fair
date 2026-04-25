@@ -37,6 +37,7 @@ const TripReceiptScreen = () => {
     ? Number(params.actualFare)
     : legalTotalFare;
   const overchargeAmount = actualFare - legalTotalFare;
+  const isUnderpaid = actualFare < legalTotalFare;
 
   const distance = (params.distance as string) || "3.5";
   const duration = (params.duration as string) || "12 mins";
@@ -213,6 +214,20 @@ const TripReceiptScreen = () => {
               </View>
             ) : null}
 
+            {/* UNDERPAID  BOX */}
+            {isUnderpaid && (
+              <View style={styles.underpaidAlert}>
+                <MaterialIcons name="info-outline" size={24} color="#2563EB" />
+                <View style={styles.underpaidTextWrapper}>
+                  <Text style={styles.underpaidTitle}>
+                    {"Payment Below Rate"}
+                  </Text>
+                  <Text style={styles.underpaidSubtext}>
+                    {`The official fare is ₱${legalTotalFare.toFixed(2)}, but you paid ₱${actualFare.toFixed(2)}. This has been logged as a non-standard fare.`}
+                  </Text>
+                </View>
+              </View>
+            )}
             {/* FARE BREAKDOWN */}
             <View style={styles.breakdownRow}>
               <View style={styles.breakdownItem}>
@@ -261,6 +276,10 @@ const TripReceiptScreen = () => {
                 <Text style={styles.metaValue}>
                   {date} • {time}
                 </Text>
+              </View>
+              <View style={styles.metaRow}>
+                <Text style={styles.metaLabel}>Amount Paid</Text>
+                <Text style={styles.metaValue}>₱{actualFare.toFixed(2)}</Text>
               </View>
             </View>
           </View>
@@ -360,6 +379,46 @@ const styles = StyleSheet.create({
   },
   overchargeSubtext: {
     color: "#991B1B",
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+  // Blue badge for paying less
+  underpaidBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "#BFDBFE",
+  },
+  underpaidBadgeText: { color: "#2563EB", fontSize: 12, fontWeight: "bold" },
+
+  // Blue alert box for the details section
+  underpaidAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#F0F9FF",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#BAE6FD",
+  },
+  underpaidTextWrapper: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  underpaidTitle: {
+    color: "#0369A1",
+    fontSize: 14,
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  underpaidSubtext: {
+    color: "#075985",
     fontSize: 12,
     fontWeight: "500",
     lineHeight: 18,

@@ -9,7 +9,8 @@ import {
 } from "react-native";
 import { BACKGROUND_TRIP_TASK } from "../services/BackgroundLocationService";
 
-export const useLocationTracking = () => {
+// 🚀 FIX: Add a parameter to tell the hook if we are actually in a trip
+export const useLocationTracking = (isTripActive: boolean = false) => {
   const [currentLocation, setCurrentLocation] =
     useState<Location.LocationObjectCoords | null>(null);
   const [drivenTrace, setDrivenTrace] = useState<
@@ -17,7 +18,6 @@ export const useLocationTracking = () => {
   >([]);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  // Sync state with what the background task recorded while minimized
   const syncBackgroundData = async () => {
     try {
       const storedTrace = await AsyncStorage.getItem("bg_driven_trace");
@@ -43,7 +43,8 @@ export const useLocationTracking = () => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const startTracking = async () => {
-      if (Platform.OS === "android" && Platform.Version >= 33) {
+      // 1. Only ask for aggressive notification permissions if it's an active trip
+      if (isTripActive && Platform.OS === "android" && Platform.Version >= 33) {
         const notifStatus = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
         );
@@ -53,6 +54,7 @@ export const useLocationTracking = () => {
           );
         }
       }
+
       const { status: fgStatus } =
         await Location.requestForegroundPermissionsAsync();
       if (fgStatus !== "granted") {
@@ -60,34 +62,42 @@ export const useLocationTracking = () => {
         return;
       }
 
-      const { status: bgStatus } =
-        await Location.requestBackgroundPermissionsAsync();
-      if (bgStatus !== "granted") {
-        setErrorMsg(
-          "Background permission denied. Trip won't track when minimized.",
-        );
-      }
-
-      // 2. Clear old storage just in case
-      await AsyncStorage.removeItem("bg_driven_trace");
-
       try {
-        // 3. Start Background Tracking (Runs when app is minimized)
-        if (bgStatus === "granted") {
-          await Location.startLocationUpdatesAsync(BACKGROUND_TRIP_TASK, {
-            accuracy: Location.Accuracy.BestForNavigation,
-            timeInterval: 5000,
-            distanceInterval: 10,
-            showsBackgroundLocationIndicator: true, // Shows the blue pill/notification on iOS/Android
-            foregroundService: {
-              notificationTitle: "Fair Trip Active",
-              notificationBody: "Tracking your route in the background.",
-              notificationColor: "#D32F2F",
-            },
-          });
+        // 🚀 FIX: ONLY start the background task if isTripActive is TRUE
+        if (isTripActive) {
+          const { status: bgStatus } =
+            await Location.requestBackgroundPermissionsAsync();
+          if (bgStatus !== "granted") {
+            setErrorMsg(
+              "Background permission denied. Trip won't track when minimized.",
+            );
+          }
+
+          await AsyncStorage.removeItem("bg_driven_trace");
+
+          if (bgStatus === "granted") {
+            await Location.startLocationUpdatesAsync(BACKGROUND_TRIP_TASK, {
+              accuracy: Location.Accuracy.BestForNavigation,
+              timeInterval: 5000,
+              distanceInterval: 10,
+              showsBackgroundLocationIndicator: true,
+              foregroundService: {
+                notificationTitle: "Fair Trip Active",
+                notificationBody: "Tracking your route in the background.",
+                notificationColor: "#D32F2F",
+              },
+            });
+          }
+        } else {
+          // If we are just on the Home Screen, make absolutely sure no zombie tasks are running
+          const hasStarted =
+            await Location.hasStartedLocationUpdatesAsync(BACKGROUND_TRIP_TASK);
+          if (hasStarted) {
+            await Location.stopLocationUpdatesAsync(BACKGROUND_TRIP_TASK);
+          }
         }
 
-        // 4. Start Foreground Tracking (Runs when app is open)
+        // 4. Foreground Tracking (Runs on ALL screens to show the map)
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.BestForNavigation,
@@ -100,15 +110,17 @@ export const useLocationTracking = () => {
               setCurrentLocation(location.coords);
               const newPoint = { latitude, longitude };
 
-              setDrivenTrace((prev) => {
-                const updated = [...prev, newPoint];
-                // Also mirror to AsyncStorage so the background task has the latest array
-                AsyncStorage.setItem(
-                  "bg_driven_trace",
-                  JSON.stringify(updated),
-                ).catch(() => {});
-                return updated;
-              });
+              // Only record the trace if we are actively in a trip
+              if (isTripActive) {
+                setDrivenTrace((prev) => {
+                  const updated = [...prev, newPoint];
+                  AsyncStorage.setItem(
+                    "bg_driven_trace",
+                    JSON.stringify(updated),
+                  ).catch(() => {});
+                  return updated;
+                });
+              }
             }
           },
         );
@@ -119,12 +131,10 @@ export const useLocationTracking = () => {
 
     startTracking();
 
-    // 5. Listen for App State changes (Minimized <-> Active)
     const appStateSubscription = AppState.addEventListener(
       "change",
       (nextAppState: AppStateStatus) => {
-        if (nextAppState === "active") {
-          // When user opens app, pull whatever the background task saved
+        if (nextAppState === "active" && isTripActive) {
           syncBackgroundData();
         }
       },
@@ -133,14 +143,13 @@ export const useLocationTracking = () => {
     return () => {
       if (locationSubscription) locationSubscription.remove();
       appStateSubscription.remove();
-      // NOTE: We DO NOT call stopTracking() here, or minimizing the app kills it!
     };
-  }, []);
+  }, [isTripActive]); // 🚀 Add dependency
 
   return {
     currentLocation,
     drivenTrace,
     errorMsg,
-    stopTracking, // 🚀 Export this to trigger when the trip ends!
+    stopTracking,
   };
 };

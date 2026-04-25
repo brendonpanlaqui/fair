@@ -16,12 +16,17 @@ import { api } from "../../../services/api";
 const ForgotPasswordScreen = () => {
   const router = useRouter();
 
+  // track the current step of the password reset process
+  // enter email -> receive code -> enter code + new password
   const [step, setStep] = useState<1 | 2>(1);
   const [isLoading, setIsLoading] = useState(false);
+
+  // form inputs for both steps
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [newPassword, setNewPassword] = useState("");
 
+  // requests verification code to be sent to the user's email for password reset
   const handleRequestCode = async () => {
     if (!email.includes("@")) {
       Alert.alert("Invalid Email", "Please enter a valid email address.");
@@ -29,17 +34,21 @@ const ForgotPasswordScreen = () => {
     }
     setIsLoading(true);
     try {
+      // send OTP request to backend, which will handle sending the email to the user
       await api.post("/auth/forgot-password/", { email });
-      setStep(2);
+      setStep(2); // next step
       Alert.alert("Code Sent!", "Check your email for the reset code.");
     } catch (error) {
+      // if email did not exist or network issue
       Alert.alert("Error", "Could not send reset code. Please try again.");
     } finally {
       setIsLoading(false);
     }
   };
 
+  // resetting the password
   const handleResetPassword = async () => {
+    // validate OTP and new password before sending to backend
     if (otp.length < 6 || newPassword.length < 8) {
       Alert.alert(
         "Incomplete",
@@ -49,11 +58,14 @@ const ForgotPasswordScreen = () => {
     }
     setIsLoading(true);
     try {
+      // send to backend to complete process
       await api.post("/auth/reset-password/", { email, otp, newPassword });
       Alert.alert("Success!", "Your password has been reset.", [
+        // back to login screen after successful reset
         { text: "Log In", onPress: () => router.replace("/auth") },
       ]);
     } catch (error: any) {
+      // if expired or invalid OTP
       Alert.alert(
         "Reset Failed",
         error.response?.data?.error || "Invalid reset code.",
@@ -77,6 +89,7 @@ const ForgotPasswordScreen = () => {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
+        {/* dynamic content based on the current step */}
         <View style={styles.textContainer}>
           <Text style={styles.title}>Reset Password</Text>
           <Text style={styles.subtitle}>
@@ -86,6 +99,7 @@ const ForgotPasswordScreen = () => {
           </Text>
         </View>
 
+        {/* input fields for both step */}
         {step === 1 ? (
           <InputField
             label="Email Address"
@@ -117,9 +131,11 @@ const ForgotPasswordScreen = () => {
           </>
         )}
 
+        {/* dynamic submit button */}
         <TouchableOpacity
           style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
           activeOpacity={0.9}
+          // call appropriate handler based on step, and disable while loading to prevent multiple requests
           onPress={step === 1 ? handleRequestCode : handleResetPassword}
           disabled={isLoading}
         >

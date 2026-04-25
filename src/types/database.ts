@@ -3,7 +3,12 @@ export type UserType = "Regular" | "Student" | "Senior" | "PWD";
 export type TricycleStatus = "Active" | "Suspended";
 export type TripMode = "Direct" | "Special";
 export type TripStatus = "Completed" | "Cancelled";
-export type ViolationType = "Overcharging" | "Refusal" | "Detour" | "Arrogance";
+export type ViolationType =
+  | "Overcharging"
+  | "Refusal"
+  | "No_Matrix"
+  | "No_Discount"
+  | "Others";
 export type ReportStatus =
   | "Pending"
   | "Investigating"
@@ -19,7 +24,7 @@ export interface User {
   user_type: UserType;
   id_photo_url: string | null;
   is_verified: boolean;
-  created_at: string; // ISO 8601 Date string
+  created_at: string;
 }
 
 export interface Tricycle {

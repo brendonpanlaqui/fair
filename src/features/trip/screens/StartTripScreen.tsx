@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef, useState } from "react"; // 🚀 Added useEffect
+import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplet
 
 import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
 import { useAuth } from "@/src/hooks/AuthContext";
+import { api } from "@/src/services/api"; // 🚀 Imported your API service
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { useCameraPermissions } from "expo-camera";
 import { useTripSetup } from "../hooks/useTripSetup";
@@ -86,8 +87,9 @@ const StartTripScreen: React.FC = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isScanningOCR, setIsScanningOCR] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false); // 🚀 Added verifying state
 
-  // 🚀 UX IMPROVEMENT 1: Auto-open modal if no destination is set
+  // UX IMPROVEMENT 1: Auto-open modal if no destination is set
   useEffect(() => {
     if (!destLat || !destLng) {
       setSearchTarget("destination");
@@ -97,21 +99,14 @@ const StartTripScreen: React.FC = () => {
 
   const panResponder = useRef(
     PanResponder.create({
-      // 1. DO NOT block normal taps (allows typing in the input and clicking buttons)
       onStartShouldSetPanResponder: () => false,
       onStartShouldSetPanResponderCapture: () => false,
-
-      // 2. Claim the gesture if the user is swiping down
       onMoveShouldSetPanResponder: (_, gestureState) => {
         return gestureState.dy > 20 && Math.abs(gestureState.dx) < 30;
       },
-
-      // 3. This is the magic: It overrides the Google Places ScrollView
-      // ONLY if the user is pulling down fast/hard.
       onMoveShouldSetPanResponderCapture: (_, gestureState) => {
         return gestureState.dy > 30 && gestureState.vy > 0.3;
       },
-
       onPanResponderRelease: (_, gestureState) => {
         if (gestureState.dy > 40) {
           setIsSearchModalVisible(false);
@@ -135,7 +130,6 @@ const StartTripScreen: React.FC = () => {
   };
 
   const handleProcessOCR = async (imageUri: string) => {
-    // 🛡️ KEEP THE DEV BYPASS: Still useful for fast UI testing without taking photos!
     if (imageUri === "DEV_MOCK_SCAN_TRIGGER") {
       setBodyNumber("2-2500");
       setScanMethod("OCR");
@@ -145,13 +139,10 @@ const StartTripScreen: React.FC = () => {
     }
 
     try {
-      // 🚀 MAGIC HAPPENS HERE: 100% Offline Machine Learning
       const result = await TextRecognition.recognize(imageUri);
-
       const fullText = result.text;
 
       if (fullText && fullText.length > 0) {
-        // Our same smart Regex logic to find Angeles City TODA formats
         const bodyNumRegex = /\b(?:\d{1,2}-)?\d{3,4}\b/g;
         const matches = fullText.match(bodyNumRegex);
 
@@ -199,7 +190,8 @@ const StartTripScreen: React.FC = () => {
     }
   };
 
-  const handleConfirmRoute = () => {
+  // 🚀 UPDATED: Now pings Django before navigating
+  const handleConfirmRoute = async () => {
     if (!finalDest || !calculatedFare) {
       Alert.alert(
         "Destination Required",
@@ -215,21 +207,71 @@ const StartTripScreen: React.FC = () => {
       return;
     }
 
-    router.push({
-      pathname: "/active-trip",
-      params: {
-        mode: passedMode,
-        fixedFare: calculatedFare,
-        lockedDistance: calculatedDistance,
-        bodyNumber: bodyNumber,
-        destLat: finalDest?.lat,
-        destLng: finalDest?.lng,
-        stopovers: JSON.stringify(stopovers),
-        destName: finalDest?.name || "Unknown Destination",
-        originName: "Current Location",
-        matrixId: 1,
-      },
-    });
+    const proceedToTrip = () => {
+      router.push({
+        pathname: "/active-trip",
+        params: {
+          mode: passedMode,
+          fixedFare: calculatedFare,
+          lockedDistance: calculatedDistance,
+          bodyNumber: bodyNumber,
+          destLat: finalDest?.lat,
+          destLng: finalDest?.lng,
+          stopovers: JSON.stringify(stopovers),
+          destName: finalDest?.name || "Unknown Destination",
+          originName: "Current Location",
+          matrixId: 1,
+        },
+      });
+    };
+
+    setIsVerifying(true);
+
+    try {
+      // 🚀 PING DJANGO: Check if the tricycle exists and is active
+      const response = await api.get(`/tricycles/check/${bodyNumber}/`);
+      const tricycleStatus = response.data.status;
+
+      if (tricycleStatus === "Active") {
+        // It's a verified, active driver. Start immediately!
+        proceedToTrip();
+      } else {
+        // It exists in the DB, but is Suspended or already marked Unverified
+        Alert.alert(
+          "⚠️ Safety Warning",
+          `This tricycle is currently marked as ${tricycleStatus.toUpperCase()} by the PTRO. Riding may be unsafe. Do you still want to proceed?`,
+          [
+            { text: "Cancel Ride", style: "cancel" },
+            {
+              text: "Proceed Anyway",
+              style: "destructive",
+              onPress: proceedToTrip,
+            },
+          ],
+        );
+      }
+    } catch (error: any) {
+      // 🚀 404 NOT FOUND: This means it's completely unregistered (Colorum)
+      if (error.response?.status === 404) {
+        Alert.alert(
+          "⚠️ Unregistered Tricycle",
+          "This tricycle body number is not registered with the city. Riding may be unsafe. Do you still want to proceed?",
+          [
+            { text: "Cancel Ride", style: "cancel" },
+            {
+              text: "Proceed Anyway",
+              style: "destructive",
+              onPress: proceedToTrip,
+            },
+          ],
+        );
+      } else {
+        // If the user's internet drops, don't block them. Let them ride.
+        proceedToTrip();
+      }
+    } finally {
+      setIsVerifying(false);
+    }
   };
 
   return (
@@ -252,7 +294,7 @@ const StartTripScreen: React.FC = () => {
 
       <ScrollView
         style={styles.content}
-        contentContainerStyle={{ paddingBottom: 120 }} // 🚀 ADD THIS HERE!
+        contentContainerStyle={{ paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 16 }]}>
@@ -379,18 +421,19 @@ const StartTripScreen: React.FC = () => {
         <TouchableOpacity
           style={[
             styles.verifyButton,
-            (!finalDest || !bodyNumber || isCalculating) &&
+            // 🚀 Now considers isVerifying for the disabled state
+            (!finalDest || !bodyNumber || isCalculating || isVerifying) &&
               styles.verifyButtonDisabled,
           ]}
           activeOpacity={0.9}
           onPress={handleConfirmRoute}
-          disabled={!finalDest || !bodyNumber || isCalculating}
+          disabled={!finalDest || !bodyNumber || isCalculating || isVerifying}
         >
-          {isCalculating ? (
+          {isCalculating || isVerifying ? (
             <View style={{ flexDirection: "row", alignItems: "center" }}>
               <ActivityIndicator color="#64748B" style={{ marginRight: 12 }} />
               <Text style={styles.verifyButtonTextDisabled}>
-                {"CALCULATING FARE..."}
+                {isVerifying ? "VERIFYING TRICYCLE..." : "CALCULATING FARE..."}
               </Text>
             </View>
           ) : !finalDest ? (
@@ -470,9 +513,7 @@ const StartTripScreen: React.FC = () => {
             onPress={() => setIsSearchModalVisible(false)}
           />
 
-          {/* 🚀 MOVED PAN HANDLERS HERE: Now the entire white sheet is swipeable */}
           <View style={styles.searchModalContent} {...panResponder.panHandlers}>
-            {/* We removed the extra View wrapper that used to be here */}
             <View style={styles.sheetDragHandle} />
             <View style={styles.searchModalHeader}>
               <Text style={styles.searchModalTitle}>
@@ -563,7 +604,7 @@ const StartTripScreen: React.FC = () => {
                   </View>
                 )}
                 styles={{
-                  container: { flex: 0 }, // 🚀 Prevents pushing the map button down
+                  container: { flex: 0 },
                   textInputContainer: {
                     backgroundColor: "#F8FAFC",
                     borderRadius: 16,
@@ -572,7 +613,7 @@ const StartTripScreen: React.FC = () => {
                     borderColor: "#E2E8F0",
                     flexDirection: "row",
                     alignItems: "center",
-                    height: 56, // Fixed height
+                    height: 56,
                   },
                   textInput: {
                     height: 52,
@@ -583,7 +624,6 @@ const StartTripScreen: React.FC = () => {
                     padding: 0,
                   },
                   listView: {
-                    // 🚀 Makes search results float OVER the map button
                     position: "absolute",
                     top: 64,
                     left: 0,
@@ -613,7 +653,6 @@ const StartTripScreen: React.FC = () => {
                 )}
               />
 
-              {/* 🚀 STANDALONE MAP BUTTON: Now always visible below the input */}
               <TouchableOpacity
                 style={styles.standaloneChooseOnMapBtn}
                 onPress={() => {
@@ -867,7 +906,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#CBD5E1",
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 8, // Tighter margin
+    marginBottom: 8,
   },
   searchModalHeader: {
     flexDirection: "row",
@@ -912,7 +951,6 @@ const styles = StyleSheet.create({
   },
   rowSubtitle: { fontSize: 13, color: "#64748B", fontWeight: "500" },
 
-  // 🚀 New Standalone Button Style
   standaloneChooseOnMapBtn: {
     flexDirection: "row",
     alignItems: "center",

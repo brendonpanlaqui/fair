@@ -11,14 +11,14 @@ export const api = axios.create({
   },
 });
 
-// Interceptor to automatically attach the token to every request
+// an interceptors, for attaching token to every request
 api.interceptors.request.use(
   async (config) => {
-    // Make sure "userToken" is the exact key you use when saving the token during Login
+    // retrieve token from secure storage and attach to headers if it exists
     const token = await SecureStore.getItemAsync("userToken");
 
     if (token) {
-      // CHANGED: SimpleJWT requires 'Bearer ' instead of 'Token '
+      // kapag SimpleJWT 'Bearer ', instead of 'Token '
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
