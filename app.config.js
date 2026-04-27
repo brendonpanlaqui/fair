@@ -19,7 +19,7 @@ module.exports = {
     android: {
       package: "com.brendonpanlaqui.fairapp",
       adaptiveIcon: {
-        backgroundColor: "#A50000",
+        backgroundColor: "#d32f2f",
         foregroundImage: "./assets/images/adaptive-icon.png",
       },
       predictiveBackGestureEnabled: false,
@@ -50,10 +50,7 @@ module.exports = {
           image: "./assets/images/splash-icon.png",
           imageWidth: 200,
           resizeMode: "contain",
-          backgroundColor: "#A50000",
-          dark: {
-            backgroundColor: "#A50000",
-          },
+          backgroundColor: "#FFFFFF",
         },
       ],
       [
