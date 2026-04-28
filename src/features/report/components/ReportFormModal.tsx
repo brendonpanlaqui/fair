@@ -2,14 +2,14 @@ import { MaterialIcons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import React, { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Modal,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Modal,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
@@ -38,11 +38,11 @@ export default function ReportFormModal({
   const [newComments, setNewComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // 📸 State for the attached photo (moved inside the component!)
+  // state for the attached photo
   const [evidencePhoto, setEvidencePhoto] =
     useState<ImagePicker.ImagePickerAsset | null>(null);
 
-  // Sync initial props to local state when modal opens
+  // sync initial props to local state when modal opens
   useEffect(() => {
     if (visible) {
       setNewBodyNumber(initialBodyNumber);
@@ -52,9 +52,8 @@ export default function ReportFormModal({
     }
   }, [visible, initialBodyNumber]);
 
-  // 📸 Function to handle opening the gallery and picking an image
+  // handle opening the gallery and picking an image
   const pickImage = async () => {
-    // Ask for permission first
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (permissionResult.granted === false) {
@@ -102,7 +101,7 @@ export default function ReportFormModal({
         formData.append("manual_body_number", newBodyNumber);
       }
 
-      // 📸 If they selected a photo, append it exactly like this for React Native
+      // if they selected a photo, append it exactly like this for React Native
       if (evidencePhoto) {
         const filename = evidencePhoto.uri.split("/").pop() || "evidence.jpg";
 
@@ -126,9 +125,12 @@ export default function ReportFormModal({
         "Report Submitted",
         "Your ticket has been forwarded to the Angeles City PTRO.",
       );
-    } catch (error) {
+    } catch (error: any) {
       console.warn("Submit Error:", error);
-      Alert.alert("Error", "Could not submit report. Please try again.");
+      const errorMessage =
+        error.response?.data?.error ||
+        "Could not submit report. Please try again.";
+      Alert.alert("Report Failed", errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -242,7 +244,7 @@ export default function ReportFormModal({
             />
           </View>
 
-          {/* 📸 Updated Photo Button UI */}
+          {/* updated photo button UI */}
           <TouchableOpacity
             style={[
               styles.evidenceBtn,

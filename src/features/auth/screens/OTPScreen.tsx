@@ -77,6 +77,9 @@ const OTPScreen = () => {
       if (tokens && tokens.access) {
         await SecureStore.setItemAsync("userToken", tokens.access);
       }
+      if (tokens && tokens.refresh) {
+        await SecureStore.setItemAsync("refreshToken", tokens.refresh);
+      }
 
       // basic data to identify the user in the app, stored securely and also set in global context for easy access across the app
       const userData = { id: user_id, email: userEmail, first_name, last_name };

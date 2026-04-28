@@ -3,13 +3,12 @@ import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
-  Alert,
   BackHandler,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { ActiveTripDashboard } from "../components/active/ActiveTripDashboard";
 import { ActiveTripHeader } from "../components/active/ActiveTripHeader";
@@ -33,23 +32,7 @@ const ActiveTripScreen = () => {
 
   // 🚀 THE INTERCEPTOR: Protects the user from accidentally killing the trip
   const handleBackPress = () => {
-    Alert.alert(
-      "Cancel Tracking?",
-      "If you go back now, this trip will not be saved to your history.",
-      [
-        { text: "Keep Riding", style: "cancel" },
-        {
-          text: "Stop Tracking",
-          style: "destructive",
-          onPress: async () => {
-            // 🚀 1. KILL THE BACKGROUND TRACKER FIRST!
-            await tripData.stopTracking();
-            // 2. Then navigate away
-            router.back();
-          },
-        },
-      ],
-    );
+    tripData.handleCancelTrip();
     return true; // Required for Android BackHandler to know we intercepted it
   };
 

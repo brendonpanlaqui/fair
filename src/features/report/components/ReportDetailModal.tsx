@@ -2,10 +2,10 @@ import { MaterialIcons } from "@expo/vector-icons";
 import React from "react";
 import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 import {
-    ReportRecord,
-    formatDate,
-    getStatusColor,
-    getViolationLabel,
+  ReportRecord,
+  formatDate,
+  getStatusColor,
+  getViolationLabel,
 } from "../reportUtils";
 
 interface ReportDetailModalProps {
@@ -75,7 +75,9 @@ export default function ReportDetailModal({
                     size={16}
                     color="#F59E0B"
                   />
-                  <Text style={styles.manualText}>MANUAL REPORT</Text>
+                  <Text style={styles.manualText}>
+                    UNVERIFIED (AWAITING REPORTS)
+                  </Text>
                 </View>
               )}
             </View>
