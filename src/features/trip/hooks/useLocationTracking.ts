@@ -1,3 +1,4 @@
+import { getSmoothedLocation } from "@/src/utils/gpsSmoothing";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Location from "expo-location";
 import { useEffect, useState } from "react";
@@ -106,14 +107,30 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
           },
           (location) => {
             const { accuracy, latitude, longitude } = location.coords;
-            if (accuracy && accuracy <= 500) {
-              setCurrentLocation(location.coords);
-              const newPoint = { latitude, longitude };
+            // Only process reasonably accurate GPS signals to avoid large jumps
+            if (accuracy && accuracy <= 50) {
+              // 1. Pass the raw GPS coordinates through the smoother
+              const smoothedLocation = getSmoothedLocation(latitude, longitude);
+
+              // 2. Update the current location with the smoothed value for a stable map dot
+              const smoothedCoords = {
+                ...location.coords,
+                latitude: smoothedLocation.lat,
+                longitude: smoothedLocation.lng,
+              };
+              setCurrentLocation(smoothedCoords);
 
               // Only record the trace if we are actively in a trip
               if (isTripActive) {
                 setDrivenTrace((prev) => {
-                  const updated = [...prev, newPoint];
+                  // 3. Save the smoothed coordinates to your polyline trace state
+                  const updated = [
+                    ...prev,
+                    {
+                      latitude: smoothedLocation.lat,
+                      longitude: smoothedLocation.lng,
+                    },
+                  ];
                   AsyncStorage.setItem(
                     "bg_driven_trace",
                     JSON.stringify(updated),

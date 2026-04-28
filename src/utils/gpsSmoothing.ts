@@ -4,6 +4,11 @@ const SMOOTHING_FACTOR = 0.3;
 
 let previousSmoothedLocation: { lat: number; lng: number } | null = null;
 
+export const resetSmoothing = () => {
+  // clears the memory of the previous location, crucial for starting new trips cleanly without jumping
+  previousSmoothedLocation = null;
+};
+
 export const getSmoothedLocation = (rawLat: number, rawLng: number) => {
   // if it is the first reading, just return it as is and set it as the "previous" for next time
   if (!previousSmoothedLocation) {
