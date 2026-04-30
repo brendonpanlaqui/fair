@@ -59,24 +59,23 @@ export default function ProfileScreen() {
   const fetchProfileData = async () => {
     setIsRetrying(true);
     try {
-      // GET request to Django's get_user_profile view
       const response = await api.get("/users/me/");
       const { is_discount_verified, user_type } = response.data;
 
-      // Update state with live data
+      // live data
       setIsIdVerified(is_discount_verified);
       setUserType(user_type);
       setIsOffline(false);
       setIsUsingCache(false);
 
-      // Save to cache for next time
+      // save na para next time
       await AsyncStorage.setItem(
         "@cached_user_profile",
         JSON.stringify({ is_discount_verified, user_type }),
       );
     } catch (error) {
       console.warn("Offline: Failed to fetch live profile status.", error);
-      // If network fails, try to load from local storage
+      // load from cache if API call fails (e.g., no internet connection)
       try {
         const cachedProfile = await AsyncStorage.getItem(
           "@cached_user_profile",
@@ -86,9 +85,9 @@ export default function ProfileScreen() {
           setIsIdVerified(is_discount_verified);
           setUserType(user_type);
           setIsOffline(true);
-          setIsUsingCache(true); // Using cached data
+          setIsUsingCache(true);
         } else {
-          // Network and cache both failed
+          // when network pati cache both failed
           setIsOffline(true);
           setIsUsingCache(false);
         }
