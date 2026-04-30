@@ -1,6 +1,7 @@
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { resetSmoothing } from "@/src/utils/gpsSmoothing";
 import { getShortestDistanceToRoute } from "@/src/utils/routeDeviation";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { Alert } from "react-native";
@@ -107,7 +108,39 @@ export const useActiveTrip = () => {
         polyline_hash: JSON.stringify(drivenTrace),
       };
 
-      await api.post("/trips/submit/", payload);
+      let isOfflineSaved = false;
+
+      try {
+        await api.post("/trips/submit/", payload);
+      } catch (submitError: any) {
+        const isNetworkError =
+          !submitError.response ||
+          (submitError.message &&
+            submitError.message.toLowerCase().includes("network")) ||
+          (submitError.response && submitError.response.status >= 500);
+
+        if (isNetworkError) {
+          try {
+            const storedPending = await AsyncStorage.getItem("@pending_trips");
+            const pendingTrips = storedPending ? JSON.parse(storedPending) : [];
+            pendingTrips.push(payload);
+            await AsyncStorage.setItem(
+              "@pending_trips",
+              JSON.stringify(pendingTrips),
+            );
+            isOfflineSaved = true;
+
+            Alert.alert(
+              "Offline Mode",
+              "You appear to be offline. Your trip has been saved locally and will sync when your connection is restored.",
+            );
+          } catch (e) {
+            console.error("Failed to save pending trip offline", e);
+          }
+        } else {
+          throw submitError; // Re-throw if it's a validation/client error
+        }
+      }
 
       const now = new Date();
       const dateStr = now.toLocaleDateString("en-US", {
@@ -140,6 +173,7 @@ export const useActiveTrip = () => {
           destLat: destLat,
           destLng: destLng,
           polylineHash: JSON.stringify(drivenTrace),
+          isOfflineSaved: isOfflineSaved ? "true" : "false",
         },
       });
     } catch (error: any) {

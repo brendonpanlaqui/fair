@@ -1,21 +1,31 @@
-/**
- * Angeles City Ordinance No. 723 - Tricycle Fare Matrix
- * Base Fare: ₱35.00 (First 1 kilometer, up to 2 passengers)
- * Succeeding: ₱15.00 for every additional kilometer or fraction thereof
- * Discount: 20% off total fare for Students, Seniors, PWDs, and Solo Parents
- */
+// Define the structure of the data coming from your Django backend
+export interface ActiveFareMatrix {
+  id: number;
+  base_fare: string | number; // Django DecimalField usually sends as a string in JSON
+  base_distance_km: number;
+  succeeding_km_rate: string | number;
+  discount_percent: string | number; // e.g., "0.20"
+  effective_date: string;
+}
 
+/**
+ * Dynamic Tricycle Fare Calculator
+ * Uses the active LGU Fare Matrix pulled from the Django database.
+ */
 export const calculateDirectFare = (
   distanceInKm: number,
+  matrix: ActiveFareMatrix, // 🚀 NEW: Pass the backend data here!
   isDiscounted: boolean = false,
 ): number => {
-  const BASE_FARE = 35;
-  const BASE_KM = 1;
-  const SUCCEEDING_RATE_PER_KM = 15;
+  // 1. Safely convert Django's string decimals to JavaScript numbers
+  const BASE_FARE = Number(matrix.base_fare);
+  const BASE_KM = Number(matrix.base_distance_km);
+  const SUCCEEDING_RATE_PER_KM = Number(matrix.succeeding_km_rate);
+  const DISCOUNT_DECIMAL = Number(matrix.discount_percent);
 
   let totalFare = BASE_FARE;
 
-  // calculate succeeding kilometers if distance is greater than 1 kilometer
+  // 2. Calculate succeeding kilometers if distance is greater than the base limit
   if (distanceInKm > BASE_KM) {
     const excessDistance = distanceInKm - BASE_KM;
     const roundedExcessDistance = Math.ceil(excessDistance);
@@ -23,10 +33,11 @@ export const calculateDirectFare = (
     totalFare += excessFare;
   }
 
-  // apply the 20% legal discount if the passenger qualifies
+  // 3. Apply the legal discount if the passenger qualifies
   if (isDiscounted) {
-    // pay only 80% of the total fare
-    totalFare = Math.floor(totalFare * 0.8);
+    // e.g., if discount is 0.20 (20%), multiply by (1 - 0.20) = 0.80
+    const multiplier = 1 - DISCOUNT_DECIMAL;
+    totalFare = Math.floor(totalFare * multiplier);
   }
 
   return totalFare;

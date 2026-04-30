@@ -1,4 +1,5 @@
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -103,6 +104,40 @@ const HistoryScreen = () => {
     return null;
   };
 
+  const syncPendingTrips = async () => {
+    try {
+      const storedPending = await AsyncStorage.getItem("@pending_trips");
+      if (storedPending) {
+        const pendingTrips = JSON.parse(storedPending);
+        if (pendingTrips && pendingTrips.length > 0) {
+          const remainingTrips = [];
+          for (const tripPayload of pendingTrips) {
+            try {
+              await api.post("/trips/submit/", tripPayload);
+            } catch (error: any) {
+              const isNetworkError =
+                !error.response ||
+                (error.message &&
+                  error.message.toLowerCase().includes("network")) ||
+                (error.response && error.response.status >= 500);
+              if (isNetworkError) {
+                remainingTrips.push(tripPayload);
+              }
+            }
+          }
+          if (remainingTrips.length !== pendingTrips.length) {
+            await AsyncStorage.setItem(
+              "@pending_trips",
+              JSON.stringify(remainingTrips),
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error syncing pending trips in history:", error);
+    }
+  };
+
   const fetchTripHistory = async (isPullToRefresh = false) => {
     // if we don't have a user (which means they are a guest), skip the fetch.
     if (!user) {
@@ -113,6 +148,9 @@ const HistoryScreen = () => {
 
     try {
       if (!isPullToRefresh) setIsLoading(true);
+
+      await syncPendingTrips();
+
       setError(null);
       // request to my Django backend to get the trip history for the logged-in user.
       // so, it returns an array of objects that match the TripRecord interface to my TripHistorySerializer.
@@ -121,7 +159,7 @@ const HistoryScreen = () => {
     } catch (err) {
       console.warn("API Error:", err);
       setError(
-        "Could not connect to the server. Please check your connection.",
+        "Could not connect to the LGU server. Please check your connection.",
       );
     } finally {
       setIsLoading(false);

@@ -52,6 +52,7 @@ const TripReceiptScreen = () => {
   const destLat = params.destLat ? Number(params.destLat) : 15.1384;
   const destLng = params.destLng ? Number(params.destLng) : 120.5898;
   const polylineHash = params.polylineHash as string | null;
+  const isOfflineSaved = params.isOfflineSaved === "true";
 
   const mapRef = useRef<MapView>(null);
 
@@ -162,6 +163,19 @@ const TripReceiptScreen = () => {
               <View style={styles.estimatedBadge}>
                 <MaterialIcons name="info-outline" size={12} color="#FCD34D" />
                 <Text style={styles.estimatedBadgeText}>Estimated route</Text>
+              </View>
+            )}
+            {isOfflineSaved && (
+              <View
+                style={[
+                  styles.estimatedBadge,
+                  { top: 40, backgroundColor: "#F59E0B" },
+                ]}
+              >
+                <MaterialIcons name="cloud-off" size={12} color="#FFFFFF" />
+                <Text style={[styles.estimatedBadgeText, { color: "#FFFFFF" }]}>
+                  Saved Offline
+                </Text>
               </View>
             )}
           </View>

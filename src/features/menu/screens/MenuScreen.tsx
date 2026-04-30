@@ -1,6 +1,7 @@
 import { useAuth } from "@/src/hooks/AuthContext";
 import { api } from "@/src/services/api";
 import { MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useState } from "react";
@@ -51,22 +52,61 @@ export default function ProfileScreen() {
   // hold the live data fetched from my Django.
   const [isIdVerified, setIsIdVerified] = useState(false);
   const [userType, setUserType] = useState("Regular");
+  const [isOffline, setIsOffline] = useState(false);
+  const [isUsingCache, setIsUsingCache] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const fetchProfileData = async () => {
+    setIsRetrying(true);
+    try {
+      // GET request to Django's get_user_profile view
+      const response = await api.get("/users/me/");
+      const { is_discount_verified, user_type } = response.data;
+
+      // Update state with live data
+      setIsIdVerified(is_discount_verified);
+      setUserType(user_type);
+      setIsOffline(false);
+      setIsUsingCache(false);
+
+      // Save to cache for next time
+      await AsyncStorage.setItem(
+        "@cached_user_profile",
+        JSON.stringify({ is_discount_verified, user_type }),
+      );
+    } catch (error) {
+      console.warn("Offline: Failed to fetch live profile status.", error);
+      // If network fails, try to load from local storage
+      try {
+        const cachedProfile = await AsyncStorage.getItem(
+          "@cached_user_profile",
+        );
+        if (cachedProfile) {
+          const { is_discount_verified, user_type } = JSON.parse(cachedProfile);
+          setIsIdVerified(is_discount_verified);
+          setUserType(user_type);
+          setIsOffline(true);
+          setIsUsingCache(true); // Using cached data
+        } else {
+          // Network and cache both failed
+          setIsOffline(true);
+          setIsUsingCache(false);
+        }
+      } catch (cacheError) {
+        console.error("Fatal: Failed to load cached profile.", cacheError);
+        setIsOffline(true);
+        setIsUsingCache(false);
+      }
+    } finally {
+      setIsRetrying(false);
+    }
+  };
 
   // refresh everytime user goes to this screen, if guest then skip
   useFocusEffect(
     useCallback(() => {
       // guest don't have profile data anyway
       if (!isGuest) {
-        const fetchProfileData = async () => {
-          try {
-            // GET request to Django's get_user_profile view
-            const response = await api.get("/users/me/");
-            setIsIdVerified(response.data.is_discount_verified);
-            setUserType(response.data.user_type);
-          } catch (error) {
-            console.warn("Failed to fetch profile status:", error);
-          }
-        };
         fetchProfileData();
       }
     }, [isGuest]),
@@ -138,7 +178,7 @@ export default function ProfileScreen() {
                   "Please sign in to manage account settings.",
                 );
               } else {
-                router.push("/manage-account"); 
+                router.push("/manage-account");
               }
             }}
           >
