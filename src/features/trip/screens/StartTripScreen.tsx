@@ -40,6 +40,10 @@ const StartTripScreen: React.FC = () => {
 
   const { isDiscountVerified, userType } = useAuth();
 
+  const activeMatrix = params.matrixStr
+    ? JSON.parse(params.matrixStr as string)
+    : null;
+
   const passedMode = (params.mode as string) || "SPECIAL";
   const passedDistance = params.distance ? Number(params.distance) : null;
   const passedFare = params.fare ? Number(params.fare) : null;
@@ -48,8 +52,27 @@ const StartTripScreen: React.FC = () => {
   const destName = (params.destName as string) || null;
 
   const { currentLocation } = useLocationTracking();
-  const originLat = currentLocation?.latitude || 15.149;
-  const originLng = currentLocation?.longitude || 120.5779;
+
+  const [frozenOrigin, setFrozenOrigin] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(
+    params.originLat && params.originLng
+      ? { lat: Number(params.originLat), lng: Number(params.originLng) }
+      : null,
+  );
+
+  useEffect(() => {
+    if (currentLocation && !frozenOrigin) {
+      setFrozenOrigin({
+        lat: currentLocation.latitude,
+        lng: currentLocation.longitude,
+      });
+    }
+  }, [currentLocation, frozenOrigin]);
+
+  const safeOriginLat = frozenOrigin?.lat || 15.149;
+  const safeOriginLng = frozenOrigin?.lng || 120.5779;
 
   const {
     finalDest,
@@ -61,14 +84,15 @@ const StartTripScreen: React.FC = () => {
     isCalculating,
     removeStopover,
   } = useTripSetup(
-    originLat,
-    originLng,
+    safeOriginLat,
+    safeOriginLng,
     passedMode,
     passedDistance,
     passedFare,
     destLat,
     destLng,
     destName,
+    activeMatrix,
     isDiscountVerified,
   );
 
@@ -265,9 +289,18 @@ const StartTripScreen: React.FC = () => {
             },
           ],
         );
+      } else if (!error.response) {
+        Alert.alert(
+          "📡 Connection Failed",
+          "We cannot reach the PTRO database. Please ensure you have an active internet connection, or the LGU server may be temporarily offline.",
+          [{ text: "OK", style: "default" }],
+        );
       } else {
-        // If the user's internet drops, don't block them. Let them ride.
-        proceedToTrip();
+        Alert.alert(
+          "Error",
+          "An error occurred while communicating with the server. Please try again.",
+          [{ text: "OK", style: "default" }],
+        );
       }
     } finally {
       setIsVerifying(false);
@@ -470,8 +503,8 @@ const StartTripScreen: React.FC = () => {
       <MapPickerModal
         visible={isMapPickerVisible}
         target={searchTarget}
-        initialLat={currentLocation?.latitude || originLat}
-        initialLng={currentLocation?.longitude || originLng}
+        initialLat={currentLocation?.latitude || safeOriginLat}
+        initialLng={currentLocation?.longitude || safeOriginLng}
         onClose={() => setIsMapPickerVisible(false)}
         onConfirm={(lat: number, lng: number, addressName: string) => {
           if (searchTarget === "stopover") {

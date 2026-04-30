@@ -1,4 +1,4 @@
-import { calculateDirectFare } from "@/src/utils/fareMatrix";
+import { ActiveFareMatrix, calculateDirectFare } from "@/src/utils/fareMatrix";
 import { fetchRouteDistance } from "@/src/utils/googleDirections";
 import { useEffect, useState } from "react";
 
@@ -19,6 +19,7 @@ export const useTripSetup = (
   destLat: number | null,
   destLng: number | null,
   destName: string | null,
+  activeMatrix: ActiveFareMatrix | null,
   isDiscountVerified: boolean = false,
 ) => {
   const [finalDest, setFinalDest] = useState<{
@@ -41,6 +42,8 @@ export const useTripSetup = (
 
   // 🚀 EFFECT 1: FETCH DISTANCE (COSTS MONEY - RUN AS RARELY AS POSSIBLE)
   useEffect(() => {
+    let isMounted = true;
+
     const calculateRoute = async () => {
       if (!finalDest) return;
 
@@ -48,6 +51,7 @@ export const useTripSetup = (
         finalDest.lat === destLat && finalDest.lng === destLng;
       const noStopovers = stopovers.length === 0;
 
+      // check if we can just use the free passed distance
       if (isInitialDest && noStopovers && passedDistance) {
         setCalculatedDistance(passedDistance);
         return;
@@ -67,14 +71,22 @@ export const useTripSetup = (
       // This hits the Google API!
       const totalKm = await fetchRouteDistance(origin, destination, waypoints);
 
-      if (totalKm) {
+      if (isMounted && totalKm) {
         setCalculatedDistance(totalKm);
       }
-      setIsCalculating(false);
+      if (isMounted) {
+        setIsCalculating(false);
+      }
     };
 
-    calculateRoute();
-    // ⚠️ NOTICE: isDiscountVerified is NOT in this array anymore!
+    const delayDebounceFn = setTimeout(() => {
+      calculateRoute();
+    }, 800);
+
+    return () => {
+      isMounted = false;
+      clearTimeout(delayDebounceFn);
+    };
   }, [
     stopovers,
     finalDest,
@@ -89,12 +101,16 @@ export const useTripSetup = (
   // 🚀 EFFECT 2: CALCULATE FARE (LOCAL MATH - 100% FREE)
   // This runs instantly whenever the distance OR the discount status changes.
   useEffect(() => {
-    if (calculatedDistance) {
+    if (calculatedDistance && activeMatrix) {
       setCalculatedFare(
-        calculateDirectFare(calculatedDistance, isDiscountVerified),
+        calculateDirectFare(
+          calculatedDistance,
+          activeMatrix,
+          isDiscountVerified,
+        ),
       );
     }
-  }, [calculatedDistance, isDiscountVerified]);
+  }, [calculatedDistance, isDiscountVerified, activeMatrix]);
 
   const removeStopover = (id: string) =>
     setStopovers((prev) => prev.filter((stop) => stop.id !== id));

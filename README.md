@@ -1,6 +1,18 @@
-# Welcome to your Expo app 👋
+# Fair App 🚲
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+Fair is a React Native mobile application built with Expo, designed to help commuters in Angeles City calculate accurate tricycle fares using GPS tracking. The app ensures compliance with Angeles City LGU Ordinance No. 723 and provides tools for verifying LGU discounts and reporting driver disputes.
+
+## 🌟 Features
+
+- **GPS Fare Calculation:** Automatically calculate tricycle fares based on distance (base fare of ₱35.00 for the first kilometer, +₱15.00/km succeeding).
+- **Discount Verification:** Apply for mandatory 20% LGU discounts (Student, Senior Citizen, PWD) by securely uploading valid IDs.
+- **Commuter Rights & Protection:** Guidelines for handling disputes and the ability to submit GPS map-trace reports against overcharging drivers.
+- **Account Management:** Securely manage personal details and passwords.
+
+## 🛠 Tech Stack
+
+- **Frontend:** React Native, Expo, TypeScript
+- **Backend (API):** Django REST Framework
 
 ## Get started
 

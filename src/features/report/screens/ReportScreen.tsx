@@ -35,6 +35,7 @@ const ReportScreen = () => {
   // used to show loading spinners while waiting for Django
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   // data sent from History routing
   const [initialTripId, setInitialTripId] = useState("");
@@ -52,11 +53,15 @@ const ReportScreen = () => {
 
     try {
       if (!isPullToRefresh) setIsLoading(true);
+      setError(null);
       // request the user's report history from Django
       const response = await api.get<ReportRecord[]>("/reports/history/");
       setReports(response.data);
     } catch (err) {
       console.warn("API Error:", err);
+      setError(
+        "Could not connect to the LGU server. Please check your connection.",
+      );
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -154,6 +159,17 @@ const ReportScreen = () => {
         <View style={styles.centerContainer}>
           <ActivityIndicator size="large" color="#D32F2F" />
           <Text style={styles.loadingText}>Fetching your reports...</Text>
+        </View>
+      ) : error ? (
+        <View style={styles.centerContainer}>
+          <MaterialIcons name="cloud-off" size={48} color="#CBD5E1" />
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchReports()}
+          >
+            <Text style={styles.retryButtonText}>Try Again</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <FlatList
@@ -314,6 +330,24 @@ const styles = StyleSheet.create({
     color: "#64748B",
     fontWeight: "600",
   },
+  errorText: {
+    marginTop: 16,
+    fontSize: 14,
+    color: "#64748B",
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 32,
+  },
+  retryButton: {
+    marginTop: 24,
+    backgroundColor: "#FFF1F2",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#FFE4E6",
+  },
+  retryButtonText: { color: "#D32F2F", fontWeight: "bold", fontSize: 14 },
 
   emptyStateContainer: {
     alignItems: "center",

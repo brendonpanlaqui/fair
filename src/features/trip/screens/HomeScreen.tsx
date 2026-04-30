@@ -2,19 +2,22 @@ import MapHeader from "@/src/features/trip/components/setup/MapHeader";
 import { MapPickerModal } from "@/src/features/trip/components/setup/MapPickerModal";
 import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
 import { useAuth } from "@/src/hooks/AuthContext";
-import { calculateDirectFare } from "@/src/utils/fareMatrix";
+import { api } from "@/src/services/api";
+import { ActiveFareMatrix, calculateDirectFare } from "@/src/utils/fareMatrix";
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Alert,
-  Modal,
-  StyleSheet,
-  Text,
-  TouchableOpacity,
-  View,
+    Alert,
+    Animated,
+    Modal,
+    StyleSheet,
+    Text,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
@@ -26,11 +29,19 @@ const HomeScreen: React.FC = () => {
 
   const { isDiscountVerified, userType } = useAuth();
 
+  const [activeMatrix, setActiveMatrix] = useState<ActiveFareMatrix | null>(
+    null,
+  );
+
   const [destination, setDestination] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
   const [calculatedFare, setCalculatedFare] = useState<number | null>(null);
+  const [lockedOrigin, setLockedOrigin] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
 
   const [tripDistance, setTripDistance] = useState<number | null>(null);
   const [tripDuration, setTripDuration] = useState<number | null>(null);
@@ -54,11 +65,122 @@ const HomeScreen: React.FC = () => {
 
   const [destinationName, setDestinationName] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (tripDistance) {
-      setCalculatedFare(calculateDirectFare(tripDistance, isDiscountVerified));
+  const [isOffline, setIsOffline] = useState(false);
+  const [isRetrying, setIsRetrying] = useState(false);
+
+  const [toastConfig, setToastConfig] = useState({
+    message: "",
+    type: "error",
+  });
+  const slideAnim = useRef(new Animated.Value(150)).current;
+
+  const showToast = (message: string, type: "error" | "success" = "error") => {
+    setToastConfig({ message, type });
+    Animated.sequence([
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        useNativeDriver: true,
+        bounciness: 8,
+      }),
+      Animated.delay(3000),
+      Animated.timing(slideAnim, {
+        toValue: 150,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start(() => setToastConfig({ message: "", type: "error" }));
+  };
+
+  const fetchMatrix = async () => {
+    setIsRetrying(true);
+    try {
+      const response = await api.get("/fare-matrix/active/");
+      setActiveMatrix(response.data);
+      setIsOffline(false);
+      await AsyncStorage.setItem(
+        "@cached_fare_matrix",
+        JSON.stringify(response.data),
+      );
+    } catch (error: any) {
+      try {
+        const cached = await AsyncStorage.getItem("@cached_fare_matrix");
+        if (cached) {
+          setActiveMatrix(JSON.parse(cached));
+          setIsOffline(true);
+        } else {
+          setActiveMatrix(null);
+          setIsOffline(true);
+          if (error.response) {
+            showToast(
+              error.response.data?.error ||
+                "Failed to load active fare matrix.",
+              "error",
+            );
+          }
+        }
+      } catch (cacheError) {
+        setActiveMatrix(null);
+        setIsOffline(true);
+      }
+    } finally {
+      setIsRetrying(false);
     }
-  }, [isDiscountVerified, tripDistance]);
+  };
+
+  const syncPendingTrips = async () => {
+    try {
+      const storedPending = await AsyncStorage.getItem("@pending_trips");
+      if (storedPending) {
+        const pendingTrips = JSON.parse(storedPending);
+        if (pendingTrips && pendingTrips.length > 0) {
+          const remainingTrips = [];
+          let syncedCount = 0;
+          for (const tripPayload of pendingTrips) {
+            try {
+              await api.post("/trips/submit/", tripPayload);
+              syncedCount++;
+            } catch (error: any) {
+              const isNetworkError =
+                !error.response ||
+                (error.message &&
+                  error.message.toLowerCase().includes("network")) ||
+                (error.response && error.response.status >= 500);
+              if (isNetworkError) {
+                remainingTrips.push(tripPayload);
+              }
+            }
+          }
+          if (remainingTrips.length !== pendingTrips.length) {
+            await AsyncStorage.setItem(
+              "@pending_trips",
+              JSON.stringify(remainingTrips),
+            );
+          }
+          if (syncedCount > 0) {
+            showToast(
+              `Synced ${syncedCount} offline trip(s) successfully.`,
+              "success",
+            );
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error syncing pending trips:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchMatrix();
+    syncPendingTrips();
+  }, []);
+
+  useEffect(() => {
+    if (tripDistance && activeMatrix) {
+      setCalculatedFare(
+        calculateDirectFare(tripDistance, activeMatrix, isDiscountVerified),
+      );
+    }
+  }, [isDiscountVerified, tripDistance, activeMatrix]);
 
   const handlePlaceSelected = (
     coords: { latitude: number; longitude: number },
@@ -70,10 +192,13 @@ const HomeScreen: React.FC = () => {
       setDestination(null);
       setDestinationName(null); // 🚀 ADD THIS
       setCalculatedFare(null);
+      setLockedOrigin(null);
       return;
     }
     setDestination(coords);
     setDestinationName(name); // 🚀 ADD THIS
+
+    setLockedOrigin(mapCenter);
   };
 
   const handleRouteReady = (result: any) => {
@@ -91,8 +216,15 @@ const HomeScreen: React.FC = () => {
       return;
     }
 
-    const legalFare = calculateDirectFare(result.distance, isDiscountVerified);
-    setCalculatedFare(legalFare);
+    if (activeMatrix) {
+      const legalFare = calculateDirectFare(
+        result.distance,
+        activeMatrix,
+        isDiscountVerified,
+      );
+      setCalculatedFare(legalFare);
+    }
+
     setTripDistance(result.distance);
     setTripDuration(result.duration);
 
@@ -127,6 +259,7 @@ const HomeScreen: React.FC = () => {
     setCalculatedFare(null);
     setTripDistance(null);
     setTripDuration(null);
+    setLockedOrigin(null);
     handleCenterLocation();
   };
 
@@ -160,15 +293,18 @@ const HomeScreen: React.FC = () => {
 
           {destination && (
             <MapViewDirections
-              origin={mapCenter}
+              origin={lockedOrigin!}
               destination={destination}
               apikey={GOOGLE_API_KEY}
               strokeWidth={6}
               strokeColor="#D32F2F"
               optimizeWaypoints={true}
               onReady={handleRouteReady}
-              onError={(errorMessage) =>
-                console.error("Directions Error: ", errorMessage)
+              onError={() =>
+                showToast(
+                  "Route calculation failed. Try another destination.",
+                  "error",
+                )
               }
             />
           )}
@@ -239,17 +375,21 @@ const HomeScreen: React.FC = () => {
       {/* 5. MAIN ACTION BUTTON */}
       <View style={styles.bottomButtonsContainer}>
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={[
+            styles.primaryButton,
+            !activeMatrix && styles.primaryButtonDisabled,
+          ]}
           activeOpacity={0.9}
+          disabled={!activeMatrix}
           onPress={() => {
             setSelectedMode("DIRECT");
             setIsSheetVisible(true);
           }}
         >
           <MaterialCommunityIcons
-            name="navigation-outline"
+            name={!activeMatrix ? "wifi-off" : "navigation-outline"}
             size={26}
-            color="#FFFFFF"
+            color={!activeMatrix ? "#94A3B8" : "#FFFFFF"}
           />
           <View
             style={{
@@ -258,10 +398,17 @@ const HomeScreen: React.FC = () => {
               justifyContent: "center",
             }}
           >
-            <Text style={styles.primaryButtonText}>
-              {calculatedFare
-                ? `DIRECT FARE: ₱${calculatedFare}.00`
-                : "START NEW TRIP"}
+            <Text
+              style={[
+                styles.primaryButtonText,
+                !activeMatrix && { color: "#94A3B8" },
+              ]}
+            >
+              {!activeMatrix
+                ? "WAITING FOR FARE MATRIX..."
+                : calculatedFare
+                  ? `DIRECT FARE: ₱${calculatedFare}.00`
+                  : "START NEW TRIP"}
             </Text>
             {calculatedFare && isDiscountVerified && (
               <Text
@@ -399,6 +546,7 @@ const HomeScreen: React.FC = () => {
             <TouchableOpacity
               style={styles.confirmSheetButton}
               activeOpacity={0.9}
+              disabled={!activeMatrix}
               onPress={() => {
                 setIsSheetVisible(false);
                 router.push({
@@ -414,6 +562,7 @@ const HomeScreen: React.FC = () => {
                       selectedMode === "DIRECT" ? tripDistance : undefined,
                     duration:
                       selectedMode === "DIRECT" ? tripDuration : undefined,
+                    matrixStr: JSON.stringify(activeMatrix),
                   },
                 });
               }}
@@ -440,6 +589,25 @@ const HomeScreen: React.FC = () => {
           handlePlaceSelected({ latitude: lat, longitude: lng }, addressName);
         }}
       />
+
+      {toastConfig.message ? (
+        <Animated.View
+          style={[
+            styles.toastContainer,
+            { transform: [{ translateY: slideAnim }] },
+            toastConfig.type === "success"
+              ? styles.toastSuccess
+              : styles.toastError,
+          ]}
+        >
+          <MaterialIcons
+            name={toastConfig.type === "success" ? "check-circle" : "error"}
+            size={24}
+            color="#FFFFFF"
+          />
+          <Text style={styles.toastText}>{toastConfig.message}</Text>
+        </Animated.View>
+      ) : null}
     </View>
   );
 };
@@ -497,6 +665,11 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
     letterSpacing: 1,
     marginLeft: 12,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: "#E2E8F0",
+    elevation: 0,
+    shadowOpacity: 0,
   },
   legalMicrocopy: {
     textAlign: "center",
@@ -668,6 +841,36 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     letterSpacing: 1,
+  },
+  toastContainer: {
+    position: "absolute",
+    bottom: 20,
+    left: 24,
+    right: 24,
+    borderRadius: 16,
+    padding: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+    zIndex: 9999,
+  },
+  toastError: {
+    backgroundColor: "#DC2626",
+    shadowColor: "#DC2626",
+  },
+  toastSuccess: {
+    backgroundColor: "#10B981",
+    shadowColor: "#10B981",
+  },
+  toastText: {
+    color: "#FFFFFF",
+    fontSize: 15,
+    fontWeight: "600",
+    marginLeft: 12,
+    flex: 1,
   },
 });
 
