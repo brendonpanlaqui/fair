@@ -1,4 +1,4 @@
-import { isWithinAngelesCity } from "@/src/utils/geofencing";
+import { ANGELES_POLYGON, isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -6,12 +6,13 @@ import {
   Alert,
   Animated,
   Modal,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
+import MapView, { Polygon, PROVIDER_GOOGLE, Region } from "react-native-maps";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
@@ -34,6 +35,7 @@ export const MapPickerModal = ({
 }: Props) => {
   const mapRef = useRef<MapView>(null);
   const liftAnim = useRef(new Animated.Value(0)).current; // 🚀 For pin animation
+  const fetchTimeoutRef = useRef<number | null>(null); // 🚀 For API debouncing
 
   const [region, setRegion] = useState<Region>({
     latitude: initialLat,
@@ -60,23 +62,40 @@ export const MapPickerModal = ({
     }
   }, [visible, initialLat, initialLng]);
 
-  const fetchAddressName = async (lat: number, lng: number) => {
-    setIsFetchingAddress(true);
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}`,
-      );
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        setAddressName(data.results[0].formatted_address.split(",")[0]);
-      } else {
-        setAddressName("Unknown Location");
-      }
-    } catch (error) {
-      setAddressName("Pinned Location");
-    } finally {
-      setIsFetchingAddress(false);
+  // 🚀 CLEANUP: Prevent memory leaks if modal closes while fetching
+  useEffect(() => {
+    return () => {
+      if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+    };
+  }, []);
+
+  const fetchAddressName = (lat: number, lng: number) => {
+    // Clear any pending API requests if the user is still moving the map
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
     }
+
+    setIsFetchingAddress(true);
+
+    // 🚀 DEBOUNCE: Wait 800ms before hitting the paid Google API
+    fetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        // 🚨 SECURITY WARNING: Move this fetch to your Django backend proxy in production
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}`,
+        );
+        const data = await response.json();
+        if (data.results && data.results.length > 0) {
+          setAddressName(data.results[0].formatted_address.split(",")[0]);
+        } else {
+          setAddressName("Unknown Location");
+        }
+      } catch (error) {
+        setAddressName("Pinned Location");
+      } finally {
+        setIsFetchingAddress(false);
+      }
+    }, 800);
   };
 
   const handleRegionChange = () => {
@@ -123,6 +142,8 @@ export const MapPickerModal = ({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <StatusBar barStyle="dark-content" />
+
       <View style={styles.container}>
         {/* HEADER */}
         <View style={styles.header}>
@@ -146,7 +167,15 @@ export const MapPickerModal = ({
             onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation={true}
             showsMyLocationButton={false}
-          />
+          >
+            <Polygon
+              coordinates={ANGELES_POLYGON}
+              strokeColor="rgba(211, 47, 47, 0.8)"
+              fillColor="rgba(211, 47, 47, 0.05)"
+              strokeWidth={2}
+              zIndex={1}
+            />
+          </MapView>
 
           {/* 🚀 SNAP TO ME BUTTON */}
           <TouchableOpacity

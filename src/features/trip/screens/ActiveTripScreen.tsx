@@ -3,12 +3,13 @@ import { Stack, useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   BackHandler,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { ActiveTripDashboard } from "../components/active/ActiveTripDashboard";
 import { ActiveTripHeader } from "../components/active/ActiveTripHeader";
@@ -29,6 +30,9 @@ const ActiveTripScreen = () => {
     "LOADING",
   );
   const [askedFare, setAskedFare] = useState("");
+  const [paymentReason, setPaymentReason] = useState<
+    "TIP" | "OVERCHARGE" | null
+  >(null);
 
   // 🚀 THE INTERCEPTOR: Protects the user from accidentally killing the trip
   const handleBackPress = () => {
@@ -55,6 +59,13 @@ const ActiveTripScreen = () => {
 
   const renderArrivalScreen = () => {
     if (tripState !== "ARRIVED") return null;
+
+    const enteredFareNum = Number(askedFare);
+    const isPayingMore =
+      !isNaN(enteredFareNum) && enteredFareNum > tripData.fixedFare;
+    const isSubmitDisabled =
+      askedFare.length === 0 || (isPayingMore && !paymentReason);
+
     return (
       <View style={styles.arrivedOverlay}>
         <View style={styles.arrivedCard}>
@@ -87,7 +98,9 @@ const ActiveTripScreen = () => {
           </View>
 
           <Text style={styles.inputLabel}>
-            {"How much did the driver ask for?"}
+            {tripData.isEarlyDropoff
+              ? `It looks like you dropped off early. Based on the LGU matrix for this actual distance, the prorated fare is ₱${tripData.fixedFare.toFixed(2)} (Original: ₱${tripData.originalFare.toFixed(2)}). How much did you actually pay the driver?`
+              : "How much did you actually pay the driver?"}
           </Text>
 
           <View style={styles.inputContainer}>
@@ -103,15 +116,62 @@ const ActiveTripScreen = () => {
             />
           </View>
 
+          {/* 🚀 TIP VS OVERCHARGE DETECTOR */}
+          {isPayingMore && (
+            <View style={styles.extraPaymentContainer}>
+              <Text style={styles.extraPaymentText}>
+                You are paying ₱
+                {(enteredFareNum - tripData.fixedFare).toFixed(2)} more than the
+                official fare. Why?
+              </Text>
+              <View style={styles.radioRow}>
+                <TouchableOpacity
+                  onPress={() => setPaymentReason("TIP")}
+                  style={[
+                    styles.radioBtn,
+                    paymentReason === "TIP" && styles.radioBtnActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.radioText,
+                      paymentReason === "TIP" && styles.radioTextActive,
+                    ]}
+                  >
+                    Voluntary Tip
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => setPaymentReason("OVERCHARGE")}
+                  style={[
+                    styles.radioBtn,
+                    paymentReason === "OVERCHARGE" && styles.radioBtnActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.radioText,
+                      paymentReason === "OVERCHARGE" && styles.radioTextActive,
+                    ]}
+                  >
+                    Overcharge
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+
           <TouchableOpacity
             style={[
               styles.payBtn,
               {
-                backgroundColor: askedFare.length === 0 ? "#CBD5E1" : "#D32F2F",
+                backgroundColor: isSubmitDisabled ? "#CBD5E1" : "#D32F2F",
               },
             ]}
-            disabled={askedFare.length === 0}
-            onPress={() => tripData.handleEndTrip(askedFare)}
+            disabled={isSubmitDisabled}
+            onPress={() =>
+              tripData.handleEndTrip(askedFare, paymentReason === "TIP")
+            }
           >
             <Text style={styles.payBtnText}>{"Submit & Generate Receipt"}</Text>
           </TouchableOpacity>
@@ -136,15 +196,27 @@ const ActiveTripScreen = () => {
           setTripState("DRIVING");
           tripData.setRouteCoordinates(coords);
         }}
-        onDestinationReached={() => setTripState("ARRIVED")}
+        onError={(error) => {
+          setIsPlottingRoute(false);
+          Alert.alert(
+            "Route Error",
+            "Failed to calculate the route. Please cancel the trip and try again.",
+          );
+        }}
+        onDestinationReached={() => {
+          tripData.prepareArrival();
+          setTripState("ARRIVED");
+        }}
       />
 
       {isPlottingRoute && (
         <View style={styles.plottingOverlay}>
           <ActivityIndicator size="large" color="#D32F2F" />
-          <Text style={styles.plottingText}>{"Plotting Secure Route..."}</Text>
+          <Text style={styles.plottingText}>
+            {"Getting your route ready..."}
+          </Text>
           <Text style={styles.plottingSubtext}>
-            {"Connecting to LGU Matrix"}
+            {"Making sure it’s safe and efficient"}
           </Text>
         </View>
       )}
@@ -160,7 +232,10 @@ const ActiveTripScreen = () => {
             estimatedMinutes={tripData.estimatedMinutes}
             lockedDistance={tripData.lockedDistance}
             onSecretTrigger={tripData.handleSecretDeviationTrigger}
-            onEndTrip={tripData.handleEndTrip}
+            onEndTrip={() => {
+              tripData.prepareArrival();
+              setTripState("ARRIVED");
+            }}
           />
         </>
       )}
@@ -297,6 +372,41 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#D32F2F",
   },
+  extraPaymentContainer: {
+    backgroundColor: "#F8FAFC",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    width: "100%",
+  },
+  extraPaymentText: {
+    fontSize: 13,
+    color: "#334155",
+    fontWeight: "600",
+    marginBottom: 12,
+  },
+  radioRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  radioBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#CBD5E1",
+    alignItems: "center",
+    backgroundColor: "#FFFFFF",
+  },
+  radioBtnActive: {
+    borderColor: "#D32F2F",
+    backgroundColor: "#FEF2F2",
+    borderWidth: 2,
+  },
+  radioText: { fontSize: 13, fontWeight: "bold", color: "#475569" },
+  radioTextActive: { color: "#D32F2F" },
   payBtn: {
     width: "100%",
     paddingVertical: 18,

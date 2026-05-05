@@ -32,6 +32,7 @@ interface TripRecord {
   trip_mode: "DIRECT" | "SPECIAL";
   total_distance_km: number;
   computed_fare: number;
+  actual_fare_charged: number;
   discount_applied: number;
   status: "Completed" | "Cancelled";
   timestamp: string;
@@ -56,6 +57,7 @@ const HistoryScreen = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   // reference to the MapView component to zoom and fit the route when the modal opens.
   const mapRef = useRef<MapView>(null);
@@ -156,11 +158,26 @@ const HistoryScreen = () => {
       // so, it returns an array of objects that match the TripRecord interface to my TripHistorySerializer.
       const response = await api.get<TripRecord[]>("/trips/history/");
       setTrips(response.data);
+      setIsOffline(false);
+
+      // Cache for offline viewing
+      await AsyncStorage.setItem(
+        "@cached_history",
+        JSON.stringify(response.data),
+      );
     } catch (err) {
       console.warn("API Error:", err);
-      setError(
-        "Could not connect to the LGU server. Please check your connection.",
-      );
+
+      // Try to load cached history before showing a blocking error
+      const cached = await AsyncStorage.getItem("@cached_history");
+      if (cached) {
+        setTrips(JSON.parse(cached));
+        setIsOffline(true);
+      } else {
+        setError(
+          "Could not connect to the LGU server. Please check your connection.",
+        );
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -183,7 +200,18 @@ const HistoryScreen = () => {
   );
 
   const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleDateString("en-PH", {
+    const date = new Date(isoString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return `Today, ${date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}`;
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return `Yesterday, ${date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}`;
+    }
+    return date.toLocaleDateString("en-PH", {
+      year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -195,16 +223,21 @@ const HistoryScreen = () => {
     if (!selectedTrip) return;
 
     try {
+      const computedFare = Number(selectedTrip.computed_fare) || 0;
+      const discountApplied = Number(selectedTrip.discount_applied) || 0;
+      const actualFareCharged = Number(selectedTrip.actual_fare_charged) || 0;
+
       // calculate the fare breakdown details to show on the receipt.
-      const distanceFare = (selectedTrip.computed_fare - 35).toFixed(2);
+      const distanceFare = (computedFare - 35).toFixed(2);
       const excessDistance = (
         selectedTrip.total_distance_km - 1 > 0
           ? selectedTrip.total_distance_km - 1
           : 0
       ).toFixed(1);
-      const totalPaid = (
-        selectedTrip.computed_fare - selectedTrip.discount_applied
-      ).toFixed(2);
+
+      const expectedFare = computedFare - discountApplied;
+      const actualPaid = actualFareCharged || expectedFare;
+      const extraPaid = actualPaid - expectedFare;
 
       const htmlContent = `
         <html>
@@ -225,6 +258,7 @@ const HistoryScreen = () => {
               .total-label { font-size: 18px; font-weight: 900; color: #0F172A; }
               .total-value { font-size: 24px; font-weight: 900; color: #D32F2F; }
               .discount { color: #10B981; }
+              .warning { color: #F59E0B; }
               .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #94A3B8; font-weight: 500; }
             </style>
           </head>
@@ -251,9 +285,12 @@ const HistoryScreen = () => {
               <div class="section-title">Fare Breakdown</div>
               <div class="row"><span class="label">Base Fare (1st km)</span> <span class="value">PHP 35.00</span></div>
               <div class="row"><span class="label">Distance Fare (${excessDistance} km)</span> <span class="value">PHP ${distanceFare}</span></div>
-              ${selectedTrip.discount_applied > 0 ? `<div class="row discount"><span class="label discount">Legal Discount (20%)</span> <span class="value discount">- PHP ${selectedTrip.discount_applied.toFixed(2)}</span></div>` : ""}
               <div class="thick-divider"></div>
-              <div class="total-row"><span class="total-label">TOTAL PAID</span> <span class="total-value">PHP ${totalPaid}</span></div>
+              <div class="row"><span class="label">Original Computed Fare</span> <span class="value">PHP ${computedFare.toFixed(2)}</span></div>
+              ${discountApplied > 0 ? `<div class="row discount"><span class="label discount">Legal Discount (20%)</span> <span class="value discount">- PHP ${discountApplied.toFixed(2)}</span></div>` : ""}
+              ${extraPaid > 0 ? `<div class="row warning"><span class="label warning">Extra / Overcharge</span> <span class="value warning">+ PHP ${extraPaid.toFixed(2)}</span></div>` : ""}
+              <div class="thick-divider"></div>
+              <div class="total-row"><span class="total-label">ACTUAL AMOUNT PAID</span> <span class="total-value">PHP ${actualPaid.toFixed(2)}</span></div>
             </div>
             <div class="footer">
               <p>Thank you for commuting safely with Fair App.</p>
@@ -357,11 +394,50 @@ const HistoryScreen = () => {
             },
           ]}
         >
-          ₱{(item.computed_fare - item.discount_applied).toFixed(2)}
+          ₱
+          {(
+            Number(item.actual_fare_charged) ||
+            Number(item.computed_fare) - Number(item.discount_applied)
+          ).toFixed(2)}
         </Text>
       </View>
     </TouchableOpacity>
   );
+
+  const renderSummaryCard = () => {
+    if (filteredData.length === 0) return null;
+
+    const completedTrips = filteredData.filter((t) => t.status === "Completed");
+    const totalSpent = completedTrips.reduce((sum, trip) => {
+      const actual = Number(trip.actual_fare_charged) || 0;
+      const computed = Number(trip.computed_fare) || 0;
+      const discount = Number(trip.discount_applied) || 0;
+      return sum + (actual || computed - discount);
+    }, 0);
+    const totalDistance = completedTrips.reduce(
+      (sum, trip) => sum + trip.total_distance_km,
+      0,
+    );
+
+    return (
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{completedTrips.length}</Text>
+          <Text style={styles.summaryLabel}>Completed Rides</Text>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>₱{totalSpent.toFixed(2)}</Text>
+          <Text style={styles.summaryLabel}>Total Spent</Text>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{totalDistance.toFixed(1)} km</Text>
+          <Text style={styles.summaryLabel}>Distance</Text>
+        </View>
+      </View>
+    );
+  };
 
   // draw the route on the map in the modal, with polyline breadcrumbs if available.
   const modalRoute = selectedTrip
@@ -377,6 +453,22 @@ const HistoryScreen = () => {
     (selectedTrip
       ? [selectedTrip.origin_coords, selectedTrip.dest_coords]
       : []);
+
+  let expectedFare = 0;
+  let actualPaid = 0;
+  let extraPaid = 0;
+  let computedFareDisplay = 0;
+  let discountDisplay = 0;
+
+  if (selectedTrip) {
+    computedFareDisplay = Number(selectedTrip.computed_fare) || 0;
+    discountDisplay = Number(selectedTrip.discount_applied) || 0;
+    const actual = Number(selectedTrip.actual_fare_charged) || 0;
+
+    expectedFare = computedFareDisplay - discountDisplay;
+    actualPaid = actual || expectedFare;
+    extraPaid = actualPaid - expectedFare;
+  }
 
   return (
     <View style={styles.container}>
@@ -453,27 +545,42 @@ const HistoryScreen = () => {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item) => item.trip_id}
-          renderItem={renderTripCard}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
-              tintColor="#D32F2F"
-              colors={["#D32F2F"]}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialIcons name="history" size={48} color="#E2E8F0" />
-              <Text style={styles.emptyText}>No rides found.</Text>
+        <>
+          {isOffline && (
+            <View style={styles.offlineBanner}>
+              <MaterialIcons name="cloud-off" size={14} color="#B45309" />
+              <Text style={styles.offlineBannerText}>
+                You are offline. Showing cached history.
+              </Text>
             </View>
-          }
-        />
+          )}
+          <FlatList
+            data={filteredData}
+            keyExtractor={(item) => item.trip_id}
+            renderItem={renderTripCard}
+            ListHeaderComponent={renderSummaryCard}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor="#D32F2F"
+                colors={["#D32F2F"]}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.centerContainer}>
+                <MaterialIcons name="history" size={48} color="#E2E8F0" />
+                <Text style={styles.emptyText}>
+                  {trips.length === 0
+                    ? "No rides found."
+                    : `No ${filter.toLowerCase()} rides found.`}
+                </Text>
+              </View>
+            }
+          />
+        </>
       )}
 
       {/* RECEIPT MODAL (Only visible if selectedTrip is not null) */}
@@ -612,17 +719,37 @@ const HistoryScreen = () => {
                     km)
                   </Text>
                   <Text style={styles.fareValue}>
-                    ₱ {(selectedTrip.computed_fare - 35).toFixed(2)}
+                    ₱ {(computedFareDisplay - 35).toFixed(2)}
                   </Text>
                 </View>
 
-                {selectedTrip.discount_applied > 0 && (
+                <View style={styles.receiptThickDivider} />
+
+                <View style={styles.fareRow}>
+                  <Text style={styles.fareLabel}>Original Computed Fare</Text>
+                  <Text style={styles.fareValue}>
+                    ₱ {computedFareDisplay.toFixed(2)}
+                  </Text>
+                </View>
+
+                {discountDisplay > 0 && (
                   <View style={styles.fareRow}>
                     <Text style={styles.fareLabelDiscount}>
                       Legal Discount (20%)
                     </Text>
                     <Text style={styles.fareValueDiscount}>
-                      - ₱ {selectedTrip.discount_applied.toFixed(2)}
+                      - ₱ {discountDisplay.toFixed(2)}
+                    </Text>
+                  </View>
+                )}
+
+                {extraPaid > 0 && (
+                  <View style={styles.fareRow}>
+                    <Text style={styles.fareLabelWarning}>
+                      Extra / Overcharge
+                    </Text>
+                    <Text style={styles.fareValueWarning}>
+                      + ₱ {extraPaid.toFixed(2)}
                     </Text>
                   </View>
                 )}
@@ -630,17 +757,12 @@ const HistoryScreen = () => {
                 <View style={styles.receiptThickDivider} />
 
                 <View style={styles.fareRow}>
-                  <Text style={styles.totalLabel}>TOTAL PAID</Text>
+                  <Text style={styles.totalLabel}>ACTUAL AMOUNT PAID</Text>
                   <Text style={styles.totalValue}>
-                    ₱{" "}
-                    {(
-                      selectedTrip.computed_fare - selectedTrip.discount_applied
-                    ).toFixed(2)}
+                    ₱ {actualPaid.toFixed(2)}
                   </Text>
                 </View>
               </View>
-
-              <View style={{ flex: 1 }} />
 
               {/* BOTTOM ACTIONS (Report / Export) */}
               <View style={styles.receiptActions}>
@@ -730,6 +852,41 @@ const styles = StyleSheet.create({
   filterTabActive: { backgroundColor: "#FFF1F2" },
   filterText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
   filterTextActive: { color: "#D32F2F", fontWeight: "800" },
+
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    justifyContent: "center",
+    gap: 6,
+  },
+  offlineBannerText: { color: "#B45309", fontSize: 12, fontWeight: "600" },
+
+  summaryCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 20,
+    borderRadius: 16,
+    paddingVertical: 16,
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  summaryItem: { flex: 1, alignItems: "center" },
+  summaryValue: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
+  summaryLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 4,
+    fontWeight: "700",
+  },
+  summaryDivider: { width: 1, height: "100%", backgroundColor: "#E2E8F0" },
 
   listContent: { paddingTop: 24, paddingHorizontal: 16, paddingBottom: 100 },
 
@@ -891,14 +1048,13 @@ const styles = StyleSheet.create({
   modalContainer: { flex: 1, backgroundColor: "#F8FAFC" },
 
   mapSection: {
-    height: "35%",
     width: "100%",
     position: "relative",
   },
 
   estimatedBadge: {
     position: "absolute",
-    top: 10,
+    top: 20,
     left: 10,
     flexDirection: "row",
     alignItems: "center",
@@ -917,7 +1073,7 @@ const styles = StyleSheet.create({
 
   mapBackButton: {
     position: "absolute",
-    top: 50,
+    top: 60,
     left: 20,
     width: 44,
     height: 44,
@@ -1071,6 +1227,8 @@ const styles = StyleSheet.create({
   fareValue: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
   fareLabelDiscount: { fontSize: 14, color: "#10B981", fontWeight: "700" },
   fareValueDiscount: { fontSize: 14, fontWeight: "800", color: "#10B981" },
+  fareLabelWarning: { fontSize: 14, color: "#F59E0B", fontWeight: "700" },
+  fareValueWarning: { fontSize: 14, fontWeight: "800", color: "#F59E0B" },
 
   receiptThickDivider: {
     width: "100%",

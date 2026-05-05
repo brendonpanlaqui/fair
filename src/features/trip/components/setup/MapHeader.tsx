@@ -1,8 +1,10 @@
+import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Keyboard,
   StyleSheet,
   Text,
@@ -106,7 +108,8 @@ const MapHeader: React.FC<MapHeaderProps> = ({
           }}
           fetchDetails={true}
           predefinedPlaces={predefinedPlaces}
-          predefinedPlacesAlwaysVisible={true}
+          predefinedPlacesAlwaysVisible={!hasDestination}
+          listViewDisplayed={hasDestination ? false : "auto"}
           onPress={(data: any, details = null) => {
             const lat =
               details?.geometry?.location?.lat || data?.geometry?.location?.lat;
@@ -116,6 +119,34 @@ const MapHeader: React.FC<MapHeaderProps> = ({
               data?.structured_formatting?.main_text || data.description;
 
             if (lat && lng) {
+              // 🚀 1. THE STRING DEFENSE (Skip if it's a Saved Place like "Home")
+              if (!data.isSavedPlace) {
+                const fullAddress = (data.description || "").toLowerCase();
+                const isActuallyAngeles =
+                  fullAddress.includes("angeles city") ||
+                  fullAddress.includes("angeles,");
+
+                if (!isActuallyAngeles) {
+                  Alert.alert(
+                    "Cross-Border Trip",
+                    "Ordinance No. 723 only covers fares inside Angeles City. Tricycles must return empty from other municipalities, so cross-border fares (e.g. to Magalang or Mabalacat) must be negotiated directly with the driver.",
+                  );
+                  return; // 🛑 Block selection
+                }
+              }
+
+              // 🚀 2. THE STRICT MATHEMATICAL DEFENSE (Ray-Casting Algorithm)
+              if (!isWithinAngelesCity(lat, lng)) {
+                Alert.alert(
+                  "Out of Bounds",
+                  "Locations must be within Angeles City limits.",
+                );
+                return; // 🛑 Block selection
+              }
+
+              // ✅ IF IT PASSES BOTH CHECKS, PROCEED:
+              Keyboard.dismiss();
+
               onPlaceSelected({ latitude: lat, longitude: lng }, name);
 
               // 🚀 SECURITY UPGRADE: Refresh the token AFTER a successful search

@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -11,26 +11,16 @@ import {
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 
-// 🚀 IMPORT AUTH CONTEXT
-import { useAuth } from "@/src/hooks/AuthContext";
-
 const TripReceiptScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-
-  // 🚀 GRAB GLOBAL DISCOUNT STATUS
-  const { isDiscountVerified, userType } = useAuth();
 
   // Base parameters
   const baseFare = params.baseFare ? Number(params.baseFare) : 35.0;
   const succeedingFare = params.succeedingFare
     ? Number(params.succeedingFare)
     : 12.0;
-  const subtotal = baseFare + succeedingFare;
-
-  // 🚀 AUTOMATIC MATH BASED ON LGU STATUS
-  const discountAmount = isDiscountVerified ? Math.floor(subtotal * 0.2) : 0;
-  const legalTotalFare = subtotal - discountAmount;
+  const legalTotalFare = baseFare + succeedingFare;
 
   // Overcharge Detection
   const actualFare = params.actualFare
@@ -53,6 +43,7 @@ const TripReceiptScreen = () => {
   const destLng = params.destLng ? Number(params.destLng) : 120.5898;
   const polylineHash = params.polylineHash as string | null;
   const isOfflineSaved = params.isOfflineSaved === "true";
+  const isTip = params.isTip === "true";
 
   const mapRef = useRef<MapView>(null);
 
@@ -100,7 +91,12 @@ const TripReceiptScreen = () => {
     ];
   };
 
-  const parsedRoute = getDrivenRoute();
+  // Memoize the JSON parsing so it only runs once per screen load
+  const parsedRoute = useMemo(
+    () => getDrivenRoute(),
+    [polylineHash, originLat, originLng, destLat, destLng],
+  );
+
   const isEstimatedRoute = !polylineHash || parsedRoute.length < 3;
 
   return (
@@ -213,19 +209,36 @@ const TripReceiptScreen = () => {
 
           {/* Bottom Section: Breakdown & Details */}
           <View style={styles.detailsSection}>
-            {/* OVERCHARGE WARNING BOX */}
+            {/* OVERCHARGE OR TIP ALERT BOX */}
             {overchargeAmount > 0 ? (
-              <View style={styles.overchargeAlert}>
-                <MaterialIcons name="error-outline" size={24} color="#DC2626" />
-                <View style={styles.overchargeTextWrapper}>
-                  <Text style={styles.overchargeTitle}>
-                    {"Overcharge Detected!"}
-                  </Text>
-                  <Text style={styles.overchargeSubtext}>
-                    {`You paid ₱${actualFare.toFixed(2)}. The driver charged ₱${overchargeAmount.toFixed(2)} above the official ordinance.`}
-                  </Text>
+              isTip ? (
+                <View style={styles.tipAlert}>
+                  <MaterialIcons name="favorite" size={24} color="#D946EF" />
+                  <View style={styles.tipTextWrapper}>
+                    <Text style={styles.tipTitle}>Tip Given</Text>
+                    <Text style={styles.tipSubtext}>
+                      You gave a voluntary tip of ₱{overchargeAmount.toFixed(2)}
+                      .
+                    </Text>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.overchargeAlert}>
+                  <MaterialIcons
+                    name="error-outline"
+                    size={24}
+                    color="#DC2626"
+                  />
+                  <View style={styles.overchargeTextWrapper}>
+                    <Text style={styles.overchargeTitle}>
+                      {"Overcharge Detected!"}
+                    </Text>
+                    <Text style={styles.overchargeSubtext}>
+                      {`You paid ₱${actualFare.toFixed(2)}. The driver charged ₱${overchargeAmount.toFixed(2)} above the official ordinance.`}
+                    </Text>
+                  </View>
+                </View>
+              )
             ) : null}
 
             {/* UNDERPAID  BOX */}
@@ -258,19 +271,6 @@ const TripReceiptScreen = () => {
                 </Text>
               </View>
             </View>
-
-            {/* 🚀 DYNAMIC DISCOUNT ALERT */}
-            {isDiscountVerified && (
-              <View style={styles.discountAlert}>
-                <MaterialIcons name="check-circle" size={18} color="#10B981" />
-                <Text style={styles.discountAlertText}>
-                  {userType.toUpperCase()} DISCOUNT
-                </Text>
-                <Text style={styles.discountAmountText}>
-                  -₱{discountAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
 
             <View style={styles.metaDataList}>
               <View style={styles.metaRow}>
@@ -393,6 +393,29 @@ const styles = StyleSheet.create({
   },
   overchargeSubtext: {
     color: "#991B1B",
+    fontSize: 12,
+    fontWeight: "500",
+    lineHeight: 18,
+  },
+  tipAlert: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FDF4FF",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "#F0ABFC",
+  },
+  tipTextWrapper: { marginLeft: 12, flex: 1 },
+  tipTitle: {
+    color: "#C026D3",
+    fontSize: 14,
+    fontWeight: "900",
+    marginBottom: 2,
+  },
+  tipSubtext: {
+    color: "#A21CAF",
     fontSize: 12,
     fontWeight: "500",
     lineHeight: 18,

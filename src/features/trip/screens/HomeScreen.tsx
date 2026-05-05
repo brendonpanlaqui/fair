@@ -11,13 +11,13 @@ import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    Alert,
-    Animated,
-    Modal,
-    StyleSheet,
-    Text,
-    TouchableOpacity,
-    View,
+  Alert,
+  Animated,
+  Modal,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
@@ -298,7 +298,7 @@ const HomeScreen: React.FC = () => {
               apikey={GOOGLE_API_KEY}
               strokeWidth={6}
               strokeColor="#D32F2F"
-              optimizeWaypoints={true}
+              optimizeWaypoints={false}
               onReady={handleRouteReady}
               onError={() =>
                 showToast(

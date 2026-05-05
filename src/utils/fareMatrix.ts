@@ -28,7 +28,12 @@ export const calculateDirectFare = (
   // 2. Calculate succeeding kilometers if distance is greater than the base limit
   if (distanceInKm > BASE_KM) {
     const excessDistance = distanceInKm - BASE_KM;
-    const roundedExcessDistance = Math.ceil(excessDistance);
+
+    // 1-meter (0.001 km) grace margin to prevent tiny GPS inaccuracies
+    // from unfairly rounding up and charging a full extra succeeding kilometer.
+    const roundedExcessDistance = Math.ceil(
+      Math.max(0, excessDistance - 0.001),
+    );
     const excessFare = roundedExcessDistance * SUCCEEDING_RATE_PER_KM;
     totalFare += excessFare;
   }

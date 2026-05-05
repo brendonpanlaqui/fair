@@ -216,6 +216,22 @@ const StartTripScreen: React.FC = () => {
 
   // 🚀 UPDATED: Now pings Django before navigating
   const handleConfirmRoute = async () => {
+    if (!frozenOrigin) {
+      Alert.alert(
+        "Locating...",
+        "Please wait a moment while we get your exact starting location.",
+      );
+      return;
+    }
+
+    if (!isWithinAngelesCity(safeOriginLat, safeOriginLng)) {
+      Alert.alert(
+        "Out of Bounds",
+        "Your starting location is outside Angeles City. Ordinance No. 723 only covers trips within Angeles City limits.",
+      );
+      return;
+    }
+
     if (!finalDest || !calculatedFare) {
       Alert.alert(
         "Destination Required",
@@ -342,6 +358,7 @@ const StartTripScreen: React.FC = () => {
           calculatedDistance={calculatedDistance}
           onOpenSearch={(target) => {
             setSearchTarget(target);
+            setSessionToken(generateSessionToken()); // 🚀 Reset token on open to prevent stale sessions
             setIsSearchModalVisible(true);
           }}
           onRemoveStopover={removeStopover}
@@ -578,6 +595,18 @@ const StartTripScreen: React.FC = () => {
                   if (details) {
                     const lat = details.geometry.location.lat;
                     const lng = details.geometry.location.lng;
+                    const fullAddress = data.description.toLowerCase();
+                    const isActuallyAngeles =
+                      fullAddress.includes("angeles city") ||
+                      fullAddress.includes("angeles,");
+
+                    if (!isActuallyAngeles) {
+                      Alert.alert(
+                        "Cross-Border Trip",
+                        "Ordinance No. 723 only covers fares inside Angeles City. Tricycles must return empty from other municipalities, so cross-border fares (e.g. to Magalang or Mabalacat) must be negotiated directly with the driver.",
+                      );
+                      return; // Block them from selecting it!
+                    }
                     if (!isWithinAngelesCity(lat, lng)) {
                       Alert.alert(
                         "Out of Bounds",
