@@ -64,7 +64,7 @@ pip install -r requirements.txt
 ```
 
 **Environment Variables:**
-Create a `.env` file in the `fair-admin` root directory with the following configuration (adjust database credentials to match your local setup):
+1. Create a `.env` file in the `fair-admin` root directory with the following configuration (adjust database credentials to match your local setup):
 ```env
 SECRET_KEY=your_secure_django_secret_key
 DEBUG=True
@@ -74,6 +74,11 @@ DB_PASSWORD=your_postgres_password
 DB_HOST=localhost
 DB_PORT=5432
 ```
+2. Generate a new Django secret key:
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+3. Open the `.env` file and paste the generated key into the `SECRET_KEY` field.
 
 **Migrations & Superuser:**
 ```bash
