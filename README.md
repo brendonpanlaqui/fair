@@ -66,8 +66,12 @@ pip install -r requirements.txt
 **Environment Variables:**
 1. Create a `.env` file in the `fair-admin` root directory with the following configuration (adjust database credentials to match your local setup):
 ```env
+EMAIL_USER=your_email_address
+EMAIL_PASS=your_email_password
+
 SECRET_KEY=your_secure_django_secret_key
 DEBUG=True
+
 DB_NAME=fair_db
 DB_USER=postgres
 DB_PASSWORD=your_postgres_password
