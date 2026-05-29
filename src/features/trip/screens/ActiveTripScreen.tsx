@@ -1,14 +1,14 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Stack } from "expo-router";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
-  BackHandler,
+  Alert,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  View
+  View,
 } from "react-native";
 import { ActiveTripDashboard } from "../components/active/ActiveTripDashboard";
 import { ActiveTripHeader } from "../components/active/ActiveTripHeader";
@@ -16,50 +16,39 @@ import { ActiveTripMap } from "../components/active/ActiveTripMap";
 import { DeviationModal } from "../components/active/DeviationModal";
 import { useActiveTrip } from "../hooks/useActiveTrip";
 
-// 🚀 IMPORT AUTH CONTEXT
+// import auth context to verify user discounts
 import { useAuth } from "@/src/hooks/AuthContext";
 
 const ActiveTripScreen = () => {
-  const router = useRouter();
   const tripData = useActiveTrip();
   const { isDiscountVerified, userType } = useAuth();
 
+  // states to manage the trip lifecycle and ui overlays
   const [isPlottingRoute, setIsPlottingRoute] = useState(true);
   const [tripState, setTripState] = useState<"LOADING" | "DRIVING" | "ARRIVED">(
     "LOADING",
   );
   const [askedFare, setAskedFare] = useState("");
 
-  // 🚀 THE INTERCEPTOR: Protects the user from accidentally killing the trip
+  // the interceptor protects the user from accidentally killing the trip
   const handleBackPress = () => {
     tripData.handleCancelTrip();
-    return true; // Required for Android BackHandler to know we intercepted it
+    return true; // required for android backhandler to know we intercepted it
   };
 
-  // 🚀 NATIVE ANDROID SWIPE PROTECTION
-  useEffect(() => {
-    const onHardwareBackPress = () => {
-      if (tripState === "DRIVING" || tripState === "LOADING") {
-        handleBackPress();
-        return true; // Block native back
-      }
-      return false; // Let them go back normally if they've already arrived
-    };
-
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      onHardwareBackPress,
-    );
-    return () => subscription.remove();
-  }, [tripState]);
-
+  // renders the final screen where the user enters what they actually paid
   const renderArrivalScreen = () => {
     if (tripState !== "ARRIVED") return null;
+
+    const enteredFareNum = Number(askedFare);
+    const isSubmitDisabled = askedFare.length === 0;
+
     return (
       <View style={styles.arrivedOverlay}>
         <View style={styles.arrivedCard}>
           <Text style={styles.arrivedTitle}>{"Destination Reached!"}</Text>
 
+          {/* displays the expected fare based on the ordinance */}
           <View style={styles.officialFareBox}>
             <Text style={styles.arrivedSubtext}>
               {"Official Computed Fare"}
@@ -86,8 +75,11 @@ const ActiveTripScreen = () => {
             )}
           </View>
 
+          {/* prompt adjusted if the user drops off early */}
           <Text style={styles.inputLabel}>
-            {"How much did the driver ask for?"}
+            {tripData.isEarlyDropoff
+              ? `It looks like you dropped off early. Based on the LGU matrix for this actual distance, the prorated fare is ₱${tripData.fixedFare.toFixed(2)} (Original: ₱${tripData.originalFare.toFixed(2)}). How much did you actually pay the driver?`
+              : "How much did you actually pay the driver?"}
           </Text>
 
           <View style={styles.inputContainer}>
@@ -107,10 +99,10 @@ const ActiveTripScreen = () => {
             style={[
               styles.payBtn,
               {
-                backgroundColor: askedFare.length === 0 ? "#CBD5E1" : "#D32F2F",
+                backgroundColor: isSubmitDisabled ? "#CBD5E1" : "#D32F2F",
               },
             ]}
-            disabled={askedFare.length === 0}
+            disabled={isSubmitDisabled}
             onPress={() => tripData.handleEndTrip(askedFare)}
           >
             <Text style={styles.payBtnText}>{"Submit & Generate Receipt"}</Text>
@@ -124,6 +116,7 @@ const ActiveTripScreen = () => {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* map component handling the real-time tracking and route drawing */}
       <ActiveTripMap
         mapCenter={tripData.mapCenter}
         currentLocation={tripData.currentLocation}
@@ -136,37 +129,56 @@ const ActiveTripScreen = () => {
           setTripState("DRIVING");
           tripData.setRouteCoordinates(coords);
         }}
-        onDestinationReached={() => setTripState("ARRIVED")}
+        onError={(error) => {
+          setIsPlottingRoute(false);
+          Alert.alert(
+            "Route Error",
+            "Failed to calculate the route. Please cancel the trip and try again.",
+          );
+        }}
+        onDestinationReached={() => {
+          tripData.prepareArrival();
+          setTripState("ARRIVED");
+        }}
       />
 
+      {/* loading overlay while google maps resolves the route polyline */}
       {isPlottingRoute && (
         <View style={styles.plottingOverlay}>
           <ActivityIndicator size="large" color="#D32F2F" />
-          <Text style={styles.plottingText}>{"Plotting Secure Route..."}</Text>
+          <Text style={styles.plottingText}>
+            {"Getting your route ready..."}
+          </Text>
           <Text style={styles.plottingSubtext}>
-            {"Connecting to LGU Matrix"}
+            {"Making sure it’s safe and efficient"}
           </Text>
         </View>
       )}
 
       {tripState !== "ARRIVED" && (
         <>
+          {/* top header with tricycle body number and current fare */}
           <ActiveTripHeader
             bodyNumber={tripData.bodyNumber}
             fixedFare={tripData.fixedFare}
-            onBack={handleBackPress} // 🚀 Wires the interceptor to the header button
+            onBack={handleBackPress} // wires the interceptor to the header button
           />
+          {/* bottom dashboard showing time, distance, and action buttons */}
           <ActiveTripDashboard
             estimatedMinutes={tripData.estimatedMinutes}
             lockedDistance={tripData.lockedDistance}
             onSecretTrigger={tripData.handleSecretDeviationTrigger}
-            onEndTrip={tripData.handleEndTrip}
+            onEndTrip={() => {
+              tripData.prepareArrival();
+              setTripState("ARRIVED");
+            }}
           />
         </>
       )}
 
       {renderArrivalScreen()}
 
+      {/* warning modal if the driver deviates too far from the calculated route */}
       <DeviationModal
         visible={tripData.isDeviationWarningVisible}
         onClose={() => tripData.setIsDeviationWarningVisible(false)}
@@ -176,12 +188,8 @@ const ActiveTripScreen = () => {
   );
 };
 
-// ... (KEEP ALL YOUR EXISTING STYLES)
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-
-  // --- Plotting Overlay Styles ---
   plottingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(255, 255, 255, 0.85)",
@@ -202,8 +210,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#64748B",
   },
-
-  // --- Arrived Overlay Styles ---
   arrivedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.6)",

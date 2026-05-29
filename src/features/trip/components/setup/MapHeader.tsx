@@ -1,8 +1,10 @@
+import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useFocusEffect } from "expo-router";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
+  Alert,
   Keyboard,
   StyleSheet,
   Text,
@@ -27,7 +29,7 @@ interface MapHeaderProps {
 
 const STORAGE_KEY = "@fair_saved_places";
 
-// 🚀 SECURITY UPGRADE: Generate a random string to act as our Session Token
+// generate a random string to act as our Session Token
 const generateSessionToken = () => {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 };
@@ -42,7 +44,7 @@ const MapHeader: React.FC<MapHeaderProps> = ({
   const autocompleteRef = useRef<GooglePlacesAutocompleteRef>(null);
   const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
 
-  // 🚀 Initialize the session token
+  // initialize the session token
   const [sessionToken, setSessionToken] = useState(generateSessionToken());
 
   useFocusEffect(
@@ -99,14 +101,15 @@ const MapHeader: React.FC<MapHeaderProps> = ({
           ref={autocompleteRef}
           enablePoweredByContainer={false}
           placeholder="Where are you going?"
-          debounce={800} // Keeps API calls low while typing
+          debounce={800} // keeps API calls low while typing
           minLength={2}
           GooglePlacesDetailsQuery={{
             fields: "geometry,name", // STRICTLY fetches only needed data
           }}
           fetchDetails={true}
           predefinedPlaces={predefinedPlaces}
-          predefinedPlacesAlwaysVisible={true}
+          predefinedPlacesAlwaysVisible={!hasDestination}
+          listViewDisplayed={hasDestination ? false : "auto"}
           onPress={(data: any, details = null) => {
             const lat =
               details?.geometry?.location?.lat || data?.geometry?.location?.lat;
@@ -116,10 +119,37 @@ const MapHeader: React.FC<MapHeaderProps> = ({
               data?.structured_formatting?.main_text || data.description;
 
             if (lat && lng) {
+              // THE STRING DEFENSE (Skip if it's a Saved Place like "Home")
+              if (!data.isSavedPlace) {
+                const fullAddress = (data.description || "").toLowerCase();
+                const isActuallyAngeles =
+                  fullAddress.includes("angeles city") ||
+                  fullAddress.includes("angeles,");
+
+                if (!isActuallyAngeles) {
+                  Alert.alert(
+                    "Cross-Border Trip",
+                    "Ordinance No. 723 only covers fares inside Angeles City. Tricycles must return empty from other municipalities, so cross-border fares (e.g. to Magalang or Mabalacat) must be negotiated directly with the driver.",
+                  );
+                  return; // block sila
+                }
+              }
+
+              // (Ray-Casting Algorithm)
+              if (!isWithinAngelesCity(lat, lng)) {
+                Alert.alert(
+                  "Out of Bounds",
+                  "Locations must be within Angeles City limits.",
+                );
+                return; // block sila
+              }
+
+              // proceed kapag pasado sa dalawa
+              Keyboard.dismiss();
+
               onPlaceSelected({ latitude: lat, longitude: lng }, name);
 
-              // 🚀 SECURITY UPGRADE: Refresh the token AFTER a successful search
-              // This ensures the next search starts a brand new billing session.
+              // refresh the token AFTER a successful search to ensure the next search starts a brand new billing session.
               setSessionToken(generateSessionToken());
             }
           }}
@@ -130,7 +160,7 @@ const MapHeader: React.FC<MapHeaderProps> = ({
             location: "15.1444,120.5928",
             radius: "8000",
             strictbounds: true,
-            sessiontoken: sessionToken, // 🚀 Binds all keystrokes to one billable event
+            sessiontoken: sessionToken, // binds all keystrokes to one billable event
           }}
           renderRow={(rowData: any) => {
             const isSaved = rowData.isSavedPlace;

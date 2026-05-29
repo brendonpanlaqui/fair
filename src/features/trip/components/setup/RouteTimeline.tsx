@@ -22,7 +22,7 @@ export const RouteTimeline = ({
   onOpenSearch,
   onRemoveStopover,
 }: Props) => {
-  // Renders the dots and text for the left side of the card
+  // renders the dots and text for the left side of the card
   const renderRouteNodes = () => {
     return (
       <View style={styles.nodesContainer}>
@@ -196,7 +196,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // Timeline Nodes
   nodesContainer: {
     flexDirection: "column",
   },
@@ -215,13 +214,12 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Dots & Lines
   originDot: {
     width: 12,
     height: 12,
     borderRadius: 6,
     borderWidth: 3,
-    borderColor: "#0891B2", // Matches the teal dot from the image
+    borderColor: "#0891B2",
     marginTop: 4,
   },
   stopoverDot: {
@@ -250,7 +248,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
 
-  // Text
   nodeTextPrimary: {
     fontSize: 14,
     color: "#0F172A",

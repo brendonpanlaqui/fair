@@ -1,7 +1,7 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import {
   ScrollView,
   StyleSheet,
@@ -11,34 +11,25 @@ import {
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 
-// 🚀 IMPORT AUTH CONTEXT
-import { useAuth } from "@/src/hooks/AuthContext";
-
 const TripReceiptScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
 
-  // 🚀 GRAB GLOBAL DISCOUNT STATUS
-  const { isDiscountVerified, userType } = useAuth();
-
-  // Base parameters
+  // base parameters for fare calculation
   const baseFare = params.baseFare ? Number(params.baseFare) : 35.0;
   const succeedingFare = params.succeedingFare
     ? Number(params.succeedingFare)
     : 12.0;
-  const subtotal = baseFare + succeedingFare;
+  const legalTotalFare = baseFare + succeedingFare;
 
-  // 🚀 AUTOMATIC MATH BASED ON LGU STATUS
-  const discountAmount = isDiscountVerified ? Math.floor(subtotal * 0.2) : 0;
-  const legalTotalFare = subtotal - discountAmount;
-
-  // Overcharge Detection
+  // overcharge detection logic
   const actualFare = params.actualFare
     ? Number(params.actualFare)
     : legalTotalFare;
   const overchargeAmount = actualFare - legalTotalFare;
   const isUnderpaid = actualFare < legalTotalFare;
 
+  // basic trip details passed from previous screen
   const distance = (params.distance as string) || "3.5";
   const duration = (params.duration as string) || "12 mins";
   const date = (params.date as string) || "Oct 24, 2023";
@@ -46,7 +37,7 @@ const TripReceiptScreen = () => {
   const bodyNumber = (params.bodyNumber as string) || "0406";
   const tripId = (params.tripId as string) || "TRP-88172B";
 
-  // MAP PARAMS
+  // map parameters for plotting the route
   const originLat = params.originLat ? Number(params.originLat) : 15.1444;
   const originLng = params.originLng ? Number(params.originLng) : 120.5928;
   const destLat = params.destLat ? Number(params.destLat) : 15.1384;
@@ -56,6 +47,7 @@ const TripReceiptScreen = () => {
 
   const mapRef = useRef<MapView>(null);
 
+  // function to adjust the map view to fit the entire route
   const fitMapToRoute = () => {
     const coords = parsedRoute ?? [
       { latitude: originLat, longitude: originLng },
@@ -78,6 +70,7 @@ const TripReceiptScreen = () => {
     );
   };
 
+  // navigates to the report screen if the user wants to dispute the fare
   const handleReportDriver = () => {
     router.push({
       pathname: "/report",
@@ -85,6 +78,7 @@ const TripReceiptScreen = () => {
     });
   };
 
+  // parses the polyline hash into an array of coordinates for the map
   const getDrivenRoute = () => {
     if (polylineHash) {
       try {
@@ -100,7 +94,13 @@ const TripReceiptScreen = () => {
     ];
   };
 
-  const parsedRoute = getDrivenRoute();
+  // memoize the json parsing so it only runs once per screen load
+  const parsedRoute = useMemo(
+    () => getDrivenRoute(),
+    [polylineHash, originLat, originLng, destLat, destLng],
+  );
+
+  // check if we only have the start and end points, meaning it's an estimated route
   const isEstimatedRoute = !polylineHash || parsedRoute.length < 3;
 
   return (
@@ -108,7 +108,7 @@ const TripReceiptScreen = () => {
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* MINIMALIST HEADER */}
+      {/* minimalist header with close button */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.replace("/(tabs)")}
@@ -126,7 +126,7 @@ const TripReceiptScreen = () => {
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.receiptCard}>
-          {/* THE RECEIPT MAP HEADER */}
+          {/* the receipt map header showing the driven route */}
           <View style={styles.receiptMapContainer}>
             <MapView
               provider={PROVIDER_GOOGLE}
@@ -159,12 +159,14 @@ const TripReceiptScreen = () => {
               />
             </MapView>
 
+            {/* badge indicating if the route is estimated */}
             {isEstimatedRoute && (
               <View style={styles.estimatedBadge}>
                 <MaterialIcons name="info-outline" size={12} color="#FCD34D" />
                 <Text style={styles.estimatedBadgeText}>Estimated route</Text>
               </View>
             )}
+            {/* badge indicating if the trip was saved while offline */}
             {isOfflineSaved && (
               <View
                 style={[
@@ -180,12 +182,12 @@ const TripReceiptScreen = () => {
             )}
           </View>
 
-          {/* Top Section: The Total */}
+          {/* top section: the total fare payable */}
           <View style={styles.totalSection}>
             <Text style={styles.totalLabel}>TOTAL PAYABLE</Text>
             <View style={styles.priceRow}>
               <Text style={styles.currencySymbol}>₱</Text>
-              {/* 🚀 DYNAMIC TOTAL DISPLAY */}
+              {/* dynamic total display based on ordinance computation */}
               <Text style={styles.totalAmount}>
                 {legalTotalFare.toFixed(2)}
               </Text>
@@ -204,17 +206,17 @@ const TripReceiptScreen = () => {
             </View>
           </View>
 
-          {/* The "Tear" Separator */}
+          {/* the "tear" separator to look like a physical receipt */}
           <View style={styles.tearLineContainer}>
             <View style={styles.tearCutoutLeft} />
             <View style={styles.tearDashLine} />
             <View style={styles.tearCutoutRight} />
           </View>
 
-          {/* Bottom Section: Breakdown & Details */}
+          {/* bottom section: fare breakdown and trip metadata details */}
           <View style={styles.detailsSection}>
-            {/* OVERCHARGE WARNING BOX */}
-            {overchargeAmount > 0 ? (
+            {/* overcharge alert box shown if actual fare > legal fare */}
+            {overchargeAmount > 0 && (
               <View style={styles.overchargeAlert}>
                 <MaterialIcons name="error-outline" size={24} color="#DC2626" />
                 <View style={styles.overchargeTextWrapper}>
@@ -226,9 +228,9 @@ const TripReceiptScreen = () => {
                   </Text>
                 </View>
               </View>
-            ) : null}
+            )}
 
-            {/* UNDERPAID  BOX */}
+            {/* underpaid box shown if actual fare < legal fare */}
             {isUnderpaid && (
               <View style={styles.underpaidAlert}>
                 <MaterialIcons name="info-outline" size={24} color="#2563EB" />
@@ -242,7 +244,7 @@ const TripReceiptScreen = () => {
                 </View>
               </View>
             )}
-            {/* FARE BREAKDOWN */}
+            {/* fare breakdown into base and succeeding distance components */}
             <View style={styles.breakdownRow}>
               <View style={styles.breakdownItem}>
                 <Text style={styles.breakdownLabel}>BASE FARE</Text>
@@ -259,19 +261,7 @@ const TripReceiptScreen = () => {
               </View>
             </View>
 
-            {/* 🚀 DYNAMIC DISCOUNT ALERT */}
-            {isDiscountVerified && (
-              <View style={styles.discountAlert}>
-                <MaterialIcons name="check-circle" size={18} color="#10B981" />
-                <Text style={styles.discountAlertText}>
-                  {userType.toUpperCase()} DISCOUNT
-                </Text>
-                <Text style={styles.discountAmountText}>
-                  -₱{discountAmount.toFixed(2)}
-                </Text>
-              </View>
-            )}
-
+            {/* list of trip metadata like id, body number, date */}
             <View style={styles.metaDataList}>
               <View style={styles.metaRow}>
                 <Text style={styles.metaLabel}>Trip ID</Text>
@@ -300,7 +290,7 @@ const TripReceiptScreen = () => {
         </View>
       </ScrollView>
 
-      {/* ACTIONS FOOTER */}
+      {/* actions footer with done and report buttons */}
       <View style={styles.footer}>
         <TouchableOpacity
           style={styles.primaryBtn}
@@ -397,7 +387,6 @@ const styles = StyleSheet.create({
     fontWeight: "500",
     lineHeight: 18,
   },
-  // Blue badge for paying less
   underpaidBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -409,8 +398,6 @@ const styles = StyleSheet.create({
     borderColor: "#BFDBFE",
   },
   underpaidBadgeText: { color: "#2563EB", fontSize: 12, fontWeight: "bold" },
-
-  // Blue alert box for the details section
   underpaidAlert: {
     flexDirection: "row",
     alignItems: "center",
@@ -565,8 +552,6 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   breakdownValue: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
-
-  // 🚀 UPDATED DISCOUNT STYLES
   discountAlert: {
     flexDirection: "row",
     alignItems: "center",

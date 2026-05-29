@@ -10,7 +10,7 @@ import {
 } from "react-native";
 import { BACKGROUND_TRIP_TASK } from "../services/BackgroundLocationService";
 
-// 🚀 FIX: Add a parameter to tell the hook if we are actually in a trip
+// tell that we are actually in a trip
 export const useLocationTracking = (isTripActive: boolean = false) => {
   const [currentLocation, setCurrentLocation] =
     useState<Location.LocationObjectCoords | null>(null);
@@ -44,7 +44,7 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
     let locationSubscription: Location.LocationSubscription | null = null;
 
     const startTracking = async () => {
-      // 1. Only ask for aggressive notification permissions if it's an active trip
+      // aggressive permission to ensure background tracking in active trips
       if (isTripActive && Platform.OS === "android" && Platform.Version >= 33) {
         const notifStatus = await PermissionsAndroid.request(
           PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS,
@@ -64,7 +64,7 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
       }
 
       try {
-        // 🚀 FIX: ONLY start the background task if isTripActive is TRUE
+        // start background tracking if we are in an active trip
         if (isTripActive) {
           const { status: bgStatus } =
             await Location.requestBackgroundPermissionsAsync();
@@ -90,7 +90,7 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
             });
           }
         } else {
-          // If we are just on the Home Screen, make absolutely sure no zombie tasks are running
+          // if we are just on the home screen, make absolutely sure no zombie tasks are running
           const hasStarted =
             await Location.hasStartedLocationUpdatesAsync(BACKGROUND_TRIP_TASK);
           if (hasStarted) {
@@ -98,7 +98,7 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
           }
         }
 
-        // 4. Foreground Tracking (Runs on ALL screens to show the map)
+        // foreground tracking (Runs on ALL screens to show the map)
         locationSubscription = await Location.watchPositionAsync(
           {
             accuracy: Location.Accuracy.BestForNavigation,
@@ -107,12 +107,12 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
           },
           (location) => {
             const { accuracy, latitude, longitude } = location.coords;
-            // Only process reasonably accurate GPS signals to avoid large jumps
+            // only process reasonably accurate GPS signals to avoid large jumps
             if (accuracy && accuracy <= 50) {
               // 1. Pass the raw GPS coordinates through the smoother
               const smoothedLocation = getSmoothedLocation(latitude, longitude);
 
-              // 2. Update the current location with the smoothed value for a stable map dot
+              // update the current location with the smoothed value for a stable map dot
               const smoothedCoords = {
                 ...location.coords,
                 latitude: smoothedLocation.lat,
@@ -120,10 +120,10 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
               };
               setCurrentLocation(smoothedCoords);
 
-              // Only record the trace if we are actively in a trip
+              // only record the trace if we are actively in a trip
               if (isTripActive) {
                 setDrivenTrace((prev) => {
-                  // 3. Save the smoothed coordinates to your polyline trace state
+                  // save the smoothed coordinates to your polyline trace state
                   const updated = [
                     ...prev,
                     {

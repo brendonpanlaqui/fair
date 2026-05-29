@@ -1,4 +1,8 @@
-import { isWithinAngelesCity } from "@/src/utils/geofencing";
+import { calculateDirectFare } from "@/src/utils/fareMatrix";
+import {
+  calculateTraceDistanceKm,
+  isWithinAngelesCity,
+} from "@/src/utils/geofencing";
 import { resetSmoothing } from "@/src/utils/gpsSmoothing";
 import { getShortestDistanceToRoute } from "@/src/utils/routeDeviation";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -11,32 +15,63 @@ import { useLocationTracking } from "./useLocationTracking";
 
 const DEVIATION_THRESHOLD_METERS = 100;
 
+// a safety wrapper to prevent JSON.parse from causing white screens
+const safeParseJSON = (jsonString: any, fallback: any) => {
+  if (!jsonString || jsonString === "undefined" || jsonString === "null")
+    return fallback;
+  try {
+    return JSON.parse(jsonString as string);
+  } catch (e) {
+    console.warn("Failed to parse JSON param:", jsonString);
+    return fallback;
+  }
+};
+
 export const useActiveTrip = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { user } = useAuth();
+  const { user, isDiscountVerified } = useAuth();
 
-  // 1. Extract & Parse Data
-  const fixedFare = params.fixedFare ? Number(params.fixedFare) : 0;
-  const lockedDistance = params.lockedDistance
-    ? Number(params.lockedDistance)
-    : 0;
+  // extract Initial Parameters safely
+  const initialFare =
+    params.fixedFare && params.fixedFare !== "undefined"
+      ? Number(params.fixedFare)
+      : 0;
+  const initialDistance =
+    params.lockedDistance && params.lockedDistance !== "undefined"
+      ? Number(params.lockedDistance)
+      : 0;
+
+  // setup Dynamic State (Allows us to prorate fare if boundary is hit)
+  const [dynamicFare, setDynamicFare] = useState(initialFare);
+  const [dynamicDistance, setDynamicDistance] = useState(initialDistance);
+
+  // parse remaining parameters using the safety wrapper
+  const activeMatrix = safeParseJSON(params.matrixStr, null);
+  const parsedStopovers = safeParseJSON(params.stopovers, []);
+
   const bodyNumber = (params.bodyNumber as string) || "888";
   const originName = (params.originName as string) || "Unknown Origin";
   const destName = (params.destName as string) || "Unknown Destination";
-  const matrixId = params.matrixId ? Number(params.matrixId) : 1;
-  const destLat = params.destLat ? Number(params.destLat) : null;
-  const destLng = params.destLng ? Number(params.destLng) : null;
+  const matrixId =
+    params.matrixId && params.matrixId !== "undefined"
+      ? Number(params.matrixId)
+      : 1;
+  const destLat =
+    params.destLat && params.destLat !== "undefined"
+      ? Number(params.destLat)
+      : null;
+  const destLng =
+    params.destLng && params.destLng !== "undefined"
+      ? Number(params.destLng)
+      : null;
 
-  const parsedStopovers = params.stopovers
-    ? JSON.parse(params.stopovers as string)
-    : [];
   const waypoints = parsedStopovers.map((stop: any) => ({
     latitude: Number(stop.latitude),
     longitude: Number(stop.longitude),
   }));
 
-  // 2. Location & ETA Math
+  // Location & Tracking
   const { currentLocation, drivenTrace, stopTracking } =
     useLocationTracking(true);
   const mapCenter = currentLocation
@@ -46,9 +81,9 @@ export const useActiveTrip = () => {
       }
     : { latitude: 15.149, longitude: 120.5779 };
 
-  const estimatedMinutes = Math.max(1, Math.ceil(lockedDistance * 3));
+  const estimatedMinutes = Math.max(1, Math.ceil(dynamicDistance * 3));
 
-  // 3. Safety & Deviation State
+  // Safety & Deviation State
   const [isDeviationWarningVisible, setIsDeviationWarningVisible] =
     useState(false);
   const [secretTapCount, setSecretTapCount] = useState(0);
@@ -57,8 +92,10 @@ export const useActiveTrip = () => {
   >([]);
   const [deviationCount, setDeviationCount] = useState(0);
   const [hasLeftCity, setHasLeftCity] = useState(false);
+  const [isEarlyDropoff, setIsEarlyDropoff] = useState(false);
+  const [originalFare, setOriginalFare] = useState(0);
 
-  // 4. Handlers
+  // --- Handlers ---
   const handleSecretDeviationTrigger = () => {
     setSecretTapCount((prev) => prev + 1);
     if (secretTapCount >= 2) {
@@ -67,27 +104,57 @@ export const useActiveTrip = () => {
     }
   };
 
-  // 🚀 EXTRACTED: Reusable commit logic for both manual ending and out-of-bounds auto-ending
+  // CALCULATE EARLY DROP-OFF
+  const prepareArrival = () => {
+    if (drivenTrace && drivenTrace.length > 1) {
+      const actualDistanceKm = calculateTraceDistanceKm(drivenTrace);
+
+      // once they dropped off at least 200 meters early (0.2 km margin)
+      if (activeMatrix && actualDistanceKm < dynamicDistance - 0.2) {
+        const proratedFare = calculateDirectFare(
+          actualDistanceKm,
+          activeMatrix,
+          isDiscountVerified,
+        );
+
+        // only apply if the prorated fare is actually cheaper
+        if (proratedFare < dynamicFare) {
+          setIsEarlyDropoff(true);
+          setOriginalFare(dynamicFare);
+          setDynamicDistance(actualDistanceKm);
+          setDynamicFare(proratedFare);
+        }
+      }
+    }
+  };
+
   const commitTrip = async (
     finalFareCharged: number,
     isForcedCancel: boolean = false,
+    isForcedComplete: boolean = false,
+    overrideComputedFare?: number,
+    overrideDistance?: number,
   ) => {
     try {
       await stopTracking();
-      resetSmoothing(); // clear GPS smoothing history for the next trip
+      resetSmoothing();
+
+      // resolve the true values: use overrides if provided immediately by Geofence, otherwise fallback to UI state
+      const resolvedFare = overrideComputedFare ?? dynamicFare;
+      const resolvedDistance = overrideDistance ?? dynamicDistance;
 
       const base = 35;
-      const succeeding = Math.max(0, fixedFare - base);
+      const succeeding = Math.max(0, resolvedFare - base);
       const generatedTripId = `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
 
-      // Determine if the trip was actually taken by checking if a real map trace was generated
-      const tripStatus = isForcedCancel
-        ? "Cancelled"
-        : drivenTrace.length >= 3
-          ? "Completed"
-          : "Cancelled";
+      let tripStatus = "Cancelled";
+      if (isForcedCancel) {
+        tripStatus = "Cancelled";
+      } else if (isForcedComplete || resolvedDistance >= 0.05) {
+        // kapag not explicitly ended/cancelled, assume completed if they traveled at least 50 meters
+        tripStatus = "Completed";
+      }
 
-      // 🚀 BUILD THE PAYLOAD FOR DJANGO
       const payload = {
         trip_id: generatedTripId,
         user: user?.id || null,
@@ -96,8 +163,8 @@ export const useActiveTrip = () => {
         trip_mode: parsedStopovers.length > 0 ? "Special" : "Direct",
         origin_address: originName,
         destination_address: destName,
-        total_distance_km: lockedDistance,
-        computed_fare: fixedFare,
+        total_distance_km: resolvedDistance,
+        computed_fare: resolvedFare,
         actual_fare_charged: tripStatus === "Completed" ? finalFareCharged : 0,
         discount_applied: 0.0,
         status: tripStatus,
@@ -110,6 +177,7 @@ export const useActiveTrip = () => {
 
       let isOfflineSaved = false;
 
+      // API CALL
       try {
         await api.post("/trips/submit/", payload);
       } catch (submitError: any) {
@@ -138,7 +206,7 @@ export const useActiveTrip = () => {
             console.error("Failed to save pending trip offline", e);
           }
         } else {
-          throw submitError; // Re-throw if it's a validation/client error
+          throw submitError;
         }
       }
 
@@ -153,16 +221,16 @@ export const useActiveTrip = () => {
         minute: "2-digit",
       });
 
-      // 🚀 NAVIGATE TO RECEIPT
+      // NAVIGATE TO RECEIPT
       router.replace({
         pathname: "/trip-receipt",
         params: {
           tripId: generatedTripId,
-          totalFare: fixedFare, // The official LGU computed fare
-          actualFare: finalFareCharged, // 🚀 NEW: Pass this to show overcharging on the receipt!
+          totalFare: resolvedFare,
+          actualFare: finalFareCharged,
           baseFare: base,
           succeedingFare: succeeding,
-          distance: lockedDistance.toFixed(1),
+          distance: resolvedDistance.toFixed(1),
           duration: `${estimatedMinutes} mins`,
           date: dateStr,
           time: timeStr,
@@ -186,7 +254,6 @@ export const useActiveTrip = () => {
       let errorMessage =
         "Something went wrong while saving your trip. Please try again.";
 
-      // Handle generic DRF detail errors or Fare Matrix issues
       if (error.response?.data) {
         const errorData = error.response.data;
         if (errorData.fare_matrix) {
@@ -196,9 +263,7 @@ export const useActiveTrip = () => {
         } else if (errorData.detail) {
           errorMessage = errorData.detail;
         }
-      }
-      // Check if it's a network issue (no internet)
-      else if (
+      } else if (
         error.message &&
         error.message.toLowerCase().includes("network")
       ) {
@@ -211,26 +276,15 @@ export const useActiveTrip = () => {
     }
   };
 
-  // 🚀 UPDATED: Accepting the askedFare from the UI
   const handleEndTrip = (askedFare?: string) => {
+    // falls back to dynamicFare if no valid askedFare is provided
     const finalFareCharged =
-      askedFare && !isNaN(Number(askedFare)) ? Number(askedFare) : fixedFare;
+      askedFare && !isNaN(Number(askedFare)) ? Number(askedFare) : dynamicFare;
 
-    Alert.alert(
-      "End Ride",
-      "Are you sure you want to end this trip and generate a receipt?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Generate Receipt",
-          style: "destructive",
-          onPress: () => commitTrip(finalFareCharged),
-        },
-      ],
-    );
+    // execute immediately
+    commitTrip(finalFareCharged, false, true, undefined, undefined);
   };
 
-  // 🚀 NATIVE BACK CANCELLATION HANDLER
   const handleCancelTrip = () => {
     Alert.alert(
       "Cancel Tracking?",
@@ -240,7 +294,7 @@ export const useActiveTrip = () => {
         {
           text: "Stop Tracking",
           style: "destructive",
-          onPress: () => commitTrip(0, true), // Force save as Cancelled with ₱0 fare
+          onPress: () => commitTrip(0, true),
         },
       ],
     );
@@ -249,13 +303,14 @@ export const useActiveTrip = () => {
   const handleReportDeviation = async () => {
     setIsDeviationWarningVisible(false);
     await stopTracking();
-    resetSmoothing(); // clear GPS smoothing history
+    resetSmoothing();
     router.replace({
       pathname: "/report",
       params: { tripId: "TRP-LIVE", bodyNumber, violation: "Detour" },
     });
   };
 
+  // Deviation Tracking
   useEffect(() => {
     if (
       currentLocation &&
@@ -279,7 +334,7 @@ export const useActiveTrip = () => {
     }
   }, [currentLocation, routeCoordinates, isDeviationWarningVisible]);
 
-  // 🚀 SENIOR SWE ADDITION: Real-time Geofencing Boundary Check
+  // Real-time Geofencing Boundary Check
   useEffect(() => {
     if (currentLocation && !hasLeftCity) {
       if (
@@ -289,6 +344,27 @@ export const useActiveTrip = () => {
         )
       ) {
         setHasLeftCity(true);
+
+        // calculate actual distance driven safely
+        const actualDistanceKm =
+          drivenTrace && drivenTrace.length > 1
+            ? calculateTraceDistanceKm(drivenTrace)
+            : dynamicDistance; // Fallback to current distance if GPS hasn't fully logged yet
+
+        // recalculate prorated fare using matrix
+        let proratedFare = dynamicFare;
+        if (activeMatrix) {
+          proratedFare = calculateDirectFare(
+            actualDistanceKm,
+            activeMatrix,
+            isDiscountVerified,
+          );
+        }
+
+        // lock new values into state
+        setDynamicDistance(actualDistanceKm);
+        setDynamicFare(proratedFare);
+
         Alert.alert(
           "📍 City Limits Reached",
           "You have crossed outside the Angeles City boundaries. The LGU-regulated fare ordinance no longer applies.\n\nYour tracked trip will now end and lock the official fare up to this point. Any further travel is subject to private agreement with the driver.",
@@ -296,19 +372,33 @@ export const useActiveTrip = () => {
             {
               text: "Acknowledge & End Trip",
               style: "destructive",
-              onPress: () => commitTrip(fixedFare), // Lock the LGU portion automatically
+              // force save the trip using the prorated fare as an immediate override!
+              onPress: () =>
+                commitTrip(
+                  proratedFare,
+                  false,
+                  true,
+                  proratedFare,
+                  actualDistanceKm,
+                ),
             },
           ],
-          { cancelable: false }, // Forces the user to click acknowledge
+          { cancelable: false },
         );
       }
     }
-  }, [currentLocation, hasLeftCity]);
+  }, [
+    currentLocation,
+    hasLeftCity,
+    drivenTrace,
+    activeMatrix,
+    isDiscountVerified,
+  ]);
 
   return {
     router,
-    fixedFare,
-    lockedDistance,
+    fixedFare: dynamicFare,
+    lockedDistance: dynamicDistance,
     bodyNumber,
     destLat,
     destLng,
@@ -320,6 +410,9 @@ export const useActiveTrip = () => {
     isDeviationWarningVisible,
     setIsDeviationWarningVisible,
     setRouteCoordinates,
+    isEarlyDropoff,
+    originalFare,
+    prepareArrival,
     handleSecretDeviationTrigger,
     handleEndTrip,
     handleCancelTrip,

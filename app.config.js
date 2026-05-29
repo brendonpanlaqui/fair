@@ -4,7 +4,7 @@ module.exports = {
   expo: {
     name: "fair",
     slug: "fair-app",
-    version: "1.0.0",
+    version: "1.0.1",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "fair-app",
@@ -18,6 +18,7 @@ module.exports = {
     },
     android: {
       package: "com.brendonpanlaqui.fairapp",
+      versionCode: 2,
       adaptiveIcon: {
         backgroundColor: "#d32f2f",
         foregroundImage: "./assets/images/adaptive-icon.png",

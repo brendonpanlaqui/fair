@@ -1,4 +1,4 @@
-import { isWithinAngelesCity } from "@/src/utils/geofencing";
+import { ANGELES_POLYGON, isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialIcons } from "@expo/vector-icons";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -6,12 +6,13 @@ import {
   Alert,
   Animated,
   Modal,
+  StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { PROVIDER_GOOGLE, Region } from "react-native-maps";
+import MapView, { Polygon, PROVIDER_GOOGLE, Region } from "react-native-maps";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
@@ -34,6 +35,7 @@ export const MapPickerModal = ({
 }: Props) => {
   const mapRef = useRef<MapView>(null);
   const liftAnim = useRef(new Animated.Value(0)).current; // 🚀 For pin animation
+  const fetchTimeoutRef = useRef<number | null>(null); // 🚀 For API debouncing
 
   const [region, setRegion] = useState<Region>({
     latitude: initialLat,
@@ -45,7 +47,7 @@ export const MapPickerModal = ({
   const [addressName, setAddressName] = useState("Move map to select location");
   const [isFetchingAddress, setIsFetchingAddress] = useState(false);
 
-  // 🚀 SYNC: Forces map to current location when visible changes
+  // forces map to current location when visible changes
   useEffect(() => {
     if (visible && mapRef.current) {
       mapRef.current.animateToRegion(
@@ -60,27 +62,62 @@ export const MapPickerModal = ({
     }
   }, [visible, initialLat, initialLng]);
 
-  const fetchAddressName = async (lat: number, lng: number) => {
-    setIsFetchingAddress(true);
-    try {
-      const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}`,
-      );
-      const data = await response.json();
-      if (data.results && data.results.length > 0) {
-        setAddressName(data.results[0].formatted_address.split(",")[0]);
-      } else {
-        setAddressName("Unknown Location");
-      }
-    } catch (error) {
-      setAddressName("Pinned Location");
-    } finally {
-      setIsFetchingAddress(false);
+  // prevent memory leaks if modal closes while fetching
+  useEffect(() => {
+    return () => {
+      if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
+    };
+  }, []);
+
+  const fetchAddressName = (lat: number, lng: number) => {
+    // clear any pending API requests if the user is still moving the map
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
     }
+
+    setIsFetchingAddress(true);
+
+    // wait 1000ms before hitting the API to prevent rate limits (debouncing)
+    fetchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const response = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+          {
+            headers: {
+              "User-Agent": "FairCommuteApp/1.0",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
+          },
+        );
+        const data = await response.json();
+        if (data && data.address) {
+          const address = data.address;
+          const shortName =
+            address.amenity ||
+            address.shop ||
+            address.building ||
+            address.road ||
+            address.neighbourhood ||
+            address.suburb ||
+            data.name ||
+            data.display_name.split(",")[0];
+          setAddressName(shortName);
+        } else if (data && data.display_name) {
+          setAddressName(data.display_name.split(",")[0]);
+        } else {
+          setAddressName("Unknown Location");
+        }
+      } catch (error) {
+        console.warn("Geocoding error:", error);
+        setAddressName("Pinned Location");
+      } finally {
+        setIsFetchingAddress(false);
+      }
+    }, 1000);
   };
 
   const handleRegionChange = () => {
-    // 🚀 UX: Lift the pin when map starts moving
+    // lift the pin when map starts moving
     Animated.spring(liftAnim, {
       toValue: -15,
       useNativeDriver: true,
@@ -88,7 +125,7 @@ export const MapPickerModal = ({
   };
 
   const handleRegionChangeComplete = (newRegion: Region) => {
-    // 🚀 UX: Drop the pin when movement stops
+    // drop the pin when movement stops
     Animated.spring(liftAnim, {
       toValue: 0,
       useNativeDriver: true,
@@ -123,6 +160,8 @@ export const MapPickerModal = ({
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <StatusBar barStyle="dark-content" />
+
       <View style={styles.container}>
         {/* HEADER */}
         <View style={styles.header}>
@@ -146,9 +185,31 @@ export const MapPickerModal = ({
             onRegionChangeComplete={handleRegionChangeComplete}
             showsUserLocation={true}
             showsMyLocationButton={false}
-          />
+          >
+            {/* Shaded background outside of Angeles City */}
+            <Polygon
+              coordinates={[
+                { latitude: 35, longitude: 110 },
+                { latitude: 35, longitude: 140 },
+                { latitude: -5, longitude: 140 },
+                { latitude: -5, longitude: 110 },
+              ]}
+              holes={[ANGELES_POLYGON]}
+              fillColor="rgba(15, 23, 42, 0.15)"
+              strokeWidth={0}
+              zIndex={1}
+            />
+            {/* Red outline for Angeles City boundary */}
+            <Polygon
+              coordinates={ANGELES_POLYGON}
+              strokeColor="rgba(211, 47, 47, 0.8)"
+              fillColor="transparent"
+              strokeWidth={2}
+              zIndex={2}
+            />
+          </MapView>
 
-          {/* 🚀 SNAP TO ME BUTTON */}
+          {/* SNAP TO ME BUTTON */}
           <TouchableOpacity
             style={styles.myLocationBtn}
             onPress={snapToCurrent}
@@ -156,7 +217,7 @@ export const MapPickerModal = ({
             <MaterialIcons name="my-location" size={24} color="#0F172A" />
           </TouchableOpacity>
 
-          {/* 🚀 ANIMATED CENTER PIN */}
+          {/* ANIMATED CENTER PIN */}
           <View style={styles.centerPinContainer} pointerEvents="none">
             <Animated.View
               style={[

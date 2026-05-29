@@ -15,7 +15,7 @@ interface Props {
   visible: boolean;
   isScanning: boolean;
   onClose: () => void;
-  onScan: (imageUri: string) => void; // 🚀 Changed to expect a local file path
+  onScan: (imageUri: string) => void;
   onScanStart: () => void;
 }
 
@@ -34,13 +34,13 @@ export const OCRScannerModal = ({
     try {
       onScanStart();
 
-      // 🚀 Take a standard photo. No base64 conversion needed anymore!
+      // take a standard photo. No base64 conversion needed anymore!
       const photo = await cameraRef.current.takePictureAsync({
         quality: 0.5,
       });
 
       if (photo && photo.uri) {
-        onScan(photo.uri); // Pass the local file path to ML Kit
+        onScan(photo.uri); // pass the local file path to ML Kit
       }
     } catch (error) {
       console.error("Camera error:", error);
@@ -123,32 +123,6 @@ export const OCRScannerModal = ({
                 <Text style={styles.shutterText}>
                   {isScanning ? "Processing Offline..." : "Tap to Scan OCR"}
                 </Text>
-
-                {/* DEV BYPASS BUTTON */}
-                {__DEV__ && (
-                  <TouchableOpacity
-                    style={{
-                      marginTop: 20,
-                      padding: 10,
-                      backgroundColor: "rgba(255,255,255,0.2)",
-                      borderRadius: 8,
-                    }}
-                    onPress={() => {
-                      onScanStart();
-                      setTimeout(() => onScan("DEV_MOCK_SCAN_TRIGGER"), 500);
-                    }}
-                  >
-                    <Text
-                      style={{
-                        color: "#FFF",
-                        fontSize: 12,
-                        fontWeight: "bold",
-                      }}
-                    >
-                      🧪 DEV: Simulate Scan
-                    </Text>
-                  </TouchableOpacity>
-                )}
               </View>
             </View>
           </>
@@ -158,7 +132,6 @@ export const OCRScannerModal = ({
   );
 };
 
-// ... KEEP YOUR EXISTING STYLES AT THE BOTTOM ...
 const styles = StyleSheet.create({
   cameraModalContainer: { flex: 1, backgroundColor: "#000000" },
   absoluteOverlay: {

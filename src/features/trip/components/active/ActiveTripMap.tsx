@@ -54,6 +54,8 @@ interface Props {
   onRouteReady: (coords: { latitude: number; longitude: number }[]) => void;
 
   onDestinationReached: () => void;
+
+  onError?: (error: any) => void;
 }
 
 export const ActiveTripMap = ({
@@ -72,6 +74,8 @@ export const ActiveTripMap = ({
   onRouteReady,
 
   onDestinationReached,
+
+  onError,
 }: Props) => {
   const mapRef = useRef<MapView>(null);
 
@@ -84,6 +88,8 @@ export const ActiveTripMap = ({
   const [routeCoords, setRouteCoords] = useState<
     { latitude: number; longitude: number }[]
   >([]);
+
+  const [hasAttemptedRoute, setHasAttemptedRoute] = useState(false);
 
   useEffect(() => {
     if (!lockedOrigin && currentLocation) {
@@ -157,8 +163,6 @@ export const ActiveTripMap = ({
     }
   }, [currentLocation]);
 
-  // 🚀 ISOLATED RENDER FUNCTIONS (Guarantees no text string crashes)
-
   const renderDestinationMarker = () => {
     if (!destLat || !destLng) return null;
 
@@ -166,8 +170,7 @@ export const ActiveTripMap = ({
   };
 
   const renderRouteLine = () => {
-    if (!lockedOrigin || !destLat || !destLng || routeCoords.length > 0)
-      return null;
+    if (!lockedOrigin || !destLat || !destLng || hasAttemptedRoute) return null;
 
     return (
       <MapViewDirections
@@ -178,6 +181,8 @@ export const ActiveTripMap = ({
         strokeWidth={0}
         optimizeWaypoints={false}
         onReady={(result) => {
+          setHasAttemptedRoute(true);
+
           setRouteCoords(result.coordinates);
 
           onRouteReady(result.coordinates);
@@ -187,6 +192,11 @@ export const ActiveTripMap = ({
 
             animated: true,
           });
+        }}
+        onError={(err) => {
+          setHasAttemptedRoute(true); // stop loop if the API fails
+
+          if (onError) onError(err);
         }}
       />
     );

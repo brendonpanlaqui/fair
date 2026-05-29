@@ -50,7 +50,7 @@ export const ActiveTripDashboard = ({
             <Text style={styles.onRouteText}>{"ON ROUTE"}</Text>
           </TouchableOpacity>
 
-          {/* 🚀 UPGRADE: The "Live" GPS Indicator */}
+          {/* "Live" GPS Indicator */}
           <View style={styles.gpsContainer}>
             <View style={styles.liveDot} />
             <Text style={styles.updatedText}>{"GPS Active"}</Text>
@@ -100,7 +100,7 @@ export const ActiveTripDashboard = ({
         </TouchableOpacity>
       </View>
 
-      {/* 🚀 UPGRADED END TRIP MODAL */}
+      {/* END TRIP MODAL */}
       <Modal
         visible={showEndModal}
         transparent={true}
@@ -146,9 +146,6 @@ export const ActiveTripDashboard = ({
   );
 };
 
-// ==========================================
-// STYLES
-// ==========================================
 const styles = StyleSheet.create({
   bottomSheet: {
     position: "absolute",
@@ -169,7 +166,7 @@ const styles = StyleSheet.create({
   notch: {
     width: 40,
     height: 4,
-    backgroundColor: "#F1F5F9", // Much lighter, softer gray
+    backgroundColor: "#F1F5F9",
     borderRadius: 2,
     alignSelf: "center",
     marginBottom: 24,
@@ -208,7 +205,7 @@ const styles = StyleSheet.create({
     width: 6,
     height: 6,
     borderRadius: 3,
-    backgroundColor: "#10B981", // Bright green
+    backgroundColor: "#10B981",
     marginRight: 6,
   },
   updatedText: {
@@ -228,7 +225,7 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 16,
     borderWidth: 1,
-    borderColor: "#F1F5F9", // Softer border than before
+    borderColor: "#F1F5F9",
   },
   metricHeader: {
     flexDirection: "row",
@@ -236,7 +233,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   metricLabel: {
-    color: "#94A3B8", // Receded label color
+    color: "#94A3B8",
     fontSize: 10,
     fontWeight: "900",
     marginLeft: 6,
@@ -253,7 +250,7 @@ const styles = StyleSheet.create({
     letterSpacing: -1,
   },
   metricUnit: {
-    color: "#94A3B8", // Receded unit color to make numbers pop
+    color: "#94A3B8",
     fontSize: 14,
     fontWeight: "800",
     marginLeft: 4,
@@ -262,7 +259,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     height: 60,
     borderRadius: 20,
-    backgroundColor: "#D32F2F", // Brand Crimson
+    backgroundColor: "#D32F2F",
     justifyContent: "center",
     alignItems: "center",
     elevation: 4,
@@ -278,7 +275,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
-  // 🚀 MODAL STYLES
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
@@ -297,7 +293,7 @@ const styles = StyleSheet.create({
     width: 64,
     height: 64,
     borderRadius: 32,
-    backgroundColor: "#FFF1F2", // Matched to brand pink
+    backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
   },
@@ -333,7 +329,7 @@ const styles = StyleSheet.create({
   confirmBtnText: { color: "#FFFFFF", fontSize: 16, fontWeight: "900" },
   cancelBtn: {
     height: 56,
-    backgroundColor: "#F8FAFC", // Softer neutral background
+    backgroundColor: "#F8FAFC",
     borderWidth: 1,
     borderColor: "#E2E8F0",
     borderRadius: 16,

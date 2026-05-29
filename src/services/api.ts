@@ -37,7 +37,7 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If it's a 401 and we haven't already tried to retry this request
+    // if it's a 401 and we haven't already tried to retry this request
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
 
@@ -45,7 +45,7 @@ api.interceptors.response.use(
         const refreshToken = await SecureStore.getItemAsync("refreshToken");
 
         if (refreshToken) {
-          // Ask backend for a new access token using the long-lived refresh token
+          // ask backend for a new access token using the long-lived refresh token
           const res = await axios.post(`${BASE_URL}/token/refresh/`, {
             refresh: refreshToken,
           });
@@ -53,12 +53,12 @@ api.interceptors.response.use(
           const newAccessToken = res.data.access;
           await SecureStore.setItemAsync("userToken", newAccessToken);
 
-          // Swap out the old expired token with the new one and retry the original request
+          // swap out the old expired token with the new one and retry the original request
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // The refresh token is also expired or invalid. NOW we log them out.
+        // the refresh token is also expired or invalid. NOW we log them out.
         console.warn("Refresh token expired. Logging user out...");
         await SecureStore.deleteItemAsync("userToken");
         await SecureStore.deleteItemAsync("refreshToken");

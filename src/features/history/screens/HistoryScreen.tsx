@@ -11,12 +11,14 @@ import {
   FlatList,
   Modal,
   RefreshControl,
+  ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 
@@ -32,7 +34,9 @@ interface TripRecord {
   trip_mode: "DIRECT" | "SPECIAL";
   total_distance_km: number;
   computed_fare: number;
+  actual_fare_charged: number;
   discount_applied: number;
+  is_tip: boolean;
   status: "Completed" | "Cancelled";
   timestamp: string;
   origin_name: string;
@@ -44,20 +48,19 @@ interface TripRecord {
 
 const HistoryScreen = () => {
   const router = useRouter();
-  // grab the currently logged-in user to check if they are a guest or authenticated.
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const insets = useSafeAreaInsets(); // 🚀 dynamically gets the notch height
 
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
     "All",
   );
   const [selectedTrip, setSelectedTrip] = useState<TripRecord | null>(null);
-  // array of data fetched from the Django API.
   const [trips, setTrips] = useState<TripRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
-  // reference to the MapView component to zoom and fit the route when the modal opens.
   const mapRef = useRef<MapView>(null);
 
   const fitMapToRoute = () => {
@@ -68,19 +71,15 @@ const HistoryScreen = () => {
       selectedTrip.dest_coords,
     ];
 
-    // extract all latitudes and longitudes into separate arrays to calculate the bounding box.
     const lats = coords.map((c: { latitude: number }) => c.latitude);
     const lngs = coords.map((c: { longitude: number }) => c.longitude);
 
-    // calculate the difference between the max and min coordinates to find the bounding box.
     const latDelta = Math.max(Math.max(...lats) - Math.min(...lats), 0.004);
     const lngDelta = Math.max(Math.max(...lngs) - Math.min(...lngs), 0.004);
 
-    // find the exact center point between the max and min coordinates.
     const centerLat = (Math.max(...lats) + Math.min(...lats)) / 2;
     const centerLng = (Math.max(...lngs) + Math.min(...lngs)) / 2;
 
-    // this naman, animate the map camera to fit the calculated bounding box (multiplied by 1.4 for some padding).
     mapRef.current?.animateToRegion(
       {
         latitude: centerLat,
@@ -95,7 +94,6 @@ const HistoryScreen = () => {
   const getDrivenRoute = (hash?: string | null) => {
     if (!hash) return null;
     try {
-      // polyline breadcrumbs are stored as a JSON string in the database. We need to parse it back into an array of coordinates.
       const coords = JSON.parse(hash);
       if (Array.isArray(coords) && coords.length >= 2) return coords;
     } catch (e) {
@@ -139,7 +137,6 @@ const HistoryScreen = () => {
   };
 
   const fetchTripHistory = async (isPullToRefresh = false) => {
-    // if we don't have a user (which means they are a guest), skip the fetch.
     if (!user) {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -152,15 +149,26 @@ const HistoryScreen = () => {
       await syncPendingTrips();
 
       setError(null);
-      // request to my Django backend to get the trip history for the logged-in user.
-      // so, it returns an array of objects that match the TripRecord interface to my TripHistorySerializer.
       const response = await api.get<TripRecord[]>("/trips/history/");
       setTrips(response.data);
+      setIsOffline(false);
+
+      await AsyncStorage.setItem(
+        "@cached_history",
+        JSON.stringify(response.data),
+      );
     } catch (err) {
       console.warn("API Error:", err);
-      setError(
-        "Could not connect to the LGU server. Please check your connection.",
-      );
+
+      const cached = await AsyncStorage.getItem("@cached_history");
+      if (cached) {
+        setTrips(JSON.parse(cached));
+        setIsOffline(true);
+      } else {
+        setError(
+          "Could not connect to the LGU server. Please check your connection.",
+        );
+      }
     } finally {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -169,21 +177,30 @@ const HistoryScreen = () => {
 
   useEffect(() => {
     fetchTripHistory();
-  }, [user]); // run this effect whenever the user changes (e.g. when they log in or out).
+  }, [user]);
 
-  // when they swipe down, load again
   const onRefresh = () => {
     setIsRefreshing(true);
     fetchTripHistory(true);
   };
 
-  // for filtering the displayed trips based on the selected tab (All, Completed, Cancelled).
   const filteredData = trips.filter(
     (trip) => filter === "All" || trip.status === filter,
   );
 
   const formatDate = (isoString: string) => {
-    return new Date(isoString).toLocaleDateString("en-PH", {
+    const date = new Date(isoString);
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+
+    if (date.toDateString() === today.toDateString()) {
+      return `Today, ${date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}`;
+    } else if (date.toDateString() === yesterday.toDateString()) {
+      return `Yesterday, ${date.toLocaleTimeString("en-PH", { hour: "2-digit", minute: "2-digit" })}`;
+    }
+    return date.toLocaleDateString("en-PH", {
+      year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
@@ -195,16 +212,20 @@ const HistoryScreen = () => {
     if (!selectedTrip) return;
 
     try {
-      // calculate the fare breakdown details to show on the receipt.
-      const distanceFare = (selectedTrip.computed_fare - 35).toFixed(2);
+      const computedFare = Number(selectedTrip.computed_fare) || 0;
+      const discountApplied = Number(selectedTrip.discount_applied) || 0;
+      const actualFareCharged = Number(selectedTrip.actual_fare_charged) || 0;
+
+      const distanceFare = (computedFare - 35).toFixed(2);
       const excessDistance = (
         selectedTrip.total_distance_km - 1 > 0
           ? selectedTrip.total_distance_km - 1
           : 0
       ).toFixed(1);
-      const totalPaid = (
-        selectedTrip.computed_fare - selectedTrip.discount_applied
-      ).toFixed(2);
+
+      const expectedFare = computedFare - discountApplied;
+      const actualPaid = actualFareCharged || expectedFare;
+      const extraPaid = actualPaid - expectedFare;
 
       const htmlContent = `
         <html>
@@ -225,6 +246,8 @@ const HistoryScreen = () => {
               .total-label { font-size: 18px; font-weight: 900; color: #0F172A; }
               .total-value { font-size: 24px; font-weight: 900; color: #D32F2F; }
               .discount { color: #10B981; }
+              .warning { color: #F59E0B; }
+              .tip { color: #3B82F6; }
               .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #94A3B8; font-weight: 500; }
             </style>
           </head>
@@ -251,9 +274,16 @@ const HistoryScreen = () => {
               <div class="section-title">Fare Breakdown</div>
               <div class="row"><span class="label">Base Fare (1st km)</span> <span class="value">PHP 35.00</span></div>
               <div class="row"><span class="label">Distance Fare (${excessDistance} km)</span> <span class="value">PHP ${distanceFare}</span></div>
-              ${selectedTrip.discount_applied > 0 ? `<div class="row discount"><span class="label discount">Legal Discount (20%)</span> <span class="value discount">- PHP ${selectedTrip.discount_applied.toFixed(2)}</span></div>` : ""}
               <div class="thick-divider"></div>
-              <div class="total-row"><span class="total-label">TOTAL PAID</span> <span class="total-value">PHP ${totalPaid}</span></div>
+              <div class="row"><span class="label">Original Computed Fare</span> <span class="value">PHP ${computedFare.toFixed(2)}</span></div>
+              ${discountApplied > 0 ? `<div class="row discount"><span class="label discount">Legal Discount (20%)</span> <span class="value discount">- PHP ${discountApplied.toFixed(2)}</span></div>` : ""}
+              ${
+                extraPaid > 0
+                  ? `<div class="row ${selectedTrip.is_tip ? "tip" : "warning"}"><span class="label ${selectedTrip.is_tip ? "tip" : "warning"}">${selectedTrip.is_tip ? "Voluntary Tip" : "Overcharge"}</span> <span class="value ${selectedTrip.is_tip ? "tip" : "warning"}">+ PHP ${extraPaid.toFixed(2)}</span></div>`
+                  : ""
+              }
+              <div class="thick-divider"></div>
+              <div class="total-row"><span class="total-label">ACTUAL AMOUNT PAID</span> <span class="total-value">PHP ${actualPaid.toFixed(2)}</span></div>
             </div>
             <div class="footer">
               <p>Thank you for commuting safely with Fair App.</p>
@@ -263,13 +293,11 @@ const HistoryScreen = () => {
         </html>
       `;
 
-      // generate pdf locally
       const { uri } = await Print.printToFileAsync({
         html: htmlContent,
         base64: false,
       });
 
-      // let the user save it to their downloads/files
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri, {
           UTI: ".pdf",
@@ -285,7 +313,6 @@ const HistoryScreen = () => {
     }
   };
 
-  // scrolling list of trips, as you tap on a card, it sets the selectedTrip state which opens the modal and shows the receipt details for that trip.
   const renderTripCard = ({ item }: { item: TripRecord }) => (
     <TouchableOpacity
       style={styles.card}
@@ -357,18 +384,55 @@ const HistoryScreen = () => {
             },
           ]}
         >
-          ₱{(item.computed_fare - item.discount_applied).toFixed(2)}
+          ₱
+          {(
+            Number(item.actual_fare_charged) ||
+            Number(item.computed_fare) - Number(item.discount_applied)
+          ).toFixed(2)}
         </Text>
       </View>
     </TouchableOpacity>
   );
 
-  // draw the route on the map in the modal, with polyline breadcrumbs if available.
+  const renderSummaryCard = () => {
+    if (filteredData.length === 0) return null;
+
+    const completedTrips = filteredData.filter((t) => t.status === "Completed");
+    const totalSpent = completedTrips.reduce((sum, trip) => {
+      const actual = Number(trip.actual_fare_charged) || 0;
+      const computed = Number(trip.computed_fare) || 0;
+      const discount = Number(trip.discount_applied) || 0;
+      return sum + (actual || computed - discount);
+    }, 0);
+    const totalDistance = completedTrips.reduce(
+      (sum, trip) => sum + trip.total_distance_km,
+      0,
+    );
+
+    return (
+      <View style={styles.summaryCard}>
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{completedTrips.length}</Text>
+          <Text style={styles.summaryLabel}>Completed Rides</Text>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>₱{totalSpent.toFixed(2)}</Text>
+          <Text style={styles.summaryLabel}>Total Spent</Text>
+        </View>
+        <View style={styles.summaryDivider} />
+        <View style={styles.summaryItem}>
+          <Text style={styles.summaryValue}>{totalDistance.toFixed(1)} km</Text>
+          <Text style={styles.summaryLabel}>Distance</Text>
+        </View>
+      </View>
+    );
+  };
+
   const modalRoute = selectedTrip
     ? getDrivenRoute(selectedTrip.polyline_hash)
     : null;
 
-  // kung wala, just draw a dash straight line between origin and destination.
   const isEstimatedRoute =
     !selectedTrip?.polyline_hash || !modalRoute || modalRoute.length < 3;
 
@@ -378,9 +442,25 @@ const HistoryScreen = () => {
       ? [selectedTrip.origin_coords, selectedTrip.dest_coords]
       : []);
 
+  let expectedFare = 0;
+  let actualPaid = 0;
+  let extraPaid = 0;
+  let computedFareDisplay = 0;
+  let discountDisplay = 0;
+
+  if (selectedTrip) {
+    computedFareDisplay = Number(selectedTrip.computed_fare) || 0;
+    discountDisplay = Number(selectedTrip.discount_applied) || 0;
+    const actual = Number(selectedTrip.actual_fare_charged) || 0;
+
+    expectedFare = computedFareDisplay - discountDisplay;
+    actualPaid = actual || expectedFare;
+    extraPaid = actualPaid - expectedFare;
+  }
+
   return (
     <View style={styles.container}>
-      <StatusBar style="light" />
+      <StatusBar style="light" hidden={selectedTrip !== null} />
 
       {/* HEADER */}
       <View style={styles.redHeaderBackground}>
@@ -398,13 +478,13 @@ const HistoryScreen = () => {
             style={[styles.filterTab, filter === tab && styles.filterTabActive]}
             onPress={() => setFilter(tab as any)}
             activeOpacity={0.8}
-            disabled={!user} // if guest
+            disabled={!user}
           >
             <Text
               style={[
                 styles.filterText,
                 filter === tab && styles.filterTextActive,
-                !user && { color: "#CBD5E1" }, // gray kung guest
+                !user && { color: "#CBD5E1" },
               ]}
             >
               {tab}
@@ -413,13 +493,13 @@ const HistoryScreen = () => {
         ))}
       </View>
 
-      {/* GUEST UI */}
+      {/* GUEST UI OR LIST */}
       {!user ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
             <MaterialIcons
               name="history-toggle-off"
-              size={48}
+              size={36}
               color="#D32F2F"
             />
           </View>
@@ -431,7 +511,10 @@ const HistoryScreen = () => {
           <TouchableOpacity
             style={styles.guestLoginBtn}
             activeOpacity={0.8}
-            onPress={() => router.replace("/")} // goes to AuthScreen
+            onPress={async () => {
+              if (logout) await logout();
+              router.replace("/auth");
+            }}
           >
             <Text style={styles.guestLoginBtnText}>Sign In / Register</Text>
           </TouchableOpacity>
@@ -453,30 +536,45 @@ const HistoryScreen = () => {
           </TouchableOpacity>
         </View>
       ) : (
-        <FlatList
-          data={filteredData}
-          keyExtractor={(item) => item.trip_id}
-          renderItem={renderTripCard}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          refreshControl={
-            <RefreshControl
-              refreshing={isRefreshing}
-              onRefresh={onRefresh}
-              tintColor="#D32F2F"
-              colors={["#D32F2F"]}
-            />
-          }
-          ListEmptyComponent={
-            <View style={styles.centerContainer}>
-              <MaterialIcons name="history" size={48} color="#E2E8F0" />
-              <Text style={styles.emptyText}>No rides found.</Text>
+        <>
+          {isOffline && (
+            <View style={styles.offlineBanner}>
+              <MaterialIcons name="cloud-off" size={14} color="#B45309" />
+              <Text style={styles.offlineBannerText}>
+                You are offline. Showing cached history.
+              </Text>
             </View>
-          }
-        />
+          )}
+          <FlatList
+            data={filteredData}
+            keyExtractor={(item) => item.trip_id}
+            renderItem={renderTripCard}
+            ListHeaderComponent={renderSummaryCard}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={isRefreshing}
+                onRefresh={onRefresh}
+                tintColor="#D32F2F"
+                colors={["#D32F2F"]}
+              />
+            }
+            ListEmptyComponent={
+              <View style={styles.centerContainer}>
+                <MaterialIcons name="history" size={48} color="#E2E8F0" />
+                <Text style={styles.emptyText}>
+                  {trips.length === 0
+                    ? "No rides found."
+                    : `No ${filter.toLowerCase()} rides found.`}
+                </Text>
+              </View>
+            }
+          />
+        </>
       )}
 
-      {/* RECEIPT MODAL (Only visible if selectedTrip is not null) */}
+      {/* RECEIPT MODAL */}
       <Modal
         visible={selectedTrip !== null}
         animationType="slide"
@@ -521,7 +619,12 @@ const HistoryScreen = () => {
               </MapView>
 
               {isEstimatedRoute && (
-                <View style={styles.estimatedBadge}>
+                <View
+                  style={[
+                    styles.estimatedBadge,
+                    { top: Math.max(insets.top + 10, 20) }, // 🚀 SAFELY PUSHED DOWN
+                  ]}
+                >
                   <MaterialIcons
                     name="info-outline"
                     size={12}
@@ -531,149 +634,185 @@ const HistoryScreen = () => {
                 </View>
               )}
 
-              {/* Close Button on Top Left */}
+              {/* Close Button */}
               <TouchableOpacity
-                style={styles.mapBackButton}
+                style={[
+                  styles.mapBackButton,
+                  { top: Math.max(insets.top + 50, 60) }, // 🚀 SAFELY PUSHED DOWN
+                ]}
                 onPress={() => setSelectedTrip(null)}
               >
                 <MaterialIcons name="close" size={24} color="#0F172A" />
               </TouchableOpacity>
             </View>
 
-            {/* RECEIPT (The white box that overlays the bottom of the map) */}
+            {/* RECEIPT (SCROLLABLE BOTTOM SHEET) */}
             <View style={styles.receiptSection}>
               <View style={styles.receiptDragHandle} />
 
-              <View style={styles.receiptHeader}>
-                <Text style={styles.receiptTripId}>{selectedTrip.trip_id}</Text>
-                <Text style={styles.receiptDate}>
-                  {formatDate(selectedTrip.timestamp)}
-                </Text>
-              </View>
-
-              <View style={styles.driverMetaRow}>
-                <View style={styles.driverAvatar}>
-                  <MaterialIcons
-                    name="sports-motorsports"
-                    size={24}
-                    color="#D32F2F"
-                  />
-                </View>
-                <View>
-                  <Text style={styles.receiptBodyNum}>
-                    Body #{selectedTrip.body_number}
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={styles.receiptScrollView}
+                contentContainerStyle={styles.receiptScrollContent}
+              >
+                <View style={styles.receiptHeader}>
+                  <Text style={styles.receiptTripId}>
+                    {selectedTrip.trip_id}
                   </Text>
-                  <Text style={styles.receiptMode}>
-                    {selectedTrip.trip_mode} RIDE • {selectedTrip.status}
+                  <Text style={styles.receiptDate}>
+                    {formatDate(selectedTrip.timestamp)}
                   </Text>
                 </View>
-              </View>
 
-              <View style={styles.receiptDivider} />
-
-              <View style={styles.routeAddressesBlock}>
-                <View style={styles.addressRow}>
-                  <View style={styles.addressDotBlue} />
-                  <View style={styles.addressTextWrapper}>
-                    <Text style={styles.addressLabel}>PICK-UP</Text>
-                    <Text style={styles.addressValue} numberOfLines={1}>
-                      {selectedTrip.origin_name}
+                <View style={styles.driverMetaRow}>
+                  <View style={styles.driverAvatar}>
+                    <MaterialIcons
+                      name="sports-motorsports"
+                      size={24}
+                      color="#D32F2F"
+                    />
+                  </View>
+                  <View>
+                    <Text style={styles.receiptBodyNum}>
+                      Body #{selectedTrip.body_number}
+                    </Text>
+                    <Text style={styles.receiptMode}>
+                      {selectedTrip.trip_mode} RIDE • {selectedTrip.status}
                     </Text>
                   </View>
                 </View>
-                <View style={styles.addressConnector} />
-                <View style={styles.addressRow}>
-                  <View style={styles.addressDotRed} />
-                  <View style={styles.addressTextWrapper}>
-                    <Text style={styles.addressLabel}>DROP-OFF</Text>
-                    <Text style={styles.addressValue} numberOfLines={1}>
-                      {selectedTrip.destination_name}
-                    </Text>
+
+                <View style={styles.receiptDivider} />
+
+                <View style={styles.routeAddressesBlock}>
+                  <View style={styles.addressRow}>
+                    <View style={styles.addressDotBlue} />
+                    <View style={styles.addressTextWrapper}>
+                      <Text style={styles.addressLabel}>PICK-UP</Text>
+                      <Text style={styles.addressValue} numberOfLines={1}>
+                        {selectedTrip.origin_name}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.addressConnector} />
+                  <View style={styles.addressRow}>
+                    <View style={styles.addressDotRed} />
+                    <View style={styles.addressTextWrapper}>
+                      <Text style={styles.addressLabel}>DROP-OFF</Text>
+                      <Text style={styles.addressValue} numberOfLines={1}>
+                        {selectedTrip.destination_name}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
 
-              {/* FARE BREAKDOWN BOX */}
-              <View style={styles.fareBreakdownBox}>
-                <Text style={styles.breakdownTitle}>FARE BREAKDOWN</Text>
+                <View style={styles.fareBreakdownBox}>
+                  <Text style={styles.breakdownTitle}>FARE BREAKDOWN</Text>
 
-                <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>Base Fare (1st km)</Text>
-                  <Text style={styles.fareValue}>₱ 35.00</Text>
-                </View>
-
-                <View style={styles.fareRow}>
-                  <Text style={styles.fareLabel}>
-                    Distance (
-                    {(selectedTrip.total_distance_km - 1 > 0
-                      ? selectedTrip.total_distance_km - 1
-                      : 0
-                    ).toFixed(1)}{" "}
-                    km)
-                  </Text>
-                  <Text style={styles.fareValue}>
-                    ₱ {(selectedTrip.computed_fare - 35).toFixed(2)}
-                  </Text>
-                </View>
-
-                {selectedTrip.discount_applied > 0 && (
                   <View style={styles.fareRow}>
-                    <Text style={styles.fareLabelDiscount}>
-                      Legal Discount (20%)
+                    <Text style={styles.fareLabel}>Base Fare (1st km)</Text>
+                    <Text style={styles.fareValue}>₱ 35.00</Text>
+                  </View>
+
+                  <View style={styles.fareRow}>
+                    <Text style={styles.fareLabel}>
+                      Distance (
+                      {(selectedTrip.total_distance_km - 1 > 0
+                        ? selectedTrip.total_distance_km - 1
+                        : 0
+                      ).toFixed(1)}{" "}
+                      km)
                     </Text>
-                    <Text style={styles.fareValueDiscount}>
-                      - ₱ {selectedTrip.discount_applied.toFixed(2)}
+                    <Text style={styles.fareValue}>
+                      ₱ {(computedFareDisplay - 35).toFixed(2)}
                     </Text>
                   </View>
-                )}
 
-                <View style={styles.receiptThickDivider} />
+                  <View style={styles.receiptThickDivider} />
 
-                <View style={styles.fareRow}>
-                  <Text style={styles.totalLabel}>TOTAL PAID</Text>
-                  <Text style={styles.totalValue}>
-                    ₱{" "}
-                    {(
-                      selectedTrip.computed_fare - selectedTrip.discount_applied
-                    ).toFixed(2)}
-                  </Text>
+                  <View style={styles.fareRow}>
+                    <Text style={styles.fareLabel}>Original Computed Fare</Text>
+                    <Text style={styles.fareValue}>
+                      ₱ {computedFareDisplay.toFixed(2)}
+                    </Text>
+                  </View>
+
+                  {discountDisplay > 0 && (
+                    <View style={styles.fareRow}>
+                      <Text style={styles.fareLabelDiscount}>
+                        Legal Discount (20%)
+                      </Text>
+                      <Text style={styles.fareValueDiscount}>
+                        - ₱ {discountDisplay.toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+
+                  {extraPaid > 0 && (
+                    <View style={styles.fareRow}>
+                      <Text
+                        style={
+                          selectedTrip.is_tip
+                            ? styles.fareLabelTip
+                            : styles.fareLabelWarning
+                        }
+                      >
+                        {selectedTrip.is_tip ? "Voluntary Tip" : "Overcharge"}
+                      </Text>
+                      <Text
+                        style={
+                          selectedTrip.is_tip
+                            ? styles.fareValueTip
+                            : styles.fareValueWarning
+                        }
+                      >
+                        + ₱ {extraPaid.toFixed(2)}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={styles.receiptThickDivider} />
+
+                  <View style={styles.fareRow}>
+                    <Text style={styles.totalLabel}>ACTUAL AMOUNT PAID</Text>
+                    <Text style={styles.totalValue}>
+                      ₱ {actualPaid.toFixed(2)}
+                    </Text>
+                  </View>
                 </View>
-              </View>
 
-              <View style={{ flex: 1 }} />
+                <View style={styles.receiptActions}>
+                  <TouchableOpacity
+                    style={styles.reportBtn}
+                    onPress={() => {
+                      setSelectedTrip(null);
+                      router.push({
+                        pathname: "/report",
+                        params: {
+                          tripId: selectedTrip.trip_id,
+                          bodyNumber: selectedTrip.body_number,
+                        },
+                      });
+                    }}
+                  >
+                    <MaterialIcons name="gavel" size={20} color="#D32F2F" />
+                  </TouchableOpacity>
 
-              {/* BOTTOM ACTIONS (Report / Export) */}
-              <View style={styles.receiptActions}>
-                <TouchableOpacity
-                  style={styles.reportBtn}
-                  onPress={() => {
-                    setSelectedTrip(null);
-                    router.push({
-                      pathname: "/report",
-                      params: {
-                        tripId: selectedTrip.trip_id,
-                        bodyNumber: selectedTrip.body_number,
-                      },
-                    });
-                  }}
-                >
-                  <MaterialIcons name="gavel" size={20} color="#D32F2F" />
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.pdfBtn}
-                  activeOpacity={0.9}
-                  onPress={handleExportPDF}
-                >
-                  <MaterialIcons
-                    name="picture-as-pdf"
-                    size={20}
-                    color="#FFFFFF"
-                    style={{ marginRight: 8 }}
-                  />
-                  <Text style={styles.pdfBtnText}>EXPORT RECEIPT</Text>
-                </TouchableOpacity>
-              </View>
+                  <TouchableOpacity
+                    style={styles.pdfBtn}
+                    activeOpacity={0.9}
+                    onPress={handleExportPDF}
+                  >
+                    <MaterialIcons
+                      name="picture-as-pdf"
+                      size={20}
+                      color="#FFFFFF"
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.pdfBtnText}>EXPORT RECEIPT</Text>
+                  </TouchableOpacity>
+                </View>
+              </ScrollView>
             </View>
           </View>
         )}
@@ -695,14 +834,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "900",
     color: "#FFFFFF",
     letterSpacing: -1,
     textAlign: "center",
   },
   headerSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#FECACA",
     marginTop: 4,
     textAlign: "center",
@@ -730,6 +869,41 @@ const styles = StyleSheet.create({
   filterTabActive: { backgroundColor: "#FFF1F2" },
   filterText: { fontSize: 13, fontWeight: "700", color: "#64748B" },
   filterTextActive: { color: "#D32F2F", fontWeight: "800" },
+
+  offlineBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF3C7",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    justifyContent: "center",
+    gap: 6,
+  },
+  offlineBannerText: { color: "#B45309", fontSize: 12, fontWeight: "600" },
+
+  summaryCard: {
+    flexDirection: "row",
+    backgroundColor: "#FFFFFF",
+    marginBottom: 20,
+    borderRadius: 16,
+    paddingVertical: 16,
+    elevation: 2,
+    shadowColor: "#0F172A",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    borderWidth: 1,
+    borderColor: "#F1F5F9",
+  },
+  summaryItem: { flex: 1, alignItems: "center" },
+  summaryValue: { fontSize: 16, fontWeight: "900", color: "#0F172A" },
+  summaryLabel: {
+    fontSize: 11,
+    color: "#64748B",
+    marginTop: 4,
+    fontWeight: "700",
+  },
+  summaryDivider: { width: 1, height: "100%", backgroundColor: "#E2E8F0" },
 
   listContent: { paddingTop: 24, paddingHorizontal: 16, paddingBottom: 100 },
 
@@ -777,34 +951,36 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingTop: 40,
   },
+
   guestIconWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   guestTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "900",
     color: "#0F172A",
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   guestText: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#64748B",
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   guestLoginBtn: {
     backgroundColor: "#D32F2F",
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingHorizontal: 20,
+    height: 40,
+    justifyContent: "center",
+    borderRadius: 14,
     elevation: 4,
     shadowColor: "#D32F2F",
     shadowOffset: { width: 0, height: 4 },
@@ -813,7 +989,7 @@ const styles = StyleSheet.create({
   },
   guestLoginBtnText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
     letterSpacing: 0.5,
   },
@@ -898,7 +1074,6 @@ const styles = StyleSheet.create({
 
   estimatedBadge: {
     position: "absolute",
-    top: 10,
     left: 10,
     flexDirection: "row",
     alignItems: "center",
@@ -917,7 +1092,6 @@ const styles = StyleSheet.create({
 
   mapBackButton: {
     position: "absolute",
-    top: 50,
     left: 20,
     width: 44,
     height: 44,
@@ -938,7 +1112,7 @@ const styles = StyleSheet.create({
     marginTop: -24,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    padding: 24,
+    paddingTop: 16, // Instead of full padding, padding just for the drag handle
     elevation: 20,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: -10 },
@@ -951,7 +1125,16 @@ const styles = StyleSheet.create({
     backgroundColor: "#E2E8F0",
     borderRadius: 2,
     alignSelf: "center",
-    marginBottom: 24,
+    marginBottom: 16,
+  },
+  receiptScrollView: {
+    flex: 1,
+    width: "100%",
+  },
+  receiptScrollContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 40, // Keeps the buttons off the very bottom of screen
+    paddingTop: 8,
   },
 
   receiptHeader: {
@@ -1071,6 +1254,10 @@ const styles = StyleSheet.create({
   fareValue: { fontSize: 14, fontWeight: "700", color: "#0F172A" },
   fareLabelDiscount: { fontSize: 14, color: "#10B981", fontWeight: "700" },
   fareValueDiscount: { fontSize: 14, fontWeight: "800", color: "#10B981" },
+  fareLabelWarning: { fontSize: 14, color: "#F59E0B", fontWeight: "700" },
+  fareValueWarning: { fontSize: 14, fontWeight: "800", color: "#F59E0B" },
+  fareLabelTip: { fontSize: 14, color: "#3B82F6", fontWeight: "700" },
+  fareValueTip: { fontSize: 14, fontWeight: "800", color: "#3B82F6" },
 
   receiptThickDivider: {
     width: "100%",
@@ -1095,7 +1282,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 12,
     marginTop: 20,
-    paddingBottom: 20,
   },
   reportBtn: {
     width: 60,

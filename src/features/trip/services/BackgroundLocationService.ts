@@ -4,7 +4,6 @@ import * as TaskManager from "expo-task-manager";
 
 export const BACKGROUND_TRIP_TASK = "BACKGROUND_TRIP_TASK";
 
-// 🚀 FIX: Added explicit types to { data, error } to satisfy strict TypeScript rules
 TaskManager.defineTask(
   BACKGROUND_TRIP_TASK,
   async ({ data, error }: { data: any; error: any }) => {
@@ -21,13 +20,13 @@ TaskManager.defineTask(
       );
 
       try {
-        // 1. Fetch the existing trace from storage
+        // fetch existing trace from storage
         const existingTraceStr = await AsyncStorage.getItem("bg_driven_trace");
         const existingTrace = existingTraceStr
           ? JSON.parse(existingTraceStr)
           : [];
 
-        // 2. Extract new valid points
+        // extract new valid points
         const newPoints = locations
           .filter((loc) => loc.coords.accuracy && loc.coords.accuracy <= 500)
           .map((loc) => ({
@@ -36,14 +35,14 @@ TaskManager.defineTask(
           }));
 
         if (newPoints.length > 0) {
-          // 3. Save the merged trace back to storage
+          // save merged trace back to storage
           const updatedTrace = [...existingTrace, ...newPoints];
           await AsyncStorage.setItem(
             "bg_driven_trace",
             JSON.stringify(updatedTrace),
           );
 
-          // Save latest location for quick access
+          // save latest location for quick access
           await AsyncStorage.setItem(
             "bg_latest_location",
             JSON.stringify(newPoints[newPoints.length - 1]),

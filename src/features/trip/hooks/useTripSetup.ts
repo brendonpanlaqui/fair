@@ -1,6 +1,6 @@
 import { ActiveFareMatrix, calculateDirectFare } from "@/src/utils/fareMatrix";
 import { fetchRouteDistance } from "@/src/utils/googleDirections";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export interface Stopover {
   id: string;
@@ -40,7 +40,10 @@ export const useTripSetup = (
   );
   const [isCalculating, setIsCalculating] = useState(false);
 
-  // 🚀 EFFECT 1: FETCH DISTANCE (COSTS MONEY - RUN AS RARELY AS POSSIBLE)
+  // store the last successful fetch parameters to prevent redundant API calls
+  const lastFetchRef = useRef<string | null>(null);
+
+  // fetch distance
   useEffect(() => {
     let isMounted = true;
 
@@ -68,7 +71,15 @@ export const useTripSetup = (
             }))
           : [];
 
-      // This hits the Google API!
+      // prevent redundant requests by comparing current parameters with the last successful fetch
+      const requestKey = JSON.stringify({ origin, destination, waypoints });
+      if (lastFetchRef.current === requestKey) {
+        if (isMounted) setIsCalculating(false);
+        return;
+      }
+
+      lastFetchRef.current = requestKey;
+
       const totalKm = await fetchRouteDistance(origin, destination, waypoints);
 
       if (isMounted && totalKm) {
@@ -98,8 +109,6 @@ export const useTripSetup = (
     passedDistance,
   ]);
 
-  // 🚀 EFFECT 2: CALCULATE FARE (LOCAL MATH - 100% FREE)
-  // This runs instantly whenever the distance OR the discount status changes.
   useEffect(() => {
     if (calculatedDistance && activeMatrix) {
       setCalculatedFare(
