@@ -1,10 +1,9 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { Stack } from "expo-router";
+import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  BackHandler,
   StyleSheet,
   Text,
   TextInput,
@@ -17,60 +16,39 @@ import { ActiveTripMap } from "../components/active/ActiveTripMap";
 import { DeviationModal } from "../components/active/DeviationModal";
 import { useActiveTrip } from "../hooks/useActiveTrip";
 
-// 🚀 IMPORT AUTH CONTEXT
+// import auth context to verify user discounts
 import { useAuth } from "@/src/hooks/AuthContext";
 
 const ActiveTripScreen = () => {
-  const router = useRouter();
   const tripData = useActiveTrip();
   const { isDiscountVerified, userType } = useAuth();
 
+  // states to manage the trip lifecycle and ui overlays
   const [isPlottingRoute, setIsPlottingRoute] = useState(true);
   const [tripState, setTripState] = useState<"LOADING" | "DRIVING" | "ARRIVED">(
     "LOADING",
   );
   const [askedFare, setAskedFare] = useState("");
-  const [paymentReason, setPaymentReason] = useState<
-    "TIP" | "OVERCHARGE" | null
-  >(null);
 
-  // 🚀 THE INTERCEPTOR: Protects the user from accidentally killing the trip
+  // the interceptor protects the user from accidentally killing the trip
   const handleBackPress = () => {
     tripData.handleCancelTrip();
-    return true; // Required for Android BackHandler to know we intercepted it
+    return true; // required for android backhandler to know we intercepted it
   };
 
-  // 🚀 NATIVE ANDROID SWIPE PROTECTION
-  useEffect(() => {
-    const onHardwareBackPress = () => {
-      if (tripState === "DRIVING" || tripState === "LOADING") {
-        handleBackPress();
-        return true; // Block native back
-      }
-      return false; // Let them go back normally if they've already arrived
-    };
-
-    const subscription = BackHandler.addEventListener(
-      "hardwareBackPress",
-      onHardwareBackPress,
-    );
-    return () => subscription.remove();
-  }, [tripState]);
-
+  // renders the final screen where the user enters what they actually paid
   const renderArrivalScreen = () => {
     if (tripState !== "ARRIVED") return null;
 
     const enteredFareNum = Number(askedFare);
-    const isPayingMore =
-      !isNaN(enteredFareNum) && enteredFareNum > tripData.fixedFare;
-    const isSubmitDisabled =
-      askedFare.length === 0 || (isPayingMore && !paymentReason);
+    const isSubmitDisabled = askedFare.length === 0;
 
     return (
       <View style={styles.arrivedOverlay}>
         <View style={styles.arrivedCard}>
           <Text style={styles.arrivedTitle}>{"Destination Reached!"}</Text>
 
+          {/* displays the expected fare based on the ordinance */}
           <View style={styles.officialFareBox}>
             <Text style={styles.arrivedSubtext}>
               {"Official Computed Fare"}
@@ -97,6 +75,7 @@ const ActiveTripScreen = () => {
             )}
           </View>
 
+          {/* prompt adjusted if the user drops off early */}
           <Text style={styles.inputLabel}>
             {tripData.isEarlyDropoff
               ? `It looks like you dropped off early. Based on the LGU matrix for this actual distance, the prorated fare is ₱${tripData.fixedFare.toFixed(2)} (Original: ₱${tripData.originalFare.toFixed(2)}). How much did you actually pay the driver?`
@@ -116,51 +95,6 @@ const ActiveTripScreen = () => {
             />
           </View>
 
-          {/* 🚀 TIP VS OVERCHARGE DETECTOR */}
-          {isPayingMore && (
-            <View style={styles.extraPaymentContainer}>
-              <Text style={styles.extraPaymentText}>
-                You are paying ₱
-                {(enteredFareNum - tripData.fixedFare).toFixed(2)} more than the
-                official fare. Why?
-              </Text>
-              <View style={styles.radioRow}>
-                <TouchableOpacity
-                  onPress={() => setPaymentReason("TIP")}
-                  style={[
-                    styles.radioBtn,
-                    paymentReason === "TIP" && styles.radioBtnActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.radioText,
-                      paymentReason === "TIP" && styles.radioTextActive,
-                    ]}
-                  >
-                    Voluntary Tip
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => setPaymentReason("OVERCHARGE")}
-                  style={[
-                    styles.radioBtn,
-                    paymentReason === "OVERCHARGE" && styles.radioBtnActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.radioText,
-                      paymentReason === "OVERCHARGE" && styles.radioTextActive,
-                    ]}
-                  >
-                    Overcharge
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          )}
-
           <TouchableOpacity
             style={[
               styles.payBtn,
@@ -169,9 +103,7 @@ const ActiveTripScreen = () => {
               },
             ]}
             disabled={isSubmitDisabled}
-            onPress={() =>
-              tripData.handleEndTrip(askedFare, paymentReason === "TIP")
-            }
+            onPress={() => tripData.handleEndTrip(askedFare)}
           >
             <Text style={styles.payBtnText}>{"Submit & Generate Receipt"}</Text>
           </TouchableOpacity>
@@ -184,6 +116,7 @@ const ActiveTripScreen = () => {
     <View style={styles.container}>
       <Stack.Screen options={{ headerShown: false }} />
 
+      {/* map component handling the real-time tracking and route drawing */}
       <ActiveTripMap
         mapCenter={tripData.mapCenter}
         currentLocation={tripData.currentLocation}
@@ -209,6 +142,7 @@ const ActiveTripScreen = () => {
         }}
       />
 
+      {/* loading overlay while google maps resolves the route polyline */}
       {isPlottingRoute && (
         <View style={styles.plottingOverlay}>
           <ActivityIndicator size="large" color="#D32F2F" />
@@ -223,11 +157,13 @@ const ActiveTripScreen = () => {
 
       {tripState !== "ARRIVED" && (
         <>
+          {/* top header with tricycle body number and current fare */}
           <ActiveTripHeader
             bodyNumber={tripData.bodyNumber}
             fixedFare={tripData.fixedFare}
-            onBack={handleBackPress} // 🚀 Wires the interceptor to the header button
+            onBack={handleBackPress} // wires the interceptor to the header button
           />
+          {/* bottom dashboard showing time, distance, and action buttons */}
           <ActiveTripDashboard
             estimatedMinutes={tripData.estimatedMinutes}
             lockedDistance={tripData.lockedDistance}
@@ -242,6 +178,7 @@ const ActiveTripScreen = () => {
 
       {renderArrivalScreen()}
 
+      {/* warning modal if the driver deviates too far from the calculated route */}
       <DeviationModal
         visible={tripData.isDeviationWarningVisible}
         onClose={() => tripData.setIsDeviationWarningVisible(false)}
@@ -251,12 +188,8 @@ const ActiveTripScreen = () => {
   );
 };
 
-// ... (KEEP ALL YOUR EXISTING STYLES)
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
-
-  // --- Plotting Overlay Styles ---
   plottingOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(255, 255, 255, 0.85)",
@@ -277,8 +210,6 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#64748B",
   },
-
-  // --- Arrived Overlay Styles ---
   arrivedOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0, 0, 0, 0.6)",
@@ -372,41 +303,6 @@ const styles = StyleSheet.create({
     fontWeight: "900",
     color: "#D32F2F",
   },
-  extraPaymentContainer: {
-    backgroundColor: "#F8FAFC",
-    padding: 16,
-    borderRadius: 16,
-    marginBottom: 24,
-    borderWidth: 1,
-    borderColor: "#E2E8F0",
-    width: "100%",
-  },
-  extraPaymentText: {
-    fontSize: 13,
-    color: "#334155",
-    fontWeight: "600",
-    marginBottom: 12,
-  },
-  radioRow: {
-    flexDirection: "row",
-    gap: 12,
-  },
-  radioBtn: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#CBD5E1",
-    alignItems: "center",
-    backgroundColor: "#FFFFFF",
-  },
-  radioBtnActive: {
-    borderColor: "#D32F2F",
-    backgroundColor: "#FEF2F2",
-    borderWidth: 2,
-  },
-  radioText: { fontSize: 13, fontWeight: "bold", color: "#475569" },
-  radioTextActive: { color: "#D32F2F" },
   payBtn: {
     width: "100%",
     paddingVertical: 18,

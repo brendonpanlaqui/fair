@@ -18,7 +18,7 @@ import { GooglePlacesAutocomplete } from "react-native-google-places-autocomplet
 
 import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracking";
 import { useAuth } from "@/src/hooks/AuthContext";
-import { api } from "@/src/services/api"; // 🚀 Imported your API service
+import { api } from "@/src/services/api";
 import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { useCameraPermissions } from "expo-camera";
 import { useTripSetup } from "../hooks/useTripSetup";
@@ -28,6 +28,7 @@ import { MapPickerModal } from "../components/setup/MapPickerModal";
 import { OCRScannerModal } from "../components/setup/OCRScannerModal";
 import { RouteTimeline } from "../components/setup/RouteTimeline";
 
+// generates a unique session token for google places autocomplete to reduce billing costs
 const generateSessionToken = () => {
   return Math.random().toString(36).substring(2) + Date.now().toString(36);
 };
@@ -40,6 +41,7 @@ const StartTripScreen: React.FC = () => {
 
   const { isDiscountVerified, userType } = useAuth();
 
+  // retrieve matrix and passed parameters from the previous screen
   const activeMatrix = params.matrixStr
     ? JSON.parse(params.matrixStr as string)
     : null;
@@ -53,6 +55,7 @@ const StartTripScreen: React.FC = () => {
 
   const { currentLocation } = useLocationTracking();
 
+  // lock the starting location so it doesn't change if the user moves while setting up the trip
   const [frozenOrigin, setFrozenOrigin] = useState<{
     lat: number;
     lng: number;
@@ -74,6 +77,7 @@ const StartTripScreen: React.FC = () => {
   const safeOriginLat = frozenOrigin?.lat || 15.149;
   const safeOriginLng = frozenOrigin?.lng || 120.5779;
 
+  // custom hook that manages the complex logic of distance routing, stopovers, and fare computation
   const {
     finalDest,
     setFinalDest,
@@ -111,9 +115,10 @@ const StartTripScreen: React.FC = () => {
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraVisible, setIsCameraVisible] = useState(false);
   const [isScanningOCR, setIsScanningOCR] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false); // 🚀 Added verifying state
+  // state to disable buttons while pinging the server
+  const [isVerifying, setIsVerifying] = useState(false);
 
-  // UX IMPROVEMENT 1: Auto-open modal if no destination is set
+  // automatically open the destination search modal if it's not set
   useEffect(() => {
     if (!destLat || !destLng) {
       setSearchTarget("destination");
@@ -121,6 +126,7 @@ const StartTripScreen: React.FC = () => {
     }
   }, []);
 
+  // handles the swipe down gesture to dismiss the search modal
   const panResponder = useRef(
     PanResponder.create({
       onStartShouldSetPanResponder: () => false,
@@ -139,6 +145,7 @@ const StartTripScreen: React.FC = () => {
     }),
   ).current;
 
+  // asks for camera permission before opening the ocr scanner
   const handleOpenScanner = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
@@ -153,6 +160,7 @@ const StartTripScreen: React.FC = () => {
     setIsCameraVisible(true);
   };
 
+  // extracts the tricycle body number from an image using machine learning
   const handleProcessOCR = async (imageUri: string) => {
     if (imageUri === "DEV_MOCK_SCAN_TRIGGER") {
       setBodyNumber("2-2500");
@@ -167,10 +175,12 @@ const StartTripScreen: React.FC = () => {
       const fullText = result.text;
 
       if (fullText && fullText.length > 0) {
+        // regex to find patterns that look like tricycle numbers (e.g., 1234 or 2-2500)
         const bodyNumRegex = /\b(?:\d{1,2}-)?\d{3,4}\b/g;
         const matches = fullText.match(bodyNumRegex);
 
         if (matches) {
+          // filter out common false positives like years
           const ignoreList = ["2021", "2022", "2023", "2024", "2025", "2026"];
           const validNumbers = matches.filter(
             (num: string) => !ignoreList.includes(num),
@@ -214,7 +224,7 @@ const StartTripScreen: React.FC = () => {
     }
   };
 
-  // 🚀 UPDATED: Now pings Django before navigating
+  // validates inputs, checks the tricycle status in the backend, and starts the trip
   const handleConfirmRoute = async () => {
     if (!frozenOrigin) {
       Alert.alert(
@@ -268,15 +278,15 @@ const StartTripScreen: React.FC = () => {
     setIsVerifying(true);
 
     try {
-      // 🚀 PING DJANGO: Check if the tricycle exists and is active
+      // ping django to check if the tricycle exists and is active
       const response = await api.get(`/tricycles/check/${bodyNumber}/`);
       const tricycleStatus = response.data.status;
 
       if (tricycleStatus === "Active") {
-        // It's a verified, active driver. Start immediately!
+        // it's a verified, active driver. start immediately
         proceedToTrip();
       } else {
-        // It exists in the DB, but is Suspended or already marked Unverified
+        // it exists in the db, but is suspended or marked unverified
         Alert.alert(
           "⚠️ Safety Warning",
           `This tricycle is currently marked as ${tricycleStatus.toUpperCase()} by the PTRO. Riding may be unsafe. Do you still want to proceed?`,
@@ -291,7 +301,7 @@ const StartTripScreen: React.FC = () => {
         );
       }
     } catch (error: any) {
-      // 🚀 404 NOT FOUND: This means it's completely unregistered (Colorum)
+      // 404 not found means it's completely unregistered (colorum)
       if (error.response?.status === 404) {
         Alert.alert(
           "⚠️ Unregistered Tricycle",
@@ -328,7 +338,7 @@ const StartTripScreen: React.FC = () => {
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      {/* HEADER */}
+      {/* header section */}
       <View style={styles.header}>
         <TouchableOpacity
           onPress={() => router.back()}
@@ -358,12 +368,13 @@ const StartTripScreen: React.FC = () => {
           calculatedDistance={calculatedDistance}
           onOpenSearch={(target) => {
             setSearchTarget(target);
-            setSessionToken(generateSessionToken()); // 🚀 Reset token on open to prevent stale sessions
+            setSessionToken(generateSessionToken()); // reset token on open to prevent stale sessions
             setIsSearchModalVisible(true);
           }}
           onRemoveStopover={removeStopover}
         />
 
+        {/* tricycle details section */}
         <Text style={styles.sectionTitle}>{"Tricycle Details"}</Text>
 
         <View style={styles.detailsCard}>
@@ -411,7 +422,7 @@ const StartTripScreen: React.FC = () => {
             </TouchableOpacity>
           )}
 
-          {/* FLOATING LABEL INPUTS */}
+          {/* floating label inputs for manual entry */}
           <View
             style={[
               styles.floatingInputWrapper,
@@ -466,12 +477,11 @@ const StartTripScreen: React.FC = () => {
         </View>
       </ScrollView>
 
-      {/* PREMIUM SPLIT-LAYOUT BOTTOM BUTTON */}
+      {/* split-layout bottom confirm button */}
       <View style={styles.bottomFooter}>
         <TouchableOpacity
           style={[
             styles.verifyButton,
-            // 🚀 Now considers isVerifying for the disabled state
             (!finalDest || !bodyNumber || isCalculating || isVerifying) &&
               styles.verifyButtonDisabled,
           ]}
@@ -516,7 +526,7 @@ const StartTripScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* MODALS */}
+      {/* modals for map picker, ocr scanning, and place search */}
       <MapPickerModal
         visible={isMapPickerVisible}
         target={searchTarget}
@@ -605,7 +615,7 @@ const StartTripScreen: React.FC = () => {
                         "Cross-Border Trip",
                         "Ordinance No. 723 only covers fares inside Angeles City. Tricycles must return empty from other municipalities, so cross-border fares (e.g. to Magalang or Mabalacat) must be negotiated directly with the driver.",
                       );
-                      return; // Block them from selecting it!
+                      return; // block sila from picking places outside AC
                     }
                     if (!isWithinAngelesCity(lat, lng)) {
                       Alert.alert(

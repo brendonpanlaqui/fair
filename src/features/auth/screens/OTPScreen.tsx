@@ -133,87 +133,92 @@ const OTPScreen = () => {
 
   return (
     // to avoid keyboard covering of input fields
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
-        <Text style={styles.logoText}>fair</Text>
-        <View style={{ width: 32 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+    <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>Verify Email</Text>
-          <Text style={styles.subtitle}>
-            We sent a 6-digit code to your email. Enter it below to secure your
-            account.
-          </Text>
-        </View>
-
-        {/* boxes to enter OTP */}
-        <OTPInput code={otpCode} setCode={setOtpCode} maxLength={6} />
-
-        {/* display the active countdown timer */}
-        <View style={styles.timerContainer}>
-          <MaterialIcons name="access-time" size={16} color="#64748B" />
-          <Text style={styles.timerText}>
-            EXPIRES IN {formatTime(timeLeft)}
-          </Text>
-        </View>
-
-        {/* verify button */}
-        <TouchableOpacity
-          style={[styles.verifyBtn, isLoading && { opacity: 0.7 }]}
-          activeOpacity={0.9}
-          onPress={handleVerify}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.verifyBtnText}>Verify & Continue</Text>
-          )}
-        </TouchableOpacity>
-
-        {/* resend when timer hits 0 */}
-        <View style={styles.resendContainer}>
-          <Text style={styles.resendText}>Didn't receive code? </Text>
+        <View style={styles.header}>
           <TouchableOpacity
-            onPress={handleResend}
-            disabled={timeLeft > 0 || isResending} // Lock button if counting down OR sending
-            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            onPress={() => router.back()}
+            style={styles.backBtn}
           >
-            <Text
-              style={[
-                styles.resendLink,
-                (timeLeft > 0 || isResending) && { color: "#94A3B8" }, // Gray out if disabled
-              ]}
-            >
-              {isResending ? "Sending..." : "Resend"}
-            </Text>
+            <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
           </TouchableOpacity>
+          <Text style={styles.logoText}>fair</Text>
+          <View style={{ width: 32 }} />
         </View>
 
-        <View style={styles.securityCard}>
-          <View style={styles.shieldIconBg}>
-            <MaterialIcons name="verified-user" size={24} color="#C62828" />
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.textContainer}>
+            <Text style={styles.title}>Verify Email</Text>
+            <Text style={styles.subtitle}>
+              We sent a 6-digit code to your email. Enter it below to secure
+              your account.
+            </Text>
           </View>
-          <Text style={styles.securityTitle}>Official LGU Security</Text>
-          <Text style={styles.securitySubtitle}>
-            This multi-factor authentication protects your sensitive data from
-            unauthorized access.
-          </Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+
+          {/* boxes to enter OTP */}
+          <OTPInput code={otpCode} setCode={setOtpCode} maxLength={6} />
+
+          {/* display the active countdown timer */}
+          <View style={styles.timerContainer}>
+            <MaterialIcons name="access-time" size={16} color="#64748B" />
+            <Text style={styles.timerText}>
+              EXPIRES IN {formatTime(timeLeft)}
+            </Text>
+          </View>
+
+          {/* verify button */}
+          <TouchableOpacity
+            style={[styles.verifyBtn, isLoading && { opacity: 0.7 }]}
+            activeOpacity={0.9}
+            onPress={handleVerify}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.verifyBtnText}>Verify & Continue</Text>
+            )}
+          </TouchableOpacity>
+
+          {/* resend when timer hits 0 */}
+          <View style={styles.resendContainer}>
+            <Text style={styles.resendText}>Didn't receive code? </Text>
+            <TouchableOpacity
+              onPress={handleResend}
+              disabled={timeLeft > 0 || isResending} // Lock button if counting down OR sending
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            >
+              <Text
+                style={[
+                  styles.resendLink,
+                  (timeLeft > 0 || isResending) && { color: "#94A3B8" }, // Gray out if disabled
+                ]}
+              >
+                {isResending ? "Sending..." : "Resend"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.securityCard}>
+            <View style={styles.shieldIconBg}>
+              <MaterialIcons name="verified-user" size={24} color="#C62828" />
+            </View>
+            <Text style={styles.securityTitle}>Official LGU Security</Text>
+            <Text style={styles.securitySubtitle}>
+              This multi-factor authentication protects your sensitive data from
+              unauthorized access.
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 

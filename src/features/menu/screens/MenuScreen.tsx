@@ -182,7 +182,7 @@ export default function ProfileScreen() {
             }}
           >
             <View style={styles.avatarContainer}>
-              <MaterialIcons name="person" size={36} color="#D32F2F" />
+              <MaterialIcons name="person" size={32} color="#D32F2F" />
             </View>
             <View style={styles.profileInfo}>
               {/* show user's name, or a fallback if the name is missing/they are a guest */}
@@ -336,9 +336,9 @@ const styles = StyleSheet.create({
   scrollContent: { paddingBottom: 40 },
   redHeaderBackground: {
     backgroundColor: "#D32F2F",
-    paddingTop: 65,
+    paddingTop: 60,
     paddingHorizontal: 24,
-    paddingBottom: 60,
+    paddingBottom: 40,
     borderBottomLeftRadius: 28,
     borderBottomRightRadius: 28,
     flexDirection: "row",
@@ -364,13 +364,13 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#D32F2F",
   },
-  profileCardWrapper: { marginTop: -40, paddingHorizontal: 16, zIndex: 10 },
+  profileCardWrapper: { marginTop: -20, paddingHorizontal: 16, zIndex: 10 },
   profileCard: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: "#FFFFFF",
-    padding: 20,
-    borderRadius: 20,
+    padding: 12,
+    borderRadius: 16,
     elevation: 8,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: 6 },
@@ -380,9 +380,9 @@ const styles = StyleSheet.create({
     borderColor: "#F8FAFC",
   },
   avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
@@ -390,13 +390,13 @@ const styles = StyleSheet.create({
   },
   profileInfo: { flex: 1 },
   profileName: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "900",
     color: "#0F172A",
     letterSpacing: -0.5,
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  guestSubtitle: { fontSize: 14, color: "#64748B" },
+  guestSubtitle: { fontSize: 13, color: "#64748B" },
   verifiedBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   divider: { height: 1, backgroundColor: "#F1F5F9", marginLeft: 64 },
   discountCard: {
     backgroundColor: "#FFFFFF",
-    borderRadius: 20,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: "#E2E8F0",
     padding: 16,
@@ -458,26 +458,32 @@ const styles = StyleSheet.create({
   },
   discountTextWrapper: { flex: 1 },
   discountTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "900",
     color: "#0F172A",
-    marginBottom: 4,
+    marginBottom: 2,
   },
   discountSubtitle: {
     fontSize: 13,
     color: "#64748B",
     lineHeight: 18,
-    marginBottom: 16,
+    marginBottom: 12,
   },
   applyDiscountBtn: {
-    backgroundColor: "#C62828",
-    paddingVertical: 12,
-    borderRadius: 8,
+    backgroundColor: "#D32F2F",
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
     alignItems: "center",
     justifyContent: "center",
   },
-  applyDiscountBtnText: { color: "#FFFFFF", fontSize: 14, fontWeight: "bold" },
-  menuItem: { flexDirection: "row", alignItems: "center", padding: 16 },
+  applyDiscountBtnText: { color: "#FFFFFF", fontSize: 13, fontWeight: "bold" },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
   menuItemIconBg: {
     width: 40,
     height: 40,
@@ -498,7 +504,7 @@ const styles = StyleSheet.create({
   exitBtn: {
     flexDirection: "row",
     width: "100%",
-    paddingVertical: 18,
+    height: 56,
     borderRadius: 16,
     borderWidth: 1,
     alignItems: "center",

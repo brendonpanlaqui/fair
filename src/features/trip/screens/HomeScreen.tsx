@@ -4,7 +4,7 @@ import { useLocationTracking } from "@/src/features/trip/hooks/useLocationTracki
 import { useAuth } from "@/src/hooks/AuthContext";
 import { api } from "@/src/services/api";
 import { ActiveFareMatrix, calculateDirectFare } from "@/src/utils/fareMatrix";
-import { isWithinAngelesCity } from "@/src/utils/geofencing";
+import { ANGELES_POLYGON, isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
@@ -19,7 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, Polygon, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 
 const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
@@ -29,6 +29,7 @@ const HomeScreen: React.FC = () => {
 
   const { isDiscountVerified, userType } = useAuth();
 
+  // states for trip computation and mapping
   const [activeMatrix, setActiveMatrix] = useState<ActiveFareMatrix | null>(
     null,
   );
@@ -51,11 +52,13 @@ const HomeScreen: React.FC = () => {
     "DIRECT",
   );
 
+  // controls visibility of the manual map pin dropper
   const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
 
   const mapRef = useRef<MapView>(null);
   const { currentLocation } = useLocationTracking();
 
+  // defaults to a central angeles city coordinate if gps is still locating
   const mapCenter = currentLocation
     ? {
         latitude: currentLocation.latitude,
@@ -65,6 +68,7 @@ const HomeScreen: React.FC = () => {
 
   const [destinationName, setDestinationName] = useState<string | null>(null);
 
+  // offline and sync states
   const [isOffline, setIsOffline] = useState(false);
   const [isRetrying, setIsRetrying] = useState(false);
 
@@ -72,8 +76,10 @@ const HomeScreen: React.FC = () => {
     message: "",
     type: "error",
   });
+  // animation value for the sliding toast notification
   const slideAnim = useRef(new Animated.Value(150)).current;
 
+  // displays an animated success or error toast message
   const showToast = (message: string, type: "error" | "success" = "error") => {
     setToastConfig({ message, type });
     Animated.sequence([
@@ -91,6 +97,7 @@ const HomeScreen: React.FC = () => {
     ]).start(() => setToastConfig({ message: "", type: "error" }));
   };
 
+  // fetches the active local fare ordinance from the server or local cache
   const fetchMatrix = async () => {
     setIsRetrying(true);
     try {
@@ -127,6 +134,7 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  // attempts to upload any offline-saved trips to the database when the app loads
   const syncPendingTrips = async () => {
     try {
       const storedPending = await AsyncStorage.getItem("@pending_trips");
@@ -169,11 +177,13 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  // fetch matrix and sync pending trips on component mount
   useEffect(() => {
     fetchMatrix();
     syncPendingTrips();
   }, []);
 
+  // recalculates the direct fare whenever the distance or matrix changes
   useEffect(() => {
     if (tripDistance && activeMatrix) {
       setCalculatedFare(
@@ -182,6 +192,7 @@ const HomeScreen: React.FC = () => {
     }
   }, [isDiscountVerified, tripDistance, activeMatrix]);
 
+  // handles when a user picks a destination, ensuring it is within city limits
   const handlePlaceSelected = (
     coords: { latitude: number; longitude: number },
     name: string,
@@ -190,17 +201,18 @@ const HomeScreen: React.FC = () => {
     if (!isLegal) {
       Alert.alert("Out of Bounds", "...");
       setDestination(null);
-      setDestinationName(null); // 🚀 ADD THIS
+      setDestinationName(null);
       setCalculatedFare(null);
       setLockedOrigin(null);
       return;
     }
     setDestination(coords);
-    setDestinationName(name); // 🚀 ADD THIS
+    setDestinationName(name);
 
     setLockedOrigin(mapCenter);
   };
 
+  // processes the route drawn on the map, blocks trips over 12km, and calculates the final metrics
   const handleRouteReady = (result: any) => {
     const MAX_TRICYCLE_DISTANCE_KM = 12;
 
@@ -236,6 +248,7 @@ const HomeScreen: React.FC = () => {
     }, 100);
   };
 
+  // animates the map back to the user's current gps location
   const handleCenterLocation = () => {
     if (currentLocation && mapRef.current) {
       mapRef.current.animateCamera(
@@ -253,6 +266,7 @@ const HomeScreen: React.FC = () => {
     }
   };
 
+  // resets the selected destination and clears the drawn route
   const handleClearRoute = () => {
     setDestination(null);
     setDestinationName(null);
@@ -267,7 +281,7 @@ const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       <StatusBar style="light" translucent backgroundColor="transparent" />
 
-      {/* 1. MAP AREA */}
+      {/* map area showing current location and the drawn route to destination */}
       <View style={styles.mapArea}>
         <MapView
           ref={mapRef}
@@ -287,7 +301,28 @@ const HomeScreen: React.FC = () => {
           showsMyLocationButton={false}
           showsCompass={false}
         >
-          <Marker coordinate={mapCenter} flat={true}></Marker>
+          {/* Shaded background outside of Angeles City */}
+          <Polygon
+            coordinates={[
+              { latitude: 35, longitude: 110 },
+              { latitude: 35, longitude: 140 },
+              { latitude: -5, longitude: 140 },
+              { latitude: -5, longitude: 110 },
+            ]}
+            holes={[ANGELES_POLYGON]}
+            fillColor="rgba(15, 23, 42, 0.15)"
+            strokeWidth={0}
+            zIndex={1}
+          />
+          {/* Red outline for Angeles City boundary */}
+          <Polygon
+            coordinates={ANGELES_POLYGON}
+            strokeColor="rgba(211, 47, 47, 0.8)"
+            fillColor="transparent"
+            strokeWidth={2}
+            zIndex={2}
+          />
+          <Marker coordinate={mapCenter}></Marker>
 
           {destination && <Marker coordinate={destination}></Marker>}
 
@@ -311,7 +346,7 @@ const HomeScreen: React.FC = () => {
         </MapView>
       </View>
 
-      {/* 2. HEADER */}
+      {/* search header for destination picking */}
       <MapHeader
         googleApiKey={GOOGLE_API_KEY}
         onPlaceSelected={handlePlaceSelected}
@@ -320,7 +355,7 @@ const HomeScreen: React.FC = () => {
         onChooseOnMap={() => setIsMapPickerVisible(true)}
       />
 
-      {/* 3. RIGHT CONTROLS */}
+      {/* floating button to center map on user */}
       <View style={styles.rightControls}>
         <TouchableOpacity
           style={styles.roundButton}
@@ -331,7 +366,7 @@ const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 4. FLOATING TRIP INFO */}
+      {/* floating card showing estimated travel time and distance */}
       {tripDistance && tripDuration && (
         <View style={styles.tripInfoCard}>
           <View style={styles.infoBlock}>
@@ -372,24 +407,20 @@ const HomeScreen: React.FC = () => {
         </View>
       )}
 
-      {/* 5. MAIN ACTION BUTTON */}
+      {/* main bottom button to proceed with the trip setup */}
       <View style={styles.bottomButtonsContainer}>
         <TouchableOpacity
-          style={[
-            styles.primaryButton,
-            !activeMatrix && styles.primaryButtonDisabled,
-          ]}
+          style={styles.primaryButton}
           activeOpacity={0.9}
-          disabled={!activeMatrix}
           onPress={() => {
             setSelectedMode("DIRECT");
             setIsSheetVisible(true);
           }}
         >
           <MaterialCommunityIcons
-            name={!activeMatrix ? "wifi-off" : "navigation-outline"}
+            name="navigation-outline"
             size={26}
-            color={!activeMatrix ? "#94A3B8" : "#FFFFFF"}
+            color="#FFFFFF"
           />
           <View
             style={{
@@ -398,17 +429,10 @@ const HomeScreen: React.FC = () => {
               justifyContent: "center",
             }}
           >
-            <Text
-              style={[
-                styles.primaryButtonText,
-                !activeMatrix && { color: "#94A3B8" },
-              ]}
-            >
-              {!activeMatrix
-                ? "WAITING FOR FARE MATRIX..."
-                : calculatedFare
-                  ? `DIRECT FARE: ₱${calculatedFare}.00`
-                  : "START NEW TRIP"}
+            <Text style={styles.primaryButtonText}>
+              {calculatedFare
+                ? `DIRECT FARE: ₱${calculatedFare}.00`
+                : "START NEW TRIP"}
             </Text>
             {calculatedFare && isDiscountVerified && (
               <Text
@@ -427,7 +451,7 @@ const HomeScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* 6. TRIP SELECTION BOTTOM SHEET (MODAL) */}
+      {/* bottom sheet modal to select between direct and special ride modes */}
       <Modal
         visible={isSheetVisible}
         animationType="slide"
@@ -445,7 +469,7 @@ const HomeScreen: React.FC = () => {
             <View style={styles.sheetDragHandle} />
             <Text style={styles.sheetTitle}>Select your Trip Type</Text>
 
-            {/* DIRECT CARD */}
+            {/* direct ride card - standard point a to b */}
             <TouchableOpacity
               style={[
                 styles.tripCard,
@@ -496,7 +520,7 @@ const HomeScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* SPECIAL CARD */}
+            {/* special ride card - for multiple stopovers or chartered trips */}
             <TouchableOpacity
               style={[
                 styles.tripCard,
@@ -542,11 +566,10 @@ const HomeScreen: React.FC = () => {
               </Text>
             </TouchableOpacity>
 
-            {/* CONFIRM BUTTON */}
+            {/* confirm selection button to move to setup screen */}
             <TouchableOpacity
               style={styles.confirmSheetButton}
               activeOpacity={0.9}
-              disabled={!activeMatrix}
               onPress={() => {
                 setIsSheetVisible(false);
                 router.push({
@@ -578,6 +601,7 @@ const HomeScreen: React.FC = () => {
         </View>
       </Modal>
 
+      {/* modal for manual map pinning if the user opts out of autocomplete search */}
       <MapPickerModal
         visible={isMapPickerVisible}
         target="destination"
@@ -590,6 +614,7 @@ const HomeScreen: React.FC = () => {
         }}
       />
 
+      {/* custom animated toast notification element */}
       {toastConfig.message ? (
         <Animated.View
           style={[
@@ -646,30 +671,47 @@ const styles = StyleSheet.create({
     zIndex: 10,
   },
   primaryButton: {
-    height: 64,
+    height: 60,
+    paddingHorizontal: 16,
     backgroundColor: "#D32F2F",
-    borderRadius: 12,
+    borderRadius: 18,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    elevation: 6,
+    elevation: 8,
     shadowColor: "#D32F2F",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+  },
+  primaryButtonDisabled: {
+    backgroundColor: "#F1F5F9",
+    borderWidth: 1,
+    borderColor: "#E2E8F0",
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  primaryButtonTextContainer: {
+    flexDirection: "column",
+    alignItems: "flex-start",
+    justifyContent: "center",
+    marginLeft: 12,
   },
   primaryButtonText: {
     color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "bold",
-    textTransform: "uppercase",
-    letterSpacing: 1,
-    marginLeft: 12,
+    fontSize: 16,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
-  primaryButtonDisabled: {
-    backgroundColor: "#E2E8F0",
-    elevation: 0,
-    shadowOpacity: 0,
+  primaryButtonTextDisabled: {
+    color: "#94A3B8",
+  },
+  primaryButtonSubtext: {
+    color: "#FECACA",
+    fontSize: 11,
+    fontWeight: "800",
+    marginTop: 2,
+    letterSpacing: 0.5,
   },
   legalMicrocopy: {
     textAlign: "center",

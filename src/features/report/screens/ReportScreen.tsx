@@ -22,7 +22,7 @@ const ReportScreen = () => {
   const router = useRouter();
   // grab the parameters passed in the URL (e.g., ?tripId=123&bodyNumber=0406)
   const params = useLocalSearchParams();
-  const { user } = useAuth(); // the logged-in user
+  const { user, logout } = useAuth(); // the logged-in user
 
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportRecord | null>(
@@ -139,18 +139,20 @@ const ReportScreen = () => {
       {!user ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
-            <MaterialIcons name="security" size={48} color="#D32F2F" />
+            <MaterialIcons name="security" size={36} color="#D32F2F" />
           </View>
           <Text style={styles.guestTitle}>Guest Mode</Text>
           <Text style={styles.guestText}>
-            To prevent false complaints, filing a report with the Angeles City
-            PTRO requires a verified account. Sign in to track and manage your
-            support tickets.
+            Create an account or sign in to submit verified reports, monitor
+            ticket status, and manage your concerns.
           </Text>
           <TouchableOpacity
             style={styles.guestLoginBtn}
             activeOpacity={0.8}
-            onPress={() => router.replace("/")}
+            onPress={async () => {
+              if (logout) await logout();
+              router.replace("/auth");
+            }}
           >
             <Text style={styles.guestLoginBtnText}>Sign In / Register</Text>
           </TouchableOpacity>
@@ -235,14 +237,14 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   headerTitle: {
-    fontSize: 32,
+    fontSize: 28,
     fontWeight: "900",
     color: "#FFFFFF",
     letterSpacing: -1,
     textAlign: "center",
   },
   headerSubtitle: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#FECACA",
     marginTop: 4,
     textAlign: "center",
@@ -275,36 +277,37 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingHorizontal: 32,
-    paddingTop: 20,
+    paddingTop: 40,
   },
   guestIconWrapper: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: "#FFF1F2",
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 24,
+    marginBottom: 20,
   },
   guestTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: "900",
     color: "#0F172A",
-    marginBottom: 12,
+    marginBottom: 8,
     letterSpacing: -0.5,
   },
   guestText: {
-    fontSize: 15,
+    fontSize: 14,
     color: "#64748B",
     textAlign: "center",
     lineHeight: 22,
-    marginBottom: 32,
+    marginBottom: 24,
   },
   guestLoginBtn: {
     backgroundColor: "#D32F2F",
-    paddingHorizontal: 32,
-    paddingVertical: 16,
-    borderRadius: 16,
+    paddingHorizontal: 20,
+    height: 40,
+    justifyContent: "center",
+    borderRadius: 14,
     elevation: 4,
     shadowColor: "#D32F2F",
     shadowOffset: { width: 0, height: 4 },
@@ -313,7 +316,7 @@ const styles = StyleSheet.create({
   },
   guestLoginBtnText: {
     color: "#FFFFFF",
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "bold",
     letterSpacing: 0.5,
   },

@@ -47,7 +47,7 @@ export const MapPickerModal = ({
   const [addressName, setAddressName] = useState("Move map to select location");
   const [isFetchingAddress, setIsFetchingAddress] = useState(false);
 
-  // 🚀 SYNC: Forces map to current location when visible changes
+  // forces map to current location when visible changes
   useEffect(() => {
     if (visible && mapRef.current) {
       mapRef.current.animateToRegion(
@@ -62,7 +62,7 @@ export const MapPickerModal = ({
     }
   }, [visible, initialLat, initialLng]);
 
-  // 🚀 CLEANUP: Prevent memory leaks if modal closes while fetching
+  // prevent memory leaks if modal closes while fetching
   useEffect(() => {
     return () => {
       if (fetchTimeoutRef.current) clearTimeout(fetchTimeoutRef.current);
@@ -70,36 +70,54 @@ export const MapPickerModal = ({
   }, []);
 
   const fetchAddressName = (lat: number, lng: number) => {
-    // Clear any pending API requests if the user is still moving the map
+    // clear any pending API requests if the user is still moving the map
     if (fetchTimeoutRef.current) {
       clearTimeout(fetchTimeoutRef.current);
     }
 
     setIsFetchingAddress(true);
 
-    // 🚀 DEBOUNCE: Wait 800ms before hitting the paid Google API
+    // wait 1000ms before hitting the API to prevent rate limits (debouncing)
     fetchTimeoutRef.current = setTimeout(async () => {
       try {
-        // 🚨 SECURITY WARNING: Move this fetch to your Django backend proxy in production
         const response = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${GOOGLE_API_KEY}`,
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+          {
+            headers: {
+              "User-Agent": "FairCommuteApp/1.0",
+              "Accept-Language": "en-US,en;q=0.9",
+            },
+          },
         );
         const data = await response.json();
-        if (data.results && data.results.length > 0) {
-          setAddressName(data.results[0].formatted_address.split(",")[0]);
+        if (data && data.address) {
+          const address = data.address;
+          const shortName =
+            address.amenity ||
+            address.shop ||
+            address.building ||
+            address.road ||
+            address.neighbourhood ||
+            address.suburb ||
+            data.name ||
+            data.display_name.split(",")[0];
+          setAddressName(shortName);
+        } else if (data && data.display_name) {
+          setAddressName(data.display_name.split(",")[0]);
         } else {
           setAddressName("Unknown Location");
         }
       } catch (error) {
+        console.warn("Geocoding error:", error);
         setAddressName("Pinned Location");
       } finally {
         setIsFetchingAddress(false);
       }
-    }, 800);
+    }, 1000);
   };
 
   const handleRegionChange = () => {
-    // 🚀 UX: Lift the pin when map starts moving
+    // lift the pin when map starts moving
     Animated.spring(liftAnim, {
       toValue: -15,
       useNativeDriver: true,
@@ -107,7 +125,7 @@ export const MapPickerModal = ({
   };
 
   const handleRegionChangeComplete = (newRegion: Region) => {
-    // 🚀 UX: Drop the pin when movement stops
+    // drop the pin when movement stops
     Animated.spring(liftAnim, {
       toValue: 0,
       useNativeDriver: true,
@@ -168,16 +186,30 @@ export const MapPickerModal = ({
             showsUserLocation={true}
             showsMyLocationButton={false}
           >
+            {/* Shaded background outside of Angeles City */}
+            <Polygon
+              coordinates={[
+                { latitude: 35, longitude: 110 },
+                { latitude: 35, longitude: 140 },
+                { latitude: -5, longitude: 140 },
+                { latitude: -5, longitude: 110 },
+              ]}
+              holes={[ANGELES_POLYGON]}
+              fillColor="rgba(15, 23, 42, 0.15)"
+              strokeWidth={0}
+              zIndex={1}
+            />
+            {/* Red outline for Angeles City boundary */}
             <Polygon
               coordinates={ANGELES_POLYGON}
               strokeColor="rgba(211, 47, 47, 0.8)"
-              fillColor="rgba(211, 47, 47, 0.05)"
+              fillColor="transparent"
               strokeWidth={2}
-              zIndex={1}
+              zIndex={2}
             />
           </MapView>
 
-          {/* 🚀 SNAP TO ME BUTTON */}
+          {/* SNAP TO ME BUTTON */}
           <TouchableOpacity
             style={styles.myLocationBtn}
             onPress={snapToCurrent}
@@ -185,7 +217,7 @@ export const MapPickerModal = ({
             <MaterialIcons name="my-location" size={24} color="#0F172A" />
           </TouchableOpacity>
 
-          {/* 🚀 ANIMATED CENTER PIN */}
+          {/* ANIMATED CENTER PIN */}
           <View style={styles.centerPinContainer} pointerEvents="none">
             <Animated.View
               style={[

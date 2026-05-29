@@ -15,7 +15,7 @@ import { useLocationTracking } from "./useLocationTracking";
 
 const DEVIATION_THRESHOLD_METERS = 100;
 
-// 🚀 FIX 2: A safety wrapper to prevent JSON.parse from causing white screens
+// a safety wrapper to prevent JSON.parse from causing white screens
 const safeParseJSON = (jsonString: any, fallback: any) => {
   if (!jsonString || jsonString === "undefined" || jsonString === "null")
     return fallback;
@@ -32,7 +32,7 @@ export const useActiveTrip = () => {
   const params = useLocalSearchParams();
   const { user, isDiscountVerified } = useAuth();
 
-  // 1. Extract Initial Parameters safely
+  // extract Initial Parameters safely
   const initialFare =
     params.fixedFare && params.fixedFare !== "undefined"
       ? Number(params.fixedFare)
@@ -42,11 +42,11 @@ export const useActiveTrip = () => {
       ? Number(params.lockedDistance)
       : 0;
 
-  // 2. Setup Dynamic State (Allows us to prorate fare if boundary is hit)
+  // setup Dynamic State (Allows us to prorate fare if boundary is hit)
   const [dynamicFare, setDynamicFare] = useState(initialFare);
   const [dynamicDistance, setDynamicDistance] = useState(initialDistance);
 
-  // 3. Parse remaining parameters using the safety wrapper
+  // parse remaining parameters using the safety wrapper
   const activeMatrix = safeParseJSON(params.matrixStr, null);
   const parsedStopovers = safeParseJSON(params.stopovers, []);
 
@@ -71,7 +71,7 @@ export const useActiveTrip = () => {
     longitude: Number(stop.longitude),
   }));
 
-  // 4. Location & Tracking
+  // Location & Tracking
   const { currentLocation, drivenTrace, stopTracking } =
     useLocationTracking(true);
   const mapCenter = currentLocation
@@ -83,7 +83,7 @@ export const useActiveTrip = () => {
 
   const estimatedMinutes = Math.max(1, Math.ceil(dynamicDistance * 3));
 
-  // 5. Safety & Deviation State
+  // Safety & Deviation State
   const [isDeviationWarningVisible, setIsDeviationWarningVisible] =
     useState(false);
   const [secretTapCount, setSecretTapCount] = useState(0);
@@ -104,12 +104,12 @@ export const useActiveTrip = () => {
     }
   };
 
-  // 🚀 CALCULATE EARLY DROP-OFF (Fires right before Arrival UI mounts)
+  // CALCULATE EARLY DROP-OFF
   const prepareArrival = () => {
     if (drivenTrace && drivenTrace.length > 1) {
       const actualDistanceKm = calculateTraceDistanceKm(drivenTrace);
 
-      // If they dropped off at least 200 meters early (0.2 km margin)
+      // once they dropped off at least 200 meters early (0.2 km margin)
       if (activeMatrix && actualDistanceKm < dynamicDistance - 0.2) {
         const proratedFare = calculateDirectFare(
           actualDistanceKm,
@@ -117,7 +117,7 @@ export const useActiveTrip = () => {
           isDiscountVerified,
         );
 
-        // Only apply if the prorated fare is actually cheaper
+        // only apply if the prorated fare is actually cheaper
         if (proratedFare < dynamicFare) {
           setIsEarlyDropoff(true);
           setOriginalFare(dynamicFare);
@@ -134,13 +134,12 @@ export const useActiveTrip = () => {
     isForcedComplete: boolean = false,
     overrideComputedFare?: number,
     overrideDistance?: number,
-    isTip: boolean = false,
   ) => {
     try {
       await stopTracking();
       resetSmoothing();
 
-      // Resolve the true values: use overrides if provided immediately by Geofence, otherwise fallback to UI state
+      // resolve the true values: use overrides if provided immediately by Geofence, otherwise fallback to UI state
       const resolvedFare = overrideComputedFare ?? dynamicFare;
       const resolvedDistance = overrideDistance ?? dynamicDistance;
 
@@ -152,11 +151,10 @@ export const useActiveTrip = () => {
       if (isForcedCancel) {
         tripStatus = "Cancelled";
       } else if (isForcedComplete || resolvedDistance >= 0.05) {
-        // Fallback: If not explicitly ended/cancelled, assume completed if they traveled at least 50 meters
+        // kapag not explicitly ended/cancelled, assume completed if they traveled at least 50 meters
         tripStatus = "Completed";
       }
 
-      // BUILD PAYLOAD
       const payload = {
         trip_id: generatedTripId,
         user: user?.id || null,
@@ -165,8 +163,8 @@ export const useActiveTrip = () => {
         trip_mode: parsedStopovers.length > 0 ? "Special" : "Direct",
         origin_address: originName,
         destination_address: destName,
-        total_distance_km: resolvedDistance, // Uses fresh data
-        computed_fare: resolvedFare, // Uses fresh data
+        total_distance_km: resolvedDistance,
+        computed_fare: resolvedFare,
         actual_fare_charged: tripStatus === "Completed" ? finalFareCharged : 0,
         discount_applied: 0.0,
         status: tripStatus,
@@ -244,7 +242,6 @@ export const useActiveTrip = () => {
           destLng: destLng,
           polylineHash: JSON.stringify(drivenTrace),
           isOfflineSaved: isOfflineSaved ? "true" : "false",
-          isTip: isTip ? "true" : "false", // 🚀 Pass tip status to receipt
         },
       });
     } catch (error: any) {
@@ -279,13 +276,13 @@ export const useActiveTrip = () => {
     }
   };
 
-  const handleEndTrip = (askedFare?: string, isTip: boolean = false) => {
-    // Falls back to dynamicFare if no valid askedFare is provided
+  const handleEndTrip = (askedFare?: string) => {
+    // falls back to dynamicFare if no valid askedFare is provided
     const finalFareCharged =
       askedFare && !isNaN(Number(askedFare)) ? Number(askedFare) : dynamicFare;
 
-    // Execute immediately with the tip flag
-    commitTrip(finalFareCharged, false, true, undefined, undefined, isTip);
+    // execute immediately
+    commitTrip(finalFareCharged, false, true, undefined, undefined);
   };
 
   const handleCancelTrip = () => {
@@ -312,8 +309,6 @@ export const useActiveTrip = () => {
       params: { tripId: "TRP-LIVE", bodyNumber, violation: "Detour" },
     });
   };
-
-  // --- Effects ---
 
   // Deviation Tracking
   useEffect(() => {
@@ -350,13 +345,13 @@ export const useActiveTrip = () => {
       ) {
         setHasLeftCity(true);
 
-        // 1. Calculate actual distance driven safely
+        // calculate actual distance driven safely
         const actualDistanceKm =
           drivenTrace && drivenTrace.length > 1
             ? calculateTraceDistanceKm(drivenTrace)
             : dynamicDistance; // Fallback to current distance if GPS hasn't fully logged yet
 
-        // 2. Recalculate prorated fare using matrix
+        // recalculate prorated fare using matrix
         let proratedFare = dynamicFare;
         if (activeMatrix) {
           proratedFare = calculateDirectFare(
@@ -366,7 +361,7 @@ export const useActiveTrip = () => {
           );
         }
 
-        // 3. Lock new values into state
+        // lock new values into state
         setDynamicDistance(actualDistanceKm);
         setDynamicFare(proratedFare);
 
@@ -377,7 +372,7 @@ export const useActiveTrip = () => {
             {
               text: "Acknowledge & End Trip",
               style: "destructive",
-              // 4. Force save the trip using the prorated fare as an immediate override!
+              // force save the trip using the prorated fare as an immediate override!
               onPress: () =>
                 commitTrip(
                   proratedFare,
@@ -402,8 +397,8 @@ export const useActiveTrip = () => {
 
   return {
     router,
-    fixedFare: dynamicFare, // ALIASED so UI components don't break
-    lockedDistance: dynamicDistance, // ALIASED so UI components don't break
+    fixedFare: dynamicFare,
+    lockedDistance: dynamicDistance,
     bodyNumber,
     destLat,
     destLng,

@@ -163,8 +163,6 @@ export const ActiveTripMap = ({
     }
   }, [currentLocation]);
 
-  // 🚀 ISOLATED RENDER FUNCTIONS (Guarantees no text string crashes)
-
   const renderDestinationMarker = () => {
     if (!destLat || !destLng) return null;
 
@@ -196,7 +194,7 @@ export const ActiveTripMap = ({
           });
         }}
         onError={(err) => {
-          setHasAttemptedRoute(true); // Stop loop if the API fails
+          setHasAttemptedRoute(true); // stop loop if the API fails
 
           if (onError) onError(err);
         }}

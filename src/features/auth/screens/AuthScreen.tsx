@@ -5,6 +5,8 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -198,182 +200,187 @@ const AuthScreen = () => {
       <StatusBar style="dark" />
       <Stack.Screen options={{ headerShown: false }} />
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* logo section */}
-        <View style={styles.header}>
-          <Text style={styles.logoText}>fair</Text>
-        </View>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* logo section */}
+          <View style={styles.header}>
+            <Text style={styles.logoText}>fair</Text>
+          </View>
 
-        {/* tabs to switch between login and registration */}
-        <View style={styles.tabContainer}>
-          <TouchableOpacity
-            style={[styles.tab, isLogin && styles.activeTab]}
-            onPress={() => toggleMode("login")}
-          >
-            <Text style={[styles.tabText, isLogin && styles.activeTabText]}>
-              Sign In
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tab, !isLogin && styles.activeTab]}
-            onPress={() => toggleMode("register")}
-          >
-            <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>
-              Create Account
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* dynamic title and subtitle based on mode */}
-        <View style={styles.titleContainer}>
-          <Text style={styles.title}>
-            {isLogin ? "Welcome Back" : "Create an account"}
-          </Text>
-          <Text style={styles.subtitle}>
-            {isLogin
-              ? "Enter your details to access your account."
-              : "Fill in your details to get started."}
-          </Text>
-        </View>
-
-        {/* form input fields */}
-        <View style={styles.formContainer}>
-          {/* show first and last name only on registration */}
-          {!isLogin && (
-            <View style={styles.row}>
-              <View style={{ flex: 1, marginRight: 8 }}>
-                <InputField
-                  label="First Name"
-                  icon="person-outline"
-                  placeholder="Juan"
-                  value={firstName}
-                  onChangeText={(text) => {
-                    setFirstName(text);
-                    setErrors((prev) => ({ ...prev, firstName: "" }));
-                  }}
-                  error={errors.firstName}
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <InputField
-                  label="Last Name"
-                  placeholder="Dela Cruz"
-                  value={lastName}
-                  onChangeText={(text) => {
-                    setLastName(text);
-                    setErrors((prev) => ({ ...prev, lastName: "" }));
-                  }}
-                  error={errors.lastName}
-                />
-              </View>
-            </View>
-          )}
-
-          {/* email field used in both modes */}
-          <InputField
-            label="Email Address"
-            icon="mail-outline"
-            placeholder="name@example.com"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              setErrors((prev) => ({ ...prev, email: "" }));
-            }}
-            error={errors.email}
-          />
-
-          {/* password field used in both modes */}
-          <InputField
-            label="Password"
-            icon="lock-outline"
-            placeholder="Enter your password"
-            isPassword
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              setErrors((prev) => ({ ...prev, password: "" }));
-            }}
-            error={errors.password}
-          />
-          {/* updated helper text to show only on registration */}
-          {!isLogin && !errors.password && (
-            <Text style={styles.helperText}>
-              Minimum of 8 characters, 1 uppercase, 1 number, 1 symbol
-            </Text>
-          )}
-
-          {/* confirm password only on registration */}
-          {!isLogin && (
-            <InputField
-              label="Confirm Password"
-              icon="lock-outline"
-              placeholder="Confirm your password"
-              isPassword
-              value={confirmPassword}
-              onChangeText={(text) => {
-                setConfirmPassword(text);
-                setErrors((prev) => ({ ...prev, confirmPassword: "" }));
-              }}
-              error={errors.confirmPassword}
-            />
-          )}
-
-          {/* forgot password link only on login */}
-          {isLogin && (
+          {/* tabs to switch between login and registration */}
+          <View style={styles.tabContainer}>
             <TouchableOpacity
-              style={styles.forgotPassword}
-              onPress={() => router.push("/forgot-password")}
+              style={[styles.tab, isLogin && styles.activeTab]}
+              onPress={() => toggleMode("login")}
             >
-              <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              <Text style={[styles.tabText, isLogin && styles.activeTabText]}>
+                Sign In
+              </Text>
             </TouchableOpacity>
-          )}
-        </View>
+            <TouchableOpacity
+              style={[styles.tab, !isLogin && styles.activeTab]}
+              onPress={() => toggleMode("register")}
+            >
+              <Text style={[styles.tabText, !isLogin && styles.activeTabText]}>
+                Create Account
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-        {/* submit button */}
-        <TouchableOpacity
-          style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
-          activeOpacity={0.9}
-          onPress={handleSubmit}
-          disabled={isLoading}
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.submitBtnText}>
-              {isLogin ? "Sign In" : "Create Account"}
+          {/* dynamic title and subtitle based on mode */}
+          <View style={styles.titleContainer}>
+            <Text style={styles.title}>
+              {isLogin ? "Welcome Back" : "Create an account"}
             </Text>
-          )}
-        </TouchableOpacity>
+            <Text style={styles.subtitle}>
+              {isLogin
+                ? "Enter your details to access your account."
+                : "Fill in your details to get started."}
+            </Text>
+          </View>
 
-        <View style={styles.dividerRow}>
-          <View style={styles.dividerLine} />
-          <Text style={styles.dividerText}>OR</Text>
-          <View style={styles.dividerLine} />
-        </View>
+          {/* form input fields */}
+          <View style={styles.formContainer}>
+            {/* show first and last name only on registration */}
+            {!isLogin && (
+              <View style={styles.row}>
+                <View style={{ flex: 1, marginRight: 8 }}>
+                  <InputField
+                    label="First Name"
+                    icon="person-outline"
+                    placeholder="Juan"
+                    value={firstName}
+                    onChangeText={(text) => {
+                      setFirstName(text);
+                      setErrors((prev) => ({ ...prev, firstName: "" }));
+                    }}
+                    error={errors.firstName}
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <InputField
+                    label="Last Name"
+                    placeholder="Dela Cruz"
+                    value={lastName}
+                    onChangeText={(text) => {
+                      setLastName(text);
+                      setErrors((prev) => ({ ...prev, lastName: "" }));
+                    }}
+                    error={errors.lastName}
+                  />
+                </View>
+              </View>
+            )}
 
-        {/* guest login button */}
-        <TouchableOpacity
-          style={styles.guestBtn}
-          onPress={() => {
-            continueAsGuest();
-            router.replace("/(tabs)");
-          }}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.guestBtnText}>Continue as Guest</Text>
-          <MaterialIcons
-            name="arrow-forward"
-            size={18}
-            color="#0F172A"
-            style={{ marginLeft: 8 }}
-          />
-        </TouchableOpacity>
-      </ScrollView>
+            {/* email field used in both modes */}
+            <InputField
+              label="Email Address"
+              icon="mail-outline"
+              placeholder="name@example.com"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={(text) => {
+                setEmail(text);
+                setErrors((prev) => ({ ...prev, email: "" }));
+              }}
+              error={errors.email}
+            />
+
+            {/* password field used in both modes */}
+            <InputField
+              label="Password"
+              icon="lock-outline"
+              placeholder="Enter your password"
+              isPassword
+              value={password}
+              onChangeText={(text) => {
+                setPassword(text);
+                setErrors((prev) => ({ ...prev, password: "" }));
+              }}
+              error={errors.password}
+            />
+            {/* updated helper text to show only on registration */}
+            {!isLogin && !errors.password && (
+              <Text style={styles.helperText}>
+                Minimum of 8 characters, 1 uppercase, 1 number, 1 symbol
+              </Text>
+            )}
+
+            {/* confirm password only on registration */}
+            {!isLogin && (
+              <InputField
+                label="Confirm Password"
+                icon="lock-outline"
+                placeholder="Confirm your password"
+                isPassword
+                value={confirmPassword}
+                onChangeText={(text) => {
+                  setConfirmPassword(text);
+                  setErrors((prev) => ({ ...prev, confirmPassword: "" }));
+                }}
+                error={errors.confirmPassword}
+              />
+            )}
+
+            {/* forgot password link only on login */}
+            {isLogin && (
+              <TouchableOpacity
+                style={styles.forgotPassword}
+                onPress={() => router.push("/forgot-password")}
+              >
+                <Text style={styles.forgotPasswordText}>Forgot Password?</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+
+          {/* submit button */}
+          <TouchableOpacity
+            style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
+            activeOpacity={0.9}
+            onPress={handleSubmit}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitBtnText}>
+                {isLogin ? "Sign In" : "Create Account"}
+              </Text>
+            )}
+          </TouchableOpacity>
+
+          <View style={styles.dividerRow}>
+            <View style={styles.dividerLine} />
+            <Text style={styles.dividerText}>OR</Text>
+            <View style={styles.dividerLine} />
+          </View>
+
+          {/* guest login button */}
+          <TouchableOpacity
+            style={styles.guestBtn}
+            onPress={() => {
+              continueAsGuest();
+              router.replace("/(tabs)");
+            }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.guestBtnText}>Continue as Guest</Text>
+            <MaterialIcons
+              name="arrow-forward"
+              size={18}
+              color="#0F172A"
+              style={{ marginLeft: 8 }}
+            />
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* footer with link to switch modes */}
       <View style={styles.footer}>
@@ -407,7 +414,7 @@ const styles = StyleSheet.create({
     fontStyle: "italic",
     letterSpacing: -1,
   },
-  scrollContent: { paddingHorizontal: 24, paddingBottom: 24, flexGrow: 1 },
+  scrollContent: { paddingHorizontal: 24, flexGrow: 1 },
   tabContainer: {
     flexDirection: "row",
     backgroundColor: "#F1F5F9",
@@ -470,13 +477,16 @@ const styles = StyleSheet.create({
     borderColor: "#E2E8F0",
     borderRadius: 12,
     backgroundColor: "#F8FAFC",
+    marginBottom: 32,
   },
   guestBtnText: { fontSize: 15, fontWeight: "700", color: "#0F172A" },
   footer: {
     flexDirection: "row",
+    marginTop: "auto",
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 24,
     borderTopWidth: 1,
     borderTopColor: "#F1F5F9",
   },

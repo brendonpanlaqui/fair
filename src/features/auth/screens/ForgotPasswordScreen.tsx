@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -77,77 +79,85 @@ const ForgotPasswordScreen = () => {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
-        </TouchableOpacity>
-        <Text style={styles.logoText}>fair</Text>
-        <View style={{ width: 32 }} />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        {/* dynamic content based on the current step */}
-        <View style={styles.textContainer}>
-          <Text style={styles.title}>Reset Password</Text>
-          <Text style={styles.subtitle}>
-            {step === 1
-              ? "Enter your email address and we will send you a 6-digit reset code."
-              : "Enter the code we sent to your email and your new password."}
-          </Text>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.backBtn}
+          >
+            <MaterialIcons name="arrow-back" size={24} color="#0F172A" />
+          </TouchableOpacity>
+          <Text style={styles.logoText}>fair</Text>
+          <View style={{ width: 32 }} />
         </View>
 
-        {/* input fields for both step */}
-        {step === 1 ? (
-          <InputField
-            label="Email Address"
-            icon="mail-outline"
-            placeholder="name@example.com"
-            keyboardType="email-address"
-            value={email}
-            onChangeText={setEmail}
-          />
-        ) : (
-          <>
-            <InputField
-              label="6-Digit Reset Code"
-              icon="vpn-key"
-              placeholder="123456"
-              keyboardType="number-pad"
-              maxLength={6}
-              value={otp}
-              onChangeText={setOtp}
-            />
-            <InputField
-              label="New Password"
-              icon="lock-outline"
-              placeholder="Min. 8 characters"
-              isPassword
-              value={newPassword}
-              onChangeText={setNewPassword}
-            />
-          </>
-        )}
-
-        {/* dynamic submit button */}
-        <TouchableOpacity
-          style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
-          activeOpacity={0.9}
-          // call appropriate handler based on step, and disable while loading to prevent multiple requests
-          onPress={step === 1 ? handleRequestCode : handleResetPassword}
-          disabled={isLoading}
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardShouldPersistTaps="handled"
         >
-          {isLoading ? (
-            <ActivityIndicator color="#FFFFFF" />
-          ) : (
-            <Text style={styles.submitBtnText}>
-              {step === 1 ? "Send Reset Code" : "Update Password"}
+          {/* dynamic content based on the current step */}
+          <View style={styles.textContainer}>
+            <Text style={styles.title}>Reset Password</Text>
+            <Text style={styles.subtitle}>
+              {step === 1
+                ? "Enter your email address and we will send you a 6-digit reset code."
+                : "Enter the code we sent to your email and your new password."}
             </Text>
+          </View>
+
+          {/* input fields for both step */}
+          {step === 1 ? (
+            <InputField
+              label="Email Address"
+              icon="mail-outline"
+              placeholder="name@example.com"
+              keyboardType="email-address"
+              value={email}
+              onChangeText={setEmail}
+            />
+          ) : (
+            <>
+              <InputField
+                label="6-Digit Reset Code"
+                icon="vpn-key"
+                placeholder="123456"
+                keyboardType="number-pad"
+                maxLength={6}
+                value={otp}
+                onChangeText={setOtp}
+              />
+              <InputField
+                label="New Password"
+                icon="lock-outline"
+                placeholder="Min. 8 characters"
+                isPassword
+                value={newPassword}
+                onChangeText={setNewPassword}
+              />
+            </>
           )}
-        </TouchableOpacity>
-      </ScrollView>
+
+          {/* dynamic submit button */}
+          <TouchableOpacity
+            style={[styles.submitBtn, isLoading && { opacity: 0.7 }]}
+            activeOpacity={0.9}
+            // call appropriate handler based on step, and disable while loading to prevent multiple requests
+            onPress={step === 1 ? handleRequestCode : handleResetPassword}
+            disabled={isLoading}
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitBtnText}>
+                {step === 1 ? "Send Reset Code" : "Update Password"}
+              </Text>
+            )}
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };

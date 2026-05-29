@@ -1,19 +1,20 @@
-// NOTE: These are approximate corners. You can add more points to this array
-// to make the border curve perfectly along the real city limits!
-export const ANGELES_POLYGON = [
-  { latitude: 15.193, longitude: 120.545 }, // NW: Clark / Margot Area
-  { latitude: 15.181, longitude: 120.586 }, // North: Balibago / Dau Border
-  { latitude: 15.185, longitude: 120.615 }, // NE: Pulung Cacutud / EPZA
-  { latitude: 15.168, longitude: 120.64 }, // Far East: Cutud / Sapalibutad (Fixed!)
-  { latitude: 15.145, longitude: 120.625 }, // SE: Capaya / Mining
-  { latitude: 15.11, longitude: 120.59 }, // South: Pulungbulu / San Fernando Border
-  { latitude: 15.12, longitude: 120.54 }, // SW: Cuayan / Porac Border
-  { latitude: 15.155, longitude: 120.485 }, // Far West: Sapangbato
-];
+import boundaryData from "./angeles_boundary.json";
 
-// 🚀 The Ray-Casting Algorithm
-// This fires an imaginary laser beam from the dropped pin. If the laser crosses
-// the polygon boundary an odd number of times, the pin is INSIDE the city.
+// extract the array of coordinates from the JSON file.
+// a GeoJSON format is strictly [longitude, latitude].
+const rawCoordinates = boundaryData.features[0].geometry.coordinates[0] as [
+  number,
+  number,
+][];
+
+// to be converted to React Native's { latitude, longitude } format
+export const ANGELES_POLYGON = rawCoordinates.map((coord: number[]) => ({
+  latitude: coord[1],
+  longitude: coord[0],
+}));
+
+// The Ray-Casting Algorithm
+// fires an imaginary laser beam from the dropped pin. If the laser crosses the polygon boundary an odd number of times, the pin is INSIDE the city.
 export const isWithinAngelesCity = (lat: number, lng: number): boolean => {
   let isInside = false;
 
@@ -64,5 +65,5 @@ export const calculateTraceDistanceKm = (
     totalDistance += R * c;
   }
 
-  return totalDistance; // Returns actual driven distance in km
+  return totalDistance; // returns actual driven distance in km
 };

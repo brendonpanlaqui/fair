@@ -33,7 +33,7 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
   return (
     <View style={styles.topOverlay} pointerEvents="box-none">
       <View style={styles.hudCard}>
-        {/* 🚀 PERFECTLY BALANCED TOP ROW */}
+        {/* PERFECTLY BALANCED TOP ROW */}
         <View style={styles.hudTopRow}>
           <TouchableOpacity
             style={styles.iconButton}
@@ -45,7 +45,7 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
 
           <View style={styles.titleWrapper}>
             <Text style={styles.hudSubtitle}>{"ACTIVE RIDE"}</Text>
-            {/* 🚀 CONTEXTUAL GROUPING: Verification is tied to the body number */}
+            {/* Verification is tied to the body number */}
             <View style={styles.bodyNumberRow}>
               <Text style={styles.hudTitle}>{`Body #${bodyNumber}`}</Text>
               <MaterialIcons
@@ -68,7 +68,7 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
 
         <View style={styles.divider} />
 
-        {/* 🚀 CLEAN, TRANSACTIONAL BOTTOM ROW */}
+        {/* CLEAN, TRANSACTIONAL BOTTOM ROW */}
         <View style={styles.hudBottomRow}>
           <View>
             <Text style={styles.fareLabel}>{"GUARANTEED FARE"}</Text>
@@ -218,7 +218,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  // 🚀 Shared button style for perfect symmetry
   iconButton: {
     width: 44,
     height: 44,
@@ -302,7 +301,6 @@ const styles = StyleSheet.create({
     textTransform: "uppercase",
   },
 
-  // MODAL STYLES
   modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(15, 23, 42, 0.6)",
