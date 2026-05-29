@@ -3,7 +3,7 @@
 Fair is an ordinance-compliant tricycle-hailing and fare-calculation platform that helps commuters in Angeles City calculate accurate tricycle fares using GPS tracking. The app ensures compliance with Angeles City LGU Ordinance No. 723 and provides tools for verifying LGU discounts and reporting driver disputes. This dual-system platform consists of:
 
 1. **Fair Commuter App**: A mobile application for commuters to calculate accurate fares using GPS tracking, apply for LGU discounts, and report driver disputes.
-2. **Fair Admin Dashboard**: A web-based backend dashboard managed exclusively by the Angeles City Local Government Unit (LGU) and the Public Transport Regulatory Office (PTRO) to oversee operations, manage drivers, and handle disputes.
+2. **Fair Admin Dashboard**: A web-based backend dashboard managed exclusively for the Angeles City Local Government Unit (LGU) and the Public Transport Regulatory Office (PTRO) to oversee operations, manage drivers, and handle disputes.
 
 ---
 
@@ -25,7 +25,7 @@ Fair is an ordinance-compliant tricycle-hailing and fare-calculation platform th
 
 Before setting up the project locally, ensure you have the following installed:
 - **Node.js** (v18 or higher recommended)
-- **Python** (v3.10 or higher)
+- **Python** (v3.12.9 or higher)
 - **PostgreSQL** (running locally)
 - **Expo Go** (installed on your physical mobile device for testing)
 - **Git**
