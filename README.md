@@ -1,62 +1,128 @@
-# Fair App 🚲
+# Fair App 🛺
 
-Fair is a React Native mobile application built with Expo, designed to help commuters in Angeles City calculate accurate tricycle fares using GPS tracking. The app ensures compliance with Angeles City LGU Ordinance No. 723 and provides tools for verifying LGU discounts and reporting driver disputes.
+Fair is an ordinance-compliant tricycle-hailing and fare-calculation platform that helps commuters in Angeles City calculate accurate tricycle fares using GPS tracking. The app ensures compliance with Angeles City LGU Ordinance No. 723 and provides tools for verifying LGU discounts and reporting driver disputes. This dual-system platform consists of:
 
-## 🌟 Features
+1. **Fair Commuter App**: A mobile application for commuters to calculate accurate fares using GPS tracking, apply for LGU discounts, and report driver disputes.
+2. **Fair Admin Dashboard**: A web-based backend dashboard managed exclusively for the Angeles City Local Government Unit (LGU) and the Public Transport Regulatory Office (PTRO) to oversee operations, manage drivers, and handle disputes.
 
-- **GPS Fare Calculation:** Automatically calculate tricycle fares based on distance (base fare of ₱35.00 for the first kilometer, +₱15.00/km succeeding).
-- **Discount Verification:** Apply for mandatory 20% LGU discounts (Student, Senior Citizen, PWD) by securely uploading valid IDs.
-- **Commuter Rights & Protection:** Guidelines for handling disputes and the ability to submit GPS map-trace reports against overcharging drivers.
-- **Account Management:** Securely manage personal details and passwords.
+---
 
-## 🛠 Tech Stack
+## 🌟 Tech Stack
 
-- **Frontend:** React Native, Expo, TypeScript
-- **Backend (API):** Django REST Framework
+### Frontend (Commuter App)
+- **Framework:** React Native
+- **Toolchain:** Expo
+- **Language:** TypeScript
 
-## Get started
+### Backend (Admin Dashboard & API)
+- **Framework:** Django & Django REST Framework (Python)
+- **Database:** PostgreSQL
+- **Authentication:** Token-based authentication
 
-1. Install dependencies
+---
 
-   ```bash
-   npm install
-   ```
+## 🛠 Prerequisites
 
-2. Start the app
+Before setting up the project locally, ensure you have the following installed:
+- **Node.js** (v18 or higher recommended)
+- **Python** (v3.12.9 or higher)
+- **PostgreSQL** (running locally)
+- **Expo Go** (installed on your physical mobile device for testing)
+- **Git**
 
-   ```bash
-   npx expo start
-   ```
+---
 
-In the output, you'll find options to open the app in a
+## Setup Instructions
 
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
+### 1. Database Setup
 
-You can start developing by editing the files inside the **app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+Ensure PostgreSQL is running on your machine and create a database for the project. For example, using `psql` or pgAdmin:
+```sql
+CREATE DATABASE fair_db;
 ```
 
-This command will move the starter code to the **app-example** directory and create a blank **app** directory where you can start developing.
+### 2. Backend Setup (Fair Admin)
 
-## Learn more
+Navigate to the `fair-admin` directory and set up the Python environment:
 
-To learn more about developing your project with Expo, look at the following resources:
+```bash
+# Clone the admin repository (if not already cloned)
+# Navigate to the backend directory
+cd fair-admin
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+# Create a virtual environment
+python -m venv venv
 
-## Join the community
+# Activate the virtual environment
+# On Windows:
+venv\Scripts\activate
+# On macOS/Linux:
+source venv/bin/activate
 
-Join our community of developers creating universal apps.
+# Install dependencies
+pip install -r requirements.txt
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+**Environment Variables:**
+1. Create a `.env` file in the `fair-admin` root directory with the following configuration (adjust database credentials to match your local setup):
+```env
+EMAIL_USER=your_email_address
+EMAIL_PASS=your_email_password
+
+SECRET_KEY=your_secure_django_secret_key
+DEBUG=True
+
+DB_NAME=fair_db
+DB_USER=postgres
+DB_PASSWORD=your_postgres_password
+DB_HOST=localhost
+DB_PORT=5432
+```
+2. Generate a new Django secret key:
+```bash
+python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+```
+3. Open the `.env` file and paste the generated key into the `SECRET_KEY` field.
+
+**Migrations & Superuser:**
+```bash
+# Run database migrations to set up the schema
+python manage.py migrate
+
+# Create the PTRO superuser account
+python manage.py createsuperuser
+# (Follow the prompts to set the username, email, and password)
+
+# Start the Django development server
+python manage.py runserver
+```
+
+### 3. Frontend Setup (Fair Commuter App)
+
+Open a new terminal, navigate to the `fair` directory, and set up the mobile app:
+
+```bash
+# Navigate to the frontend directory
+cd fair
+
+# Install NPM dependencies
+npm install
+```
+
+**Environment Variables:**
+Create a `.env` file in the `fair` root directory. 
+
+> **⚠️ WARNING: PHYSICAL DEVICE TESTING**
+> When testing on a physical device using Expo Go, you MUST update the API base URL to your computer's local IPv4 address (e.g., `http://192.168.1.x:8000`), NOT `localhost`. Using `localhost` will point to the mobile device itself and cause network failures.
+
+```env
+# Example for local development on a physical device:
+EXPO_PUBLIC_API_BASE_URL=http://<YOUR_LOCAL_IPV4_ADDRESS>:8000/api
+```
+
+**Start the App:**
+```bash
+# Start the Expo development server
+npx expo start
+```
+Once the server starts, scan the provided QR code with the Expo Go app on your physical device to launch the commuter app.
