@@ -5,8 +5,10 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   PanResponder,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -23,9 +25,8 @@ import { isWithinAngelesCity } from "@/src/utils/geofencing";
 import { useCameraPermissions } from "expo-camera";
 import { useTripSetup } from "../hooks/useTripSetup";
 
-import TextRecognition from "@react-native-ml-kit/text-recognition";
 import { MapPickerModal } from "../components/setup/MapPickerModal";
-import { OCRScannerModal } from "../components/setup/OCRScannerModal";
+import QRScannerModal from "../components/setup/QRScannerModal";
 import { RouteTimeline } from "../components/setup/RouteTimeline";
 
 // generates a unique session token for google places autocomplete to reduce billing costs
@@ -110,13 +111,87 @@ const StartTripScreen: React.FC = () => {
   const [bodyNumber, setBodyNumber] = useState<string>("");
   const [plateNumber, setPlateNumber] = useState<string>("");
 
-  const [scanMethod, setScanMethod] = useState<"MANUAL" | "OCR">("MANUAL");
+  const [scanMethod, setScanMethod] = useState<"MANUAL" | "QR">("MANUAL");
 
   const [permission, requestPermission] = useCameraPermissions();
   const [isCameraVisible, setIsCameraVisible] = useState(false);
-  const [isScanningOCR, setIsScanningOCR] = useState(false);
+
   // state to disable buttons while pinging the server
   const [isVerifying, setIsVerifying] = useState(false);
+
+  // --- NEW STATES FOR APPROVAL HANDSHAKE ---
+  const [isWaitingForDriver, setIsWaitingForDriver] = useState(false);
+  const [pendingTripId, setPendingTripId] = useState<string | null>(null);
+
+  // --- NEW: Handler for cancelling a PENDING trip ---
+  const handleCancelPendingTrip = async () => {
+    if (!pendingTripId) return;
+    try {
+      await api.post(`/trips/${pendingTripId}/cancel/`);
+    } catch (error) {
+      console.error("Failed to cancel trip on backend:", error);
+      // Optional: Alert the user if the backend call fails, though it's an edge case.
+      // Alert.alert("Error", "Failed to notify the driver of cancellation.");
+    } finally {
+      // Stop polling and close the modal regardless of API success
+      setIsWaitingForDriver(false);
+      setPendingTripId(null);
+    }
+  };
+
+  // --- SHORT-POLLING LOOP ---
+  // This checks Django every 3 seconds while the Waiting Modal is open
+  useEffect(() => {
+    let interval: ReturnType<typeof setInterval>;
+
+    if (isWaitingForDriver && pendingTripId) {
+      interval = setInterval(async () => {
+        try {
+          // Replace with your actual Django endpoint that checks trip status
+          const response = await api.get(`/trips/${pendingTripId}/status/`);
+
+          if (response.data.status === "Active") {
+            // THE DRIVER SAID YES!
+            clearInterval(interval);
+            setIsWaitingForDriver(false);
+
+            // Now we actually move to the Active Trip screen
+            router.push({
+              pathname: "/active-trip",
+              params: {
+                tripId: pendingTripId,
+                mode: passedMode,
+                fixedFare: calculatedFare,
+                lockedDistance: calculatedDistance,
+                bodyNumber: bodyNumber,
+                destLat: finalDest?.lat,
+                destLng: finalDest?.lng,
+                stopovers: JSON.stringify(stopovers),
+                destName: finalDest?.name || "Unknown Destination",
+                originName: "Current Location",
+                matrixId: 1,
+              },
+            });
+          } else if (
+            response.data.status === "Declined" ||
+            response.data.status === "Cancelled"
+          ) {
+            // THE DRIVER SAID NO
+            clearInterval(interval);
+            setIsWaitingForDriver(false);
+            Alert.alert(
+              "Trip Declined",
+              "The driver declined the trip request. Please find another tricycle.",
+            );
+          }
+        } catch (error) {
+          console.log("Polling error:", error);
+        }
+      }, 3000); // Poll every 3 seconds
+    }
+
+    return () => clearInterval(interval);
+  }, [isWaitingForDriver, pendingTripId]);
 
   // automatically open the destination search modal if it's not set
   useEffect(() => {
@@ -145,14 +220,14 @@ const StartTripScreen: React.FC = () => {
     }),
   ).current;
 
-  // asks for camera permission before opening the ocr scanner
+  // asks for camera permission before opening the QR scanner
   const handleOpenScanner = async () => {
     if (!permission?.granted) {
       const result = await requestPermission();
       if (!result.granted) {
         Alert.alert(
           "Permission Required",
-          "Fair needs camera access to scan tricycle body numbers.",
+          "Fair needs camera access to scan the driver's QR code.",
         );
         return;
       }
@@ -160,68 +235,11 @@ const StartTripScreen: React.FC = () => {
     setIsCameraVisible(true);
   };
 
-  // extracts the tricycle body number from an image using machine learning
-  const handleProcessOCR = async (imageUri: string) => {
-    if (imageUri === "DEV_MOCK_SCAN_TRIGGER") {
-      setBodyNumber("2-2500");
-      setScanMethod("OCR");
-      setIsCameraVisible(false);
-      setIsScanningOCR(false);
-      return;
-    }
-
-    try {
-      const result = await TextRecognition.recognize(imageUri);
-      const fullText = result.text;
-
-      if (fullText && fullText.length > 0) {
-        // regex to find patterns that look like tricycle numbers (e.g., 1234 or 2-2500)
-        const bodyNumRegex = /\b(?:\d{1,2}-)?\d{3,4}\b/g;
-        const matches = fullText.match(bodyNumRegex);
-
-        if (matches) {
-          // filter out common false positives like years
-          const ignoreList = ["2021", "2022", "2023", "2024", "2025", "2026"];
-          const validNumbers = matches.filter(
-            (num: string) => !ignoreList.includes(num),
-          );
-
-          if (validNumbers.length > 0) {
-            const bestMatch = validNumbers.sort(
-              (a: string, b: string) => b.length - a.length,
-            )[0];
-
-            setBodyNumber(bestMatch);
-            setScanMethod("OCR");
-            setIsCameraVisible(false);
-          } else {
-            setIsCameraVisible(false);
-            Alert.alert(
-              "Scan Failed",
-              "Could not isolate the body number from the text. Please try again or you may enter it manually.",
-            );
-          }
-        } else {
-          setIsCameraVisible(false);
-          Alert.alert(
-            "Scan Failed",
-            "No valid body number format detected. Please try again or you may enter it manually.",
-          );
-        }
-      } else {
-        setIsCameraVisible(false);
-        Alert.alert(
-          "Scan Failed",
-          "No text detected. Please ensure the painted number is clear.",
-        );
-      }
-    } catch (error) {
-      setIsCameraVisible(false);
-      Alert.alert("Error", "Failed to run on-device ML Kit.");
-      console.error(error);
-    } finally {
-      setIsScanningOCR(false);
-    }
+  // instantly sets the body number when the QR code is successfully scanned
+  const handleQRScanned = (scannedBodyNumber: string) => {
+    setBodyNumber(scannedBodyNumber);
+    setScanMethod("QR");
+    setIsCameraVisible(false);
   };
 
   // validates inputs, checks the tricycle status in the backend, and starts the trip
@@ -278,54 +296,44 @@ const StartTripScreen: React.FC = () => {
     setIsVerifying(true);
 
     try {
-      // ping django to check if the tricycle exists and is active
-      const response = await api.get(`/tricycles/check/${bodyNumber}/`);
-      const tricycleStatus = response.data.status;
+      // send the full trip details to Django to create a 'Pending' trip
+      // Django should send the FCM to the driver inside this endpoint!
+      const payload = {
+        body_number: bodyNumber,
+        destination_lat: finalDest?.lat,
+        destination_lng: finalDest?.lng,
+        fare: calculatedFare,
+        distance: calculatedDistance,
+      };
 
-      if (tricycleStatus === "Active") {
-        // it's a verified, active driver. start immediately
-        proceedToTrip();
-      } else {
-        // it exists in the db, but is suspended or marked unverified
-        Alert.alert(
-          "⚠️ Safety Warning",
-          `This tricycle is currently marked as ${tricycleStatus.toUpperCase()} by the PTRO. Riding may be unsafe. Do you still want to proceed?`,
-          [
-            { text: "Cancel Ride", style: "cancel" },
-            {
-              text: "Proceed Anyway",
-              style: "destructive",
-              onPress: proceedToTrip,
-            },
-          ],
-        );
-      }
+      const response = await api.post("/trips/request/", payload);
+
+      // grab the new Trip ID from Django
+      const newTripId = response.data.trip_id;
+
+      // open the Waiting Modal and start the polling loop!
+      setPendingTripId(newTripId);
+      setIsWaitingForDriver(true);
     } catch (error: any) {
-      // 404 not found means it's completely unregistered (colorum)
+      // Look directly at what Django sent back
+      const serverErrorMessage = error.response?.data?.error;
+
       if (error.response?.status === 404) {
-        Alert.alert(
-          "⚠️ Unregistered Tricycle",
-          "This tricycle body number is not registered with the city. Riding may be unsafe. Do you still want to proceed?",
-          [
-            { text: "Cancel Ride", style: "cancel" },
-            {
-              text: "Proceed Anyway",
-              style: "destructive",
-              onPress: proceedToTrip,
-            },
-          ],
-        );
-      } else if (!error.response) {
-        Alert.alert(
-          "📡 Connection Failed",
-          "We cannot reach the PTRO database. Please ensure you have an active internet connection, or the LGU server may be temporarily offline.",
-          [{ text: "OK", style: "default" }],
-        );
+        if (serverErrorMessage === "Driver is not available or offline.") {
+          Alert.alert(
+            "Driver Offline",
+            "This tricycle is registered, but the driver is currently offline or their profile is not properly linked in the system.",
+          );
+        } else {
+          Alert.alert(
+            "⚠️ Unregistered Tricycle",
+            "This tricycle body number is not registered.",
+          );
+        }
       } else {
         Alert.alert(
           "Error",
-          "An error occurred while communicating with the server. Please try again.",
-          [{ text: "OK", style: "default" }],
+          serverErrorMessage || "Could not request trip. Please try again.",
         );
       }
     } finally {
@@ -351,132 +359,146 @@ const StartTripScreen: React.FC = () => {
         <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView
-        style={styles.content}
-        contentContainerStyle={{ paddingBottom: 120 }}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
       >
-        <Text style={[styles.sectionTitle, { marginTop: 8, marginBottom: 16 }]}>
-          {"Your Route"}
-        </Text>
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 120 }}
+          showsVerticalScrollIndicator={false}
+        >
+          <Text
+            style={[styles.sectionTitle, { marginTop: 8, marginBottom: 16 }]}
+          >
+            {"Your Route"}
+          </Text>
 
-        <RouteTimeline
-          mode={passedMode}
-          finalDest={finalDest}
-          stopovers={stopovers}
-          isCalculating={isCalculating}
-          calculatedDistance={calculatedDistance}
-          onOpenSearch={(target) => {
-            setSearchTarget(target);
-            setSessionToken(generateSessionToken()); // reset token on open to prevent stale sessions
-            setIsSearchModalVisible(true);
-          }}
-          onRemoveStopover={removeStopover}
-        />
+          <RouteTimeline
+            mode={passedMode}
+            finalDest={finalDest}
+            stopovers={stopovers}
+            isCalculating={isCalculating}
+            calculatedDistance={calculatedDistance}
+            onOpenSearch={(target) => {
+              setSearchTarget(target);
+              setSessionToken(generateSessionToken()); // reset token on open to prevent stale sessions
+              setIsSearchModalVisible(true);
+            }}
+            onRemoveStopover={removeStopover}
+          />
 
-        {/* tricycle details section */}
-        <Text style={styles.sectionTitle}>{"Tricycle Details"}</Text>
+          {/* tricycle details section */}
+          <Text style={styles.sectionTitle}>{"Tricycle Details"}</Text>
 
-        <View style={styles.detailsCard}>
-          {bodyNumber.length > 0 && scanMethod === "OCR" ? (
-            <View style={styles.successScannerBox}>
-              <View style={styles.successIconWrapper}>
-                <MaterialIcons name="check-circle" size={40} color="#10B981" />
+          <View style={styles.detailsCard}>
+            {bodyNumber.length > 0 && scanMethod === "QR" ? (
+              <View style={styles.successScannerBox}>
+                <View style={styles.successIconWrapper}>
+                  <MaterialIcons
+                    name="check-circle"
+                    size={40}
+                    color="#10B981"
+                  />
+                </View>
+                <Text style={styles.successBoxTitle}>Driver Linked</Text>
+                <Text style={styles.successBoxSubtext}>
+                  Successfully scanned driver's QR code
+                </Text>
+                <TouchableOpacity
+                  style={styles.retakeButton}
+                  activeOpacity={0.8}
+                  onPress={handleOpenScanner}
+                >
+                  <MaterialIcons
+                    name="qr-code-scanner"
+                    size={16}
+                    color="#64748B"
+                    style={{ marginRight: 6 }}
+                  />
+                  <Text style={styles.retakeButtonText}>Scan Again</Text>
+                </TouchableOpacity>
               </View>
-              <Text style={styles.successBoxTitle}>Body Number Detected</Text>
-              <Text style={styles.successBoxSubtext}>
-                OCR successfully read the tricycle ID
-              </Text>
+            ) : (
               <TouchableOpacity
-                style={styles.retakeButton}
+                style={styles.giantScannerBox}
                 activeOpacity={0.8}
                 onPress={handleOpenScanner}
               >
                 <MaterialIcons
-                  name="refresh"
-                  size={16}
-                  color="#64748B"
-                  style={{ marginRight: 6 }}
+                  name="qr-code-scanner"
+                  size={64}
+                  color="#D32F2F"
+                  style={{ marginBottom: 12 }}
                 />
-                <Text style={styles.retakeButtonText}>Retake Photo</Text>
+                <Text style={styles.scannerBoxTitle}>
+                  {"Scan Driver's QR Code"}
+                </Text>
+                <Text style={styles.scannerBoxSubtext}>
+                  {"Point camera at the driver's Fair app."}
+                </Text>
               </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={styles.giantScannerBox}
-              activeOpacity={0.8}
-              onPress={handleOpenScanner}
-            >
-              <MaterialIcons
-                name="qr-code-scanner"
-                size={64}
-                color="#D32F2F"
-                style={{ marginBottom: 12 }}
-              />
-              <Text style={styles.scannerBoxTitle}>
-                {"Scan Painted Body Number"}
-              </Text>
-              <Text style={styles.scannerBoxSubtext}>
-                {"Point camera at the number on the sidecar."}
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* floating label inputs for manual entry */}
-          <View
-            style={[
-              styles.floatingInputWrapper,
-              bodyNumber.length > 0 ? styles.floatingInputSuccess : null,
-            ]}
-          >
-            <View style={styles.floatingLabelContainer}>
-              <Text style={styles.floatingLabelText}>
-                {"Body Number "}
-                <Text style={styles.floatingLabelSubtext}>{"(Required)"}</Text>
-              </Text>
-            </View>
-            <TextInput
-              style={styles.floatingInput}
-              placeholder="e.g., 0406"
-              placeholderTextColor="#94A3B8"
-              keyboardType="number-pad"
-              value={bodyNumber}
-              onChangeText={(text) => {
-                setBodyNumber(text);
-                if (scanMethod === "OCR") {
-                  setScanMethod("MANUAL");
-                }
-              }}
-            />
-            {bodyNumber.length > 0 && (
-              <MaterialIcons
-                name="check-circle"
-                size={20}
-                color="#10B981"
-                style={{ position: "absolute", right: 16 }}
-              />
             )}
-          </View>
 
-          <View style={[styles.floatingInputWrapper, { marginBottom: 0 }]}>
-            <View style={styles.floatingLabelContainer}>
-              <Text style={styles.floatingLabelText}>
-                {"Plate Number "}
-                <Text style={styles.floatingLabelSubtext}>{"(Optional)"}</Text>
-              </Text>
+            {/* floating label inputs for manual entry */}
+            <View
+              style={[
+                styles.floatingInputWrapper,
+                bodyNumber.length > 0 ? styles.floatingInputSuccess : null,
+              ]}
+            >
+              <View style={styles.floatingLabelContainer}>
+                <Text style={styles.floatingLabelText}>
+                  {"Body Number "}
+                  <Text style={styles.floatingLabelSubtext}>
+                    {"(Required)"}
+                  </Text>
+                </Text>
+              </View>
+              <TextInput
+                style={styles.floatingInput}
+                placeholder="e.g., 0406"
+                placeholderTextColor="#94A3B8"
+                keyboardType="number-pad"
+                value={bodyNumber}
+                onChangeText={(text) => {
+                  setBodyNumber(text);
+                  if (scanMethod === "QR") {
+                    setScanMethod("MANUAL");
+                  }
+                }}
+              />
+              {bodyNumber.length > 0 && (
+                <MaterialIcons
+                  name="check-circle"
+                  size={20}
+                  color="#10B981"
+                  style={{ position: "absolute", right: 16 }}
+                />
+              )}
             </View>
-            <TextInput
-              style={styles.floatingInput}
-              placeholder="e.g., ABC 1234"
-              placeholderTextColor="#94A3B8"
-              autoCapitalize="characters"
-              value={plateNumber}
-              onChangeText={setPlateNumber}
-            />
-          </View>
-        </View>
-      </ScrollView>
 
+            <View style={[styles.floatingInputWrapper, { marginBottom: 0 }]}>
+              <View style={styles.floatingLabelContainer}>
+                <Text style={styles.floatingLabelText}>
+                  {"Plate Number "}
+                  <Text style={styles.floatingLabelSubtext}>
+                    {"(Optional)"}
+                  </Text>
+                </Text>
+              </View>
+              <TextInput
+                style={styles.floatingInput}
+                placeholder="e.g., ABC 1234"
+                placeholderTextColor="#94A3B8"
+                autoCapitalize="characters"
+                value={plateNumber}
+                onChangeText={setPlateNumber}
+              />
+            </View>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
       {/* split-layout bottom confirm button */}
       <View style={styles.bottomFooter}>
         <TouchableOpacity
@@ -526,7 +548,7 @@ const StartTripScreen: React.FC = () => {
         </TouchableOpacity>
       </View>
 
-      {/* modals for map picker, ocr scanning, and place search */}
+      {/* modals for map picker, qr scanning, and place search */}
       <MapPickerModal
         visible={isMapPickerVisible}
         target={searchTarget}
@@ -552,12 +574,10 @@ const StartTripScreen: React.FC = () => {
         }}
       />
 
-      <OCRScannerModal
+      <QRScannerModal
         visible={isCameraVisible}
-        isScanning={isScanningOCR}
         onClose={() => setIsCameraVisible(false)}
-        onScanStart={() => setIsScanningOCR(true)}
-        onScan={handleProcessOCR}
+        onSuccess={handleQRScanned}
       />
 
       <Modal
@@ -752,6 +772,56 @@ const StartTripScreen: React.FC = () => {
           </View>
         </View>
       </Modal>
+      {/* WAITING FOR DRIVER APPROVAL MODAL */}
+      <Modal
+        visible={isWaitingForDriver}
+        animationType="fade"
+        transparent={true}
+        onRequestClose={() => setIsWaitingForDriver(false)}
+      >
+        <View style={styles.searchModalOverlay}>
+          <View
+            style={[
+              styles.searchModalContent,
+              { height: "auto", paddingBottom: 40 },
+            ]}
+          >
+            <View style={{ alignItems: "center", marginTop: 20 }}>
+              <View style={styles.radarCircle}>
+                <ActivityIndicator size="large" color="#D32F2F" />
+              </View>
+
+              <Text style={styles.searchModalTitle}>Request Sent!</Text>
+              <Text
+                style={[
+                  styles.scannerBoxSubtext,
+                  { textAlign: "center", marginTop: 8, paddingHorizontal: 20 },
+                ]}
+              >
+                Waiting for the driver of Tricycle #{bodyNumber} to approve the
+                trip on their device.
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.standaloneChooseOnMapBtn,
+                { marginTop: 40, justifyContent: "center" },
+              ]}
+              onPress={handleCancelPendingTrip}
+            >
+              <Text
+                style={[
+                  styles.chooseOnMapTitle,
+                  { color: "#D32F2F", marginBottom: 0 },
+                ]}
+              >
+                Cancel Request
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -769,6 +839,18 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: "#E2E8F0",
     zIndex: 10,
+  },
+  radarCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: "#FFF1F2",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: "#FECACA",
+    borderStyle: "dashed",
   },
   backButton: { padding: 4, marginLeft: -4 },
   headerTitle: { color: "#0F172A", fontSize: 18, fontWeight: "900" },

@@ -50,6 +50,7 @@ const HistoryScreen = () => {
   const router = useRouter();
   const { user, logout } = useAuth();
   const insets = useSafeAreaInsets(); // 🚀 dynamically gets the notch height
+  const isGuest = !user || user.is_guest || user.first_name === "Guest";
 
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
     "All",
@@ -137,7 +138,7 @@ const HistoryScreen = () => {
   };
 
   const fetchTripHistory = async (isPullToRefresh = false) => {
-    if (!user) {
+    if (isGuest) {
       setIsLoading(false);
       setIsRefreshing(false);
       return;
@@ -478,13 +479,13 @@ const HistoryScreen = () => {
             style={[styles.filterTab, filter === tab && styles.filterTabActive]}
             onPress={() => setFilter(tab as any)}
             activeOpacity={0.8}
-            disabled={!user}
+            disabled={isGuest}
           >
             <Text
               style={[
                 styles.filterText,
                 filter === tab && styles.filterTextActive,
-                !user && { color: "#CBD5E1" },
+                isGuest && { color: "#CBD5E1" },
               ]}
             >
               {tab}
@@ -494,7 +495,7 @@ const HistoryScreen = () => {
       </View>
 
       {/* GUEST UI OR LIST */}
-      {!user ? (
+      {isGuest ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
             <MaterialIcons
