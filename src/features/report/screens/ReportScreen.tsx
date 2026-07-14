@@ -23,6 +23,7 @@ const ReportScreen = () => {
   // grab the parameters passed in the URL (e.g., ?tripId=123&bodyNumber=0406)
   const params = useLocalSearchParams();
   const { user, logout } = useAuth(); // the logged-in user
+  const isGuest = !user || user.is_guest || user.first_name === "Guest";
 
   const [reports, setReports] = useState<ReportRecord[]>([]);
   const [selectedReport, setSelectedReport] = useState<ReportRecord | null>(
@@ -45,7 +46,7 @@ const ReportScreen = () => {
 
   const fetchReports = async (isPullToRefresh = false) => {
     // if guest, skip the API call
-    if (!user) {
+    if (isGuest) {
       setIsLoading(false);
       setIsRefreshing(false);
       return;
@@ -108,7 +109,7 @@ const ReportScreen = () => {
         <TouchableOpacity
           style={[
             styles.actionPill,
-            !user && {
+            isGuest && {
               backgroundColor: "#F8FAFC",
               elevation: 0,
               shadowOpacity: 0,
@@ -117,7 +118,7 @@ const ReportScreen = () => {
             },
           ]}
           activeOpacity={0.9}
-          disabled={!user} // if guest
+          disabled={isGuest} // if guest
           onPress={() => {
             setInitialTripId("");
             setInitialBodyNumber("");
@@ -127,16 +128,18 @@ const ReportScreen = () => {
           <MaterialIcons
             name="add-circle"
             size={22}
-            color={!user ? "#CBD5E1" : "#D32F2F"}
+            color={isGuest ? "#CBD5E1" : "#D32F2F"}
           />
-          <Text style={[styles.actionPillText, !user && { color: "#94A3B8" }]}>
+          <Text
+            style={[styles.actionPillText, isGuest && { color: "#94A3B8" }]}
+          >
             FILE NEW REPORT
           </Text>
         </TouchableOpacity>
       </View>
 
       {/* (GUEST VS LOGGED IN) */}
-      {!user ? (
+      {isGuest ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
             <MaterialIcons name="security" size={36} color="#D32F2F" />

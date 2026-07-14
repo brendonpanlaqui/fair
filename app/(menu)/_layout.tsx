@@ -8,6 +8,7 @@ export default function MenuLayout() {
       <Stack.Screen name="ordinance" options={{ headerShown: false }} />
       <Stack.Screen name="saved-places" options={{ headerShown: false }} />
       <Stack.Screen name="verify-id" options={{ headerShown: false }} />
+      <Stack.Screen name="apply-driver" options={{ headerShown: false }} />
       <Stack.Screen name="manage-account" options={{ headerShown: false }} />
     </Stack>
   );

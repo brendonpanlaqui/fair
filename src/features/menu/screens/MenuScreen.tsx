@@ -266,7 +266,6 @@ export default function ProfileScreen() {
               title="Saved Places"
               subtitle="Home, CCA Campus, Nepo Mall"
               onPress={() => {
-                // prevent guests from saving places since it uses AsyncStorage tied to accounts
                 if (isGuest)
                   Alert.alert(
                     "Guest Mode",
@@ -276,6 +275,48 @@ export default function ProfileScreen() {
               }}
             />
           </View>
+
+          {/* --- ADD THIS NEW SECTION HERE --- */}
+          {userType !== "Driver" && (
+            <>
+              <Text style={styles.sectionLabel}>PARTNER WITH FAIR</Text>
+              <View style={styles.sectionContainer}>
+                <MenuItem
+                  icon="badge"
+                  title={
+                    userType === "Pending Driver"
+                      ? "Application Pending"
+                      : "Apply as a Driver"
+                  }
+                  subtitle={
+                    userType === "Pending Driver"
+                      ? "Your documents are under LGU review"
+                      : "Register your tricycle and start earning"
+                  }
+                  onPress={() => {
+                    if (isGuest) {
+                      Alert.alert(
+                        "Account Required",
+                        "You must create a Fair account before applying as a driver.",
+                        [
+                          { text: "Cancel", style: "cancel" },
+                          { text: "Create Account", onPress: handleExit },
+                        ],
+                      );
+                    } else if (userType === "Pending Driver") {
+                      Alert.alert(
+                        "Under Review",
+                        "Your driver application is currently being verified by the PTRO. You will be notified once approved.",
+                      );
+                    } else {
+                      router.push("/(menu)/apply-driver");
+                    }
+                  }}
+                />
+              </View>
+            </>
+          )}
+          {/* --- END OF NEW SECTION --- */}
 
           <Text style={styles.sectionLabel}>LEGAL & SUPPORT</Text>
           <View style={styles.sectionContainer}>

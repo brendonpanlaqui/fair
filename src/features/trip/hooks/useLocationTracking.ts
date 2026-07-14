@@ -64,6 +64,15 @@ export const useLocationTracking = (isTripActive: boolean = false) => {
       }
 
       try {
+        const lastKnown = await Location.getLastKnownPositionAsync();
+        if (lastKnown) {
+          setCurrentLocation(lastKnown.coords);
+        }
+      } catch (e) {
+        console.log("No cached location available");
+      }
+
+      try {
         // start background tracking if we are in an active trip
         if (isTripActive) {
           const { status: bgStatus } =

@@ -44,8 +44,13 @@ export const useActiveTrip = () => {
 
   // setup Dynamic State (Allows us to prorate fare if boundary is hit)
   const [dynamicFare, setDynamicFare] = useState(initialFare);
-  const [dynamicDistance, setDynamicDistance] = useState(initialDistance);
+  const [totalTripDistance, setTotalTripDistance] = useState(initialDistance);
 
+  // state for the dynamically updating remaining distance and time
+  const [remainingDistance, setRemainingDistance] = useState(initialDistance);
+  const [remainingTime, setRemainingTime] = useState(
+    Math.max(1, Math.ceil(initialDistance * 3)),
+  );
   // parse remaining parameters using the safety wrapper
   const activeMatrix = safeParseJSON(params.matrixStr, null);
   const parsedStopovers = safeParseJSON(params.stopovers, []);
@@ -81,7 +86,73 @@ export const useActiveTrip = () => {
       }
     : { latitude: 15.149, longitude: 120.5779 };
 
-  const estimatedMinutes = Math.max(1, Math.ceil(dynamicDistance * 3));
+  // Effect to calculate remaining distance and ETA as the user moves
+  useEffect(() => {
+    if (drivenTrace.length > 1) {
+      const distanceTraveled = calculateTraceDistanceKm(drivenTrace);
+      const newRemainingDistance = Math.max(
+        0,
+        totalTripDistance - distanceTraveled,
+      );
+      setRemainingDistance(newRemainingDistance);
+      setRemainingTime(Math.max(1, Math.ceil(newRemainingDistance * 3)));
+    }
+  }, [drivenTrace, totalTripDistance]);
+
+  const [isNearDestination, setIsNearDestination] = useState(false);
+
+  useEffect(() => {
+    if (currentLocation && destLat && destLng) {
+      // Standard Haversine formula implementation
+      const R = 6371e3; // Earth radius in meters
+      const phi1 = (currentLocation.latitude * Math.PI) / 180;
+      const phi2 = (destLat * Math.PI) / 180;
+      const deltaPhi = ((destLat - currentLocation.latitude) * Math.PI) / 180;
+      const deltaLambda =
+        ((destLng - currentLocation.longitude) * Math.PI) / 180;
+
+      const a =
+        Math.sin(deltaPhi / 2) * Math.sin(deltaPhi / 2) +
+        Math.cos(phi1) *
+          Math.cos(phi2) *
+          Math.sin(deltaLambda / 2) *
+          Math.sin(deltaLambda / 2);
+
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+      const distanceMeters = R * c;
+
+      setIsNearDestination(distanceMeters <= 50);
+    }
+  }, [currentLocation, destLat, destLng]);
+
+  // 1. Extract the Real Trip ID (with a fallback just for testing)
+  const tripId =
+    (params.tripId as string) ||
+    `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
+
+  // 2. Add this new state
+  const [isDriverFinished, setIsDriverFinished] = useState(false);
+
+  // 3. Add the Polling Loop
+  useEffect(() => {
+    // Don't poll if we are using a fake testing ID
+    if (!tripId || tripId.startsWith("TRP-")) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const response = await api.get(`/trips/${tripId}/status/`);
+        if (response.data.status === "Completed") {
+          clearInterval(interval);
+          prepareArrival(); // Stop tracking GPS and calculate prorated fare
+          setIsDriverFinished(true); // Signal the UI to show the overlay
+        }
+      } catch (error) {
+        console.warn("Silent polling error:", error);
+      }
+    }, 5000); // Check every 5 seconds
+
+    return () => clearInterval(interval);
+  }, [tripId]);
 
   // Safety & Deviation State
   const [isDeviationWarningVisible, setIsDeviationWarningVisible] =
@@ -110,7 +181,7 @@ export const useActiveTrip = () => {
       const actualDistanceKm = calculateTraceDistanceKm(drivenTrace);
 
       // once they dropped off at least 200 meters early (0.2 km margin)
-      if (activeMatrix && actualDistanceKm < dynamicDistance - 0.2) {
+      if (activeMatrix && actualDistanceKm < totalTripDistance - 0.2) {
         const proratedFare = calculateDirectFare(
           actualDistanceKm,
           activeMatrix,
@@ -121,7 +192,7 @@ export const useActiveTrip = () => {
         if (proratedFare < dynamicFare) {
           setIsEarlyDropoff(true);
           setOriginalFare(dynamicFare);
-          setDynamicDistance(actualDistanceKm);
+          setTotalTripDistance(actualDistanceKm);
           setDynamicFare(proratedFare);
         }
       }
@@ -141,7 +212,7 @@ export const useActiveTrip = () => {
 
       // resolve the true values: use overrides if provided immediately by Geofence, otherwise fallback to UI state
       const resolvedFare = overrideComputedFare ?? dynamicFare;
-      const resolvedDistance = overrideDistance ?? dynamicDistance;
+      const resolvedDistance = overrideDistance ?? totalTripDistance;
 
       const base = 35;
       const succeeding = Math.max(0, resolvedFare - base);
@@ -156,7 +227,7 @@ export const useActiveTrip = () => {
       }
 
       const payload = {
-        trip_id: generatedTripId,
+        trip_id: tripId,
         user: user?.id || null,
         tricycle: bodyNumber,
         fare_matrix: matrixId,
@@ -231,7 +302,7 @@ export const useActiveTrip = () => {
           baseFare: base,
           succeedingFare: succeeding,
           distance: resolvedDistance.toFixed(1),
-          duration: `${estimatedMinutes} mins`,
+          duration: `${Math.max(1, Math.ceil(initialDistance * 3))} mins`,
           date: dateStr,
           time: timeStr,
           bodyNumber: bodyNumber,
@@ -285,16 +356,38 @@ export const useActiveTrip = () => {
     commitTrip(finalFareCharged, false, true, undefined, undefined);
   };
 
+  const handleCommuterForceEnd = async () => {
+    try {
+      // Secure the state on the backend first
+      await api.post(`/trips/${tripId}/commuter_force_end/`);
+
+      // If successful, transition the local UI
+      prepareArrival();
+      setIsDriverFinished(true);
+
+      Alert.alert(
+        "Trip Ended",
+        "You have manually ended the trip. Your fare has been locked to prevent overcharging.",
+      );
+    } catch (error) {
+      console.warn("Commuter force end failed:", error);
+      Alert.alert(
+        "Error",
+        "Could not end the trip. Please check your internet connection.",
+      );
+    }
+  };
+
   const handleCancelTrip = () => {
     Alert.alert(
-      "Cancel Tracking?",
-      "If you stop tracking now, this trip will be marked as Cancelled in your history.",
+      "Cancel Active Trip?",
+      "Are you sure you want to cancel this ride? Your driver will be notified immediately.",
       [
         { text: "Keep Riding", style: "cancel" },
         {
-          text: "Stop Tracking",
+          text: "Cancel Trip",
           style: "destructive",
-          onPress: () => commitTrip(0, true),
+          onPress: () => commitTrip(0, true), // This sets isForcedCancel = true, updating status to 'Cancelled'
         },
       ],
     );
@@ -349,7 +442,7 @@ export const useActiveTrip = () => {
         const actualDistanceKm =
           drivenTrace && drivenTrace.length > 1
             ? calculateTraceDistanceKm(drivenTrace)
-            : dynamicDistance; // Fallback to current distance if GPS hasn't fully logged yet
+            : totalTripDistance; // Fallback to current distance if GPS hasn't fully logged yet
 
         // recalculate prorated fare using matrix
         let proratedFare = dynamicFare;
@@ -362,7 +455,7 @@ export const useActiveTrip = () => {
         }
 
         // lock new values into state
-        setDynamicDistance(actualDistanceKm);
+        setTotalTripDistance(actualDistanceKm);
         setDynamicFare(proratedFare);
 
         Alert.alert(
@@ -393,12 +486,15 @@ export const useActiveTrip = () => {
     drivenTrace,
     activeMatrix,
     isDiscountVerified,
+    totalTripDistance,
   ]);
 
   return {
     router,
+    tripId,
+    isDriverFinished,
     fixedFare: dynamicFare,
-    lockedDistance: dynamicDistance,
+    lockedDistance: remainingDistance,
     bodyNumber,
     destLat,
     destLng,
@@ -406,7 +502,7 @@ export const useActiveTrip = () => {
     parsedStopovers,
     currentLocation,
     mapCenter,
-    estimatedMinutes,
+    estimatedMinutes: remainingTime,
     isDeviationWarningVisible,
     setIsDeviationWarningVisible,
     setRouteCoordinates,
@@ -418,5 +514,7 @@ export const useActiveTrip = () => {
     handleCancelTrip,
     handleReportDeviation,
     stopTracking,
+    isNearDestination,
+    handleCommuterForceEnd,
   };
 };

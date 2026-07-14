@@ -1,5 +1,9 @@
+import Constants from "expo-constants";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
 import * as SecureStore from "expo-secure-store";
 import React, { createContext, useContext, useEffect, useState } from "react";
+import { Platform } from "react-native";
 import { api } from "../services/api";
 
 interface AuthContextData {
@@ -33,11 +37,71 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   const [isDiscountVerified, setIsDiscountVerified] = useState(false);
   const [userType, setUserType] = useState("Regular");
 
+  const [hasSynced, setHasSynced] = useState(false);
+
+  const registerForPushNotificationsAsync = async () => {
+    let token;
+
+    if (Platform.OS === "android") {
+      await Notifications.setNotificationChannelAsync("default", {
+        name: "default",
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: "#D32F2F",
+      });
+    }
+
+    if (Device.isDevice || Platform.OS === "android") {
+      const { status: existingStatus } =
+        await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+
+      if (existingStatus !== "granted") {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+
+      if (finalStatus !== "granted") {
+        console.warn("Failed to get push token for push notification!");
+        return null;
+      }
+
+      try {
+        const projectId =
+          Constants?.expoConfig?.extra?.eas?.projectId ??
+          "384baf46-d97e-4fba-a3aa-3424e504ba0d";
+
+        if (!projectId) {
+          throw new Error("Project ID is missing!");
+        }
+
+        token = (
+          await Notifications.getExpoPushTokenAsync({
+            projectId: projectId,
+          })
+        ).data;
+        console.log("Push Token Generated:", token);
+      } catch (e) {
+        console.warn("Error fetching Expo Push Token:", e);
+      }
+    }
+
+    return token;
+  };
+
   const refreshProfileStatus = async () => {
     try {
       const response = await api.get("/users/me/");
-      setIsDiscountVerified(response.data.is_discount_verified);
-      setUserType(response.data.user_type);
+      const updatedProfile = response.data;
+
+      setIsDiscountVerified(updatedProfile.is_discount_verified);
+      setUserType(updatedProfile.user_type);
+
+      if (user) {
+        const updatedUser = { ...user, ...updatedProfile };
+        setUser(updatedUser);
+        await SecureStore.setItemAsync("userData", JSON.stringify(updatedUser));
+      }
     } catch (error) {
       console.warn("Failed to fetch profile status", error);
     }
@@ -48,13 +112,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
       try {
         const token = await SecureStore.getItemAsync("userToken");
         const storedUser = await SecureStore.getItemAsync("userData");
+        const guestFlag = await SecureStore.getItemAsync("isGuestFlag");
 
-        if (token && storedUser) {
-          setUser(JSON.parse(storedUser));
-          setIsGuest(false);
-        } else if (token) {
-          setUser({ token });
-          setIsGuest(false);
+        if (token) {
+          if (guestFlag === "true") {
+            // They are a guest with a temporary token
+            setIsGuest(true);
+            setUser({ id: "guest", first_name: "Guest", last_name: "" });
+          } else if (storedUser) {
+            // They are a fully registered user
+            setUser(JSON.parse(storedUser));
+            setIsGuest(false);
+          } else {
+            // fallback
+            setUser({ token });
+            setIsGuest(false);
+          }
         }
       } catch (error) {
         console.error("Failed to load token", error);
@@ -67,10 +140,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   }, []);
 
   useEffect(() => {
-    if (user && !isGuest) {
+    // Only run this if the user exists AND we haven't synced yet!
+    if (user && !isGuest && !hasSynced) {
       refreshProfileStatus();
+
+      const syncPushToken = async () => {
+        try {
+          const pushToken = await registerForPushNotificationsAsync();
+          if (pushToken) {
+            // FIX: Changed URL to match your urls.py exactly!
+            await api.post("/fcm/tokens/update/", { fcm_token: pushToken });
+            console.log("Successfully synced Push Token to Django");
+          }
+        } catch (error) {
+          console.warn("Failed to sync push token with backend", error);
+        }
+      };
+
+      syncPushToken();
+
+      // STOP THE LOOP
+      setHasSynced(true);
     }
-  }, [user, isGuest]);
+  }, [user, isGuest, hasSynced]);
 
   const login = async (email: string, password: string) => {
     try {
@@ -125,11 +217,29 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const continueAsGuest = () => {
-    setIsGuest(true);
-    setUser(null);
-    setIsDiscountVerified(false);
-    setUserType("Regular");
+  const continueAsGuest = async () => {
+    try {
+      // 1. Fetch the temporary guest token from your new Django endpoint
+      const response = await api.post("/auth/guest-login/");
+      const { access, refresh } = response.data;
+
+      // 2. Save it exactly like a normal user token so api.ts can use it!
+      if (access) await SecureStore.setItemAsync("userToken", access);
+      if (refresh) await SecureStore.setItemAsync("refreshToken", refresh);
+
+      // 3. Set a flag so the app remembers they are a guest on reload
+      await SecureStore.setItemAsync("isGuestFlag", "true");
+
+      setIsGuest(true);
+      setUser({ id: "guest", first_name: "Guest", last_name: "" });
+      setIsDiscountVerified(false);
+      setUserType("Regular");
+    } catch (error) {
+      console.error("Failed to fetch guest token:", error);
+      // Fallback just in case the server is down
+      setIsGuest(true);
+      setUser(null);
+    }
   };
 
   const verifyOtp = async (email: string, otp: string) => {
@@ -160,12 +270,22 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const logout = async () => {
+    try {
+      await api.post("/fcm/tokens/clear/");
+    } catch (error) {
+      console.warn("Could not clear FCM token on backend", error);
+    }
+
     await SecureStore.deleteItemAsync("userToken");
+    await SecureStore.deleteItemAsync("refreshToken");
     await SecureStore.deleteItemAsync("userData");
+    await SecureStore.deleteItemAsync("isGuestFlag"); // ADD THIS LINE
+
     setUser(null);
     setIsGuest(false);
     setIsDiscountVerified(false);
     setUserType("Regular");
+    setHasSynced(false);
   };
 
   return (

@@ -4,6 +4,8 @@ import React, { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
@@ -24,13 +26,11 @@ const ActiveTripScreen = () => {
   const { isDiscountVerified, userType } = useAuth();
 
   // states to manage the trip lifecycle and ui overlays
+  // isPlottingRoute is a local UI state for the initial map route calculation.
   const [isPlottingRoute, setIsPlottingRoute] = useState(true);
-  const [tripState, setTripState] = useState<"LOADING" | "DRIVING" | "ARRIVED">(
-    "LOADING",
-  );
   const [askedFare, setAskedFare] = useState("");
 
-  // the interceptor protects the user from accidentally killing the trip
+  // the interceptor warns the user before killing the trip
   const handleBackPress = () => {
     tripData.handleCancelTrip();
     return true; // required for android backhandler to know we intercepted it
@@ -38,13 +38,14 @@ const ActiveTripScreen = () => {
 
   // renders the final screen where the user enters what they actually paid
   const renderArrivalScreen = () => {
-    if (tripState !== "ARRIVED") return null;
-
     const enteredFareNum = Number(askedFare);
     const isSubmitDisabled = askedFare.length === 0;
 
     return (
-      <View style={styles.arrivedOverlay}>
+      <KeyboardAvoidingView
+        style={styles.arrivedOverlay}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
         <View style={styles.arrivedCard}>
           <Text style={styles.arrivedTitle}>{"Destination Reached!"}</Text>
 
@@ -108,7 +109,7 @@ const ActiveTripScreen = () => {
             <Text style={styles.payBtnText}>{"Submit & Generate Receipt"}</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     );
   };
 
@@ -126,7 +127,6 @@ const ActiveTripScreen = () => {
         stopovers={tripData.parsedStopovers}
         onRouteReady={(coords) => {
           setIsPlottingRoute(false);
-          setTripState("DRIVING");
           tripData.setRouteCoordinates(coords);
         }}
         onError={(error) => {
@@ -138,7 +138,6 @@ const ActiveTripScreen = () => {
         }}
         onDestinationReached={() => {
           tripData.prepareArrival();
-          setTripState("ARRIVED");
         }}
       />
 
@@ -155,7 +154,8 @@ const ActiveTripScreen = () => {
         </View>
       )}
 
-      {tripState !== "ARRIVED" && (
+      {/* The UI now directly depends on the backend-driven state from the hook */}
+      {!tripData.isDriverFinished && !isPlottingRoute && (
         <>
           {/* top header with tricycle body number and current fare */}
           <ActiveTripHeader
@@ -163,20 +163,38 @@ const ActiveTripScreen = () => {
             fixedFare={tripData.fixedFare}
             onBack={handleBackPress} // wires the interceptor to the header button
           />
+
+          {tripData.isNearDestination && (
+            <View style={styles.forceEndBanner}>
+              <MaterialIcons name="location-on" size={20} color="#D32F2F" />
+              <View style={{ flex: 1, marginLeft: 12 }}>
+                <Text style={styles.forceEndTitle}>
+                  Arrived at destination?
+                </Text>
+                <Text style={styles.forceEndSub}>
+                  End the trip if the driver forgot.
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.forceEndBtn}
+                onPress={tripData.handleCommuterForceEnd}
+              >
+                <Text style={styles.forceEndBtnText}>END TRIP</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
           {/* bottom dashboard showing time, distance, and action buttons */}
           <ActiveTripDashboard
             estimatedMinutes={tripData.estimatedMinutes}
             lockedDistance={tripData.lockedDistance}
             onSecretTrigger={tripData.handleSecretDeviationTrigger}
-            onEndTrip={() => {
-              tripData.prepareArrival();
-              setTripState("ARRIVED");
-            }}
           />
         </>
       )}
 
-      {renderArrivalScreen()}
+      {/* The arrival screen is shown only when the driver has ended the trip */}
+      {tripData.isDriverFinished && renderArrivalScreen()}
 
       {/* warning modal if the driver deviates too far from the calculated route */}
       <DeviationModal
@@ -209,6 +227,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
     color: "#64748B",
+  },
+  forceEndBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FEF2F2",
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: "#FECACA",
+    zIndex: 10,
+  },
+  forceEndTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: "#991B1B",
+  },
+  forceEndSub: {
+    fontSize: 12,
+    fontWeight: "500",
+    color: "#B91C1C",
+    marginTop: 2,
+  },
+  forceEndBtn: {
+    backgroundColor: "#DC2626",
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
+  forceEndBtnText: {
+    color: "#FFFFFF",
+    fontSize: 12,
+    fontWeight: "900",
   },
   arrivedOverlay: {
     ...StyleSheet.absoluteFillObject,

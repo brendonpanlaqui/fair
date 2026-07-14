@@ -12,6 +12,7 @@ import "../src/features/trip/services/BackgroundLocationService";
 
 import { AuthProvider, useAuth } from "@/src/hooks/AuthContext";
 import { useColorScheme } from "@/src/hooks/use-color-scheme";
+import { useDriverNotifications } from "@/src/hooks/useDriverNotifications";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -21,23 +22,35 @@ const InitialLayout = () => {
   const { user, isGuest, loading } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
-
-  // to check which folder they are in
   const segments = useSegments();
+
+  // run silently in the background while the app is open
+  useDriverNotifications();
 
   useEffect(() => {
     if (loading) return;
 
     // check if the user is trying to access an auth page
     const inAuthGroup = segments[0] === "(auth)";
+    const inDriverGroup = segments[0] === "(driver)";
+
     const isAllowedAccess = user || isGuest;
 
     if (!isAllowedAccess && !inAuthGroup) {
       // send to login
       router.replace("/auth");
-    } else if (isAllowedAccess && inAuthGroup) {
-      // send to home
-      router.replace("/(tabs)");
+    } else if (isAllowedAccess) {
+      // driver tab
+      if (user?.user_type === "Driver") {
+        if (!inDriverGroup) {
+          router.replace("/(driver)");
+        }
+      } else {
+        // if a commuter/guest is trying to go to driver-only pages, kick them out
+        if (inDriverGroup || inAuthGroup) {
+          router.replace("/(tabs)");
+        }
+      }
     }
   }, [user, isGuest, loading, segments]);
 
@@ -63,6 +76,7 @@ const InitialLayout = () => {
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(trip)" options={{ headerShown: false }} />
         <Stack.Screen name="(menu)" options={{ headerShown: false }} />
+        <Stack.Screen name="(driver)" options={{ headerShown: false }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

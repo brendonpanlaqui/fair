@@ -7,9 +7,10 @@ import { ActiveFareMatrix, calculateDirectFare } from "@/src/utils/fareMatrix";
 import { ANGELES_POLYGON, isWithinAngelesCity } from "@/src/utils/geofencing";
 import { MaterialCommunityIcons, MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter } from "expo-router";
+import * as Location from "expo-location";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert,
   Animated,
@@ -26,8 +27,53 @@ const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
 const HomeScreen: React.FC = () => {
   const router = useRouter();
+  const { isDiscountVerified, userType, user } = useAuth();
 
-  const { isDiscountVerified, userType } = useAuth();
+  useFocusEffect(
+    useCallback(() => {
+      // 2. Interceptor: Do not fire until the auth token/user is fully loaded
+      if (!user) {
+        console.log("Waiting for AuthContext to initialize...");
+        return;
+      }
+
+      const checkOngoingTrip = async () => {
+        try {
+          console.log("Checking backend for ongoing trip...");
+          const response = await api.get("/trips/commuter/current/");
+          console.log("Recovery Response:", response.data);
+
+          if (response.data.has_active_trip) {
+            const trip = response.data;
+
+            if (trip.status === "Active" || trip.status === "Pending") {
+              console.log("Trip found! Redirecting to ActiveTripScreen...");
+              router.replace({
+                pathname: "/active-trip", // Make sure this matches your exact Expo Router filename
+                params: {
+                  tripId: trip.trip_id,
+                  fixedFare: trip.fare,
+                  lockedDistance: trip.distance,
+                  bodyNumber: trip.body_number,
+                  destLat: trip.dest_lat,
+                  destLng: trip.dest_lng,
+                  matrixId: trip.matrix_id,
+                },
+              });
+            }
+          }
+        } catch (error: any) {
+          // Improved error logging to see exactly what Django is complaining about
+          console.warn(
+            "Failed to check ongoing trip on startup:",
+            error.response?.data || error.message,
+          );
+        }
+      };
+
+      checkOngoingTrip();
+    }, [user]), // 3. Add 'user' to the dependency array
+  );
 
   // states for trip computation and mapping
   const [activeMatrix, setActiveMatrix] = useState<ActiveFareMatrix | null>(
@@ -54,18 +100,12 @@ const HomeScreen: React.FC = () => {
 
   // controls visibility of the manual map pin dropper
   const [isMapPickerVisible, setIsMapPickerVisible] = useState(false);
+  const [isMapReady, setIsMapReady] = useState(false);
+  const [isInitialLocationCentered, setIsInitialLocationCentered] =
+    useState(false);
 
   const mapRef = useRef<MapView>(null);
   const { currentLocation } = useLocationTracking();
-
-  // defaults to a central angeles city coordinate if gps is still locating
-  const mapCenter = currentLocation
-    ? {
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-      }
-    : { latitude: 15.149, longitude: 120.5779 };
-
   const [destinationName, setDestinationName] = useState<string | null>(null);
 
   // offline and sync states
@@ -183,6 +223,23 @@ const HomeScreen: React.FC = () => {
     syncPendingTrips();
   }, []);
 
+  // animates the map to the user's location once it's available and the map is ready
+  useEffect(() => {
+    if (isMapReady && currentLocation && !isInitialLocationCentered) {
+      mapRef.current?.animateCamera(
+        {
+          center: {
+            latitude: currentLocation.latitude,
+            longitude: currentLocation.longitude,
+          },
+          zoom: 16,
+        },
+        { duration: 1000 },
+      );
+      setIsInitialLocationCentered(true);
+    }
+  }, [isMapReady, currentLocation, isInitialLocationCentered]);
+
   // recalculates the direct fare whenever the distance or matrix changes
   useEffect(() => {
     if (tripDistance && activeMatrix) {
@@ -209,7 +266,17 @@ const HomeScreen: React.FC = () => {
     setDestination(coords);
     setDestinationName(name);
 
-    setLockedOrigin(mapCenter);
+    // Lock the origin to the user's current location when a destination is set
+    if (currentLocation) {
+      setLockedOrigin({
+        latitude: currentLocation.latitude,
+        longitude: currentLocation.longitude,
+      });
+    } else {
+      // Fallback if location is somehow still not available
+      setLockedOrigin({ latitude: 15.149, longitude: 120.5779 });
+      showToast("Could not get current location, using default.", "error");
+    }
   };
 
   // processes the route drawn on the map, blocks trips over 12km, and calculates the final metrics
@@ -249,7 +316,7 @@ const HomeScreen: React.FC = () => {
   };
 
   // animates the map back to the user's current gps location
-  const handleCenterLocation = () => {
+  const handleCenterLocation = async () => {
     if (currentLocation && mapRef.current) {
       mapRef.current.animateCamera(
         {
@@ -262,7 +329,23 @@ const HomeScreen: React.FC = () => {
         { duration: 800 },
       );
     } else {
-      Alert.alert("Location Unavailable", "Still searching for GPS signal...");
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === "granted") {
+        const pos = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.High,
+        });
+        if (pos) {
+          // This will trigger the hook to update
+          return;
+        }
+      }
+      showToast("GPS Signal Weak. Moving to Angeles City center...", "error");
+      mapRef.current?.animateToRegion({
+        latitude: 15.149,
+        longitude: 120.5779,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
     }
   };
 
@@ -287,15 +370,13 @@ const HomeScreen: React.FC = () => {
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={StyleSheet.absoluteFillObject}
-          region={
-            destination
-              ? undefined
-              : {
-                  ...mapCenter,
-                  latitudeDelta: 0.015,
-                  longitudeDelta: 0.015,
-                }
-          }
+          initialRegion={{
+            latitude: 15.149,
+            longitude: 120.5779,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }}
+          onMapReady={() => setIsMapReady(true)}
           mapType="standard"
           showsUserLocation={false}
           showsMyLocationButton={false}
@@ -322,7 +403,10 @@ const HomeScreen: React.FC = () => {
             strokeWidth={2}
             zIndex={2}
           />
-          <Marker coordinate={mapCenter}></Marker>
+          {/* only show the user's location marker if it's available */}
+          {currentLocation && (
+            <Marker coordinate={currentLocation} title="Your Location" />
+          )}
 
           {destination && <Marker coordinate={destination}></Marker>}
 

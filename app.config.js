@@ -2,6 +2,11 @@ require("dotenv/config");
 
 module.exports = {
   expo: {
+    extra: {
+      eas: {
+        projectId: "384baf46-d97e-4fba-a3aa-3424e504ba0d",
+      },
+    },
     name: "fair",
     slug: "fair-app",
     version: "1.0.1",
@@ -18,6 +23,8 @@ module.exports = {
     },
     android: {
       package: "com.brendonpanlaqui.fairapp",
+      googleServicesFile:
+        process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
       versionCode: 2,
       adaptiveIcon: {
         backgroundColor: "#d32f2f",

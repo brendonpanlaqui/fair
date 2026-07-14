@@ -1,8 +1,16 @@
 import axios from "axios";
 import { router } from "expo-router";
 import * as SecureStore from "expo-secure-store";
+import { Platform } from "react-native";
 
-const BASE_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000/api";
+// automatically switch between iOS Simulator (localhost) and Android Emulator (10.0.2.2)
+const LOCAL_IP =
+  Platform.OS === "android"
+    ? "http://10.0.2.2:8000/api"
+    : "http://localhost:8000/api";
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || LOCAL_IP;
+
+console.log("THE API URL IS:", process.env.EXPO_PUBLIC_API_URL);
 
 export const api = axios.create({
   baseURL: BASE_URL,
@@ -12,14 +20,17 @@ export const api = axios.create({
   },
 });
 
-// an interceptors, for attaching token to every request
 api.interceptors.request.use(
   async (config) => {
-    // retrieve token from secure storage and attach to headers if it exists
     const token = await SecureStore.getItemAsync("userToken");
 
+    // DEBUG LOG: Check your terminal! If this says "NULL", your login screen isn't saving the token!
+    console.log(`[Axios] Sending Request to: ${config.url}`);
+    console.log(`[Axios] Token Attached: ${token ? "YES ✅" : "NO ❌ (NULL)"}`);
+
     if (token) {
-      // kapag SimpleJWT 'Bearer ', instead of 'Token '
+      // Ensure the headers object exists before assigning
+      config.headers = config.headers || {};
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -29,23 +40,19 @@ api.interceptors.request.use(
   },
 );
 
-// an interceptor for handling responses, intercepting 401s to attempt a silent token refresh
 api.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  (response) => response,
   async (error) => {
     const originalRequest = error.config;
 
-    // if it's a 401 and we haven't already tried to retry this request
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      console.log("[Axios] 401 Caught! Attempting to refresh token...");
 
       try {
         const refreshToken = await SecureStore.getItemAsync("refreshToken");
 
         if (refreshToken) {
-          // ask backend for a new access token using the long-lived refresh token
           const res = await axios.post(`${BASE_URL}/token/refresh/`, {
             refresh: refreshToken,
           });
@@ -53,13 +60,15 @@ api.interceptors.response.use(
           const newAccessToken = res.data.access;
           await SecureStore.setItemAsync("userToken", newAccessToken);
 
-          // swap out the old expired token with the new one and retry the original request
+          console.log("[Axios] Token Refreshed Successfully! ✅");
+
           originalRequest.headers.Authorization = `Bearer ${newAccessToken}`;
           return api(originalRequest);
         }
       } catch (refreshError) {
-        // the refresh token is also expired or invalid. NOW we log them out.
-        console.warn("Refresh token expired. Logging user out...");
+        console.warn(
+          "[Axios] Refresh token expired or missing. Forcing Logout.",
+        );
         await SecureStore.deleteItemAsync("userToken");
         await SecureStore.deleteItemAsync("refreshToken");
         await SecureStore.deleteItemAsync("userData");
