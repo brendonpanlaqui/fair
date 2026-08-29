@@ -262,7 +262,7 @@ const styles = StyleSheet.create({
   addStopoverText: {
     fontSize: 14,
     color: "#64748B",
-    fontWeight: "500",
+    fontWeight: "600",
     fontStyle: "italic",
   },
 });
