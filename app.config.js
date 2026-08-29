@@ -39,6 +39,8 @@ module.exports = {
         "FOREGROUND_SERVICE",
         "FOREGROUND_SERVICE_LOCATION",
         "POST_NOTIFICATIONS",
+        "CAMERA",
+        "RECORD_AUDIO",
       ],
       config: {
         googleMaps: {
@@ -68,6 +70,16 @@ module.exports = {
             "Allow Fair App to use your location to track your ride and calculate fares securely in the background.",
           isAndroidBackgroundLocationEnabled: true,
           isIosBackgroundLocationEnabled: true,
+        },
+      ],
+      [
+        "expo-camera",
+        {
+          cameraPermission:
+            "Allow Fair to access your camera to report tricycles.",
+          microphonePermission:
+            "Allow Fair to access your microphone to record video evidence.",
+          recordAudioAndroid: true,
         },
       ],
     ],

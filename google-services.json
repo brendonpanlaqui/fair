@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "525261728207",
+    "project_id": "digital-handshake-16a8f",
+    "storage_bucket": "digital-handshake-16a8f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:525261728207:android:ff0c56337f464a89990aba",
+        "android_client_info": {
+          "package_name": "com.brendonpanlaqui.fairapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB04_QVhpCHzKWBCE5O7S_KqOEN_wWkoTI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
