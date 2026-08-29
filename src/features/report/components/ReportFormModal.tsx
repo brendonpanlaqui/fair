@@ -218,7 +218,8 @@ export default function ReportFormModal({
     <Modal
       visible={visible}
       animationType="slide"
-      transparent={true} // Ensures the native video picker isn't blocked
+      transparent={true}
+      statusBarTranslucent={true}
       onRequestClose={onClose}
     >
       {/* --- CAMERA VIEW --- */}
@@ -599,7 +600,12 @@ const styles = StyleSheet.create({
     transform: [{ scale: 1.1 }],
   },
 
-  fullModalContainer: { flex: 1, backgroundColor: "#FFFFFF" },
+  fullModalContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+  },
   fullModalHeader: {
     flexDirection: "row",
     alignItems: "center",
