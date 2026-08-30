@@ -1,46 +1,42 @@
+// src/features/report/screens/ReportFormScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import {
-  CameraView,
-  useCameraPermissions,
-  useMicrophonePermissions,
+    CameraView,
+    useCameraPermissions,
+    useMicrophonePermissions,
 } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import { useLocalSearchParams, useRouter } from "expo-router";
+import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  KeyboardAvoidingView,
-  Modal,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
+    ActivityIndicator,
+    Alert,
+    KeyboardAvoidingView,
+    Linking,
+    Platform,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    TouchableOpacity,
+    View,
 } from "react-native";
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 import { VIOLATION_OPTIONS } from "../reportUtils";
 
-interface ReportFormModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSubmitSuccess: () => void;
-  initialTripId: string;
-  initialBodyNumber: string;
-}
-
-export default function ReportFormModal({
-  visible,
-  onClose,
-  onSubmitSuccess,
-  initialTripId,
-  initialBodyNumber,
-}: ReportFormModalProps) {
+export default function ReportFormScreen() {
+  const router = useRouter();
   const { user } = useAuth();
 
-  const [newBodyNumber, setNewBodyNumber] = useState("");
+  // Grab parameters passed in the URL via router.push
+  const { tripId = "", bodyNumber = "" } = useLocalSearchParams<{
+    tripId: string;
+    bodyNumber: string;
+  }>();
+
+  const [newBodyNumber, setNewBodyNumber] = useState(bodyNumber);
   const [newViolation, setNewViolation] = useState("Overcharging");
   const [newComments, setNewComments] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -57,39 +53,33 @@ export default function ReportFormModal({
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-
   const [isPickerActive, setIsPickerActive] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      setNewBodyNumber(initialBodyNumber);
-      setNewViolation("Overcharging");
-      setNewComments("");
-      setEvidenceMedia(null);
-      setIsCameraActive(false);
-    }
-  }, [visible, initialBodyNumber]);
+    setNewBodyNumber(bodyNumber);
+  }, [bodyNumber]);
 
   const handleOpenCamera = async () => {
-    // 1. Check and capture the freshest camera status
     let camStatus = cameraPermission;
     if (!camStatus?.granted) {
       camStatus = await requestCameraPermission();
     }
 
-    // 2. Check and capture the freshest microphone status
     let micStatus = micPermission;
     if (!micStatus?.granted) {
       micStatus = await requestMicPermission();
     }
 
-    // 3. Evaluate the fresh variables, NOT the state variables
     if (camStatus?.granted && micStatus?.granted) {
       setIsCameraActive(true);
     } else {
       Alert.alert(
         "Permission Required",
-        "Camera and microphone access are needed to record evidence.",
+        "Camera and microphone access are needed to record evidence. Please enable them in your device settings.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        ],
       );
     }
   };
@@ -126,24 +116,30 @@ export default function ReportFormModal({
   const pickMedia = async () => {
     const permissionResult =
       await ImagePicker.requestMediaLibraryPermissionsAsync();
+
     if (!permissionResult.granted) {
-      Alert.alert("Permission Required", "Gallery access is needed.");
+      Alert.alert(
+        "Permission Required",
+        "Gallery access is needed. Please enable it in your device settings.",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Open Settings", onPress: () => Linking.openSettings() },
+        ],
+      );
       return;
     }
 
     setIsPickerActive(true);
-
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
-      allowsEditing: true, // Now safe to use!
+      allowsEditing: true,
       aspect: [3, 4],
       videoMaxDuration: 15,
       quality: 0.5,
     });
 
-    // 3. Bring the React Native UI back
     setIsPickerActive(false);
 
     if (!result.canceled) {
@@ -171,8 +167,8 @@ export default function ReportFormModal({
       formData.append("violation_type", newViolation);
       formData.append("passenger_comments", newComments);
 
-      if (initialTripId) {
-        formData.append("trip", initialTripId);
+      if (tripId) {
+        formData.append("trip", tripId);
       } else {
         formData.append("manual_body_number", newBodyNumber);
       }
@@ -195,10 +191,15 @@ export default function ReportFormModal({
         headers: { "Content-Type": "multipart/form-data" },
       });
 
-      onSubmitSuccess();
       Alert.alert(
         "Report Submitted",
         "Your ticket has been forwarded to the PTRO.",
+        [
+          {
+            text: "OK",
+            onPress: () => router.back(), // Navigates back to the report list
+          },
+        ],
       );
     } catch (error: any) {
       console.warn("Submit Error:", error);
@@ -213,15 +214,14 @@ export default function ReportFormModal({
 
   const isFormValid = newComments.trim().length > 0;
 
-  // 🚨 THE FIX: A single Modal handles both the Camera and the Form conditionally
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent={true}
-      statusBarTranslucent={true}
-      onRequestClose={onClose}
+    <View
+      style={[
+        styles.screenContainer,
+        { backgroundColor: isCameraActive ? "#000" : "#FFF" },
+      ]}
     >
+      <StatusBar style={isCameraActive ? "light" : "dark"} />
       {/* --- CAMERA VIEW --- */}
       {isCameraActive && (
         <View style={styles.cameraContainer}>
@@ -295,14 +295,17 @@ export default function ReportFormModal({
       {/* --- FORM VIEW --- */}
       {!isCameraActive && !isPickerActive && (
         <KeyboardAvoidingView
-          style={styles.fullModalContainer}
+          style={styles.fullContainer}
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View style={styles.fullModalHeader}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <MaterialIcons name="close" size={28} color="#0F172A" />
+          <View style={styles.header}>
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={styles.closeButton}
+            >
+              <MaterialIcons name="arrow-back" size={28} color="#0F172A" />
             </TouchableOpacity>
-            <Text style={styles.fullModalTitle}>File a Complaint</Text>
+            <Text style={styles.headerTitle}>File a Complaint</Text>
             <View style={{ width: 40 }} />
           </View>
 
@@ -326,7 +329,7 @@ export default function ReportFormModal({
             <View style={styles.formGroup}>
               <View style={styles.labelRow}>
                 <Text style={styles.inputLabel}>TRICYCLE BODY NUMBER</Text>
-                {initialTripId !== "" && (
+                {tripId !== "" && (
                   <View style={styles.linkedBadge}>
                     <MaterialIcons name="verified" size={12} color="#10B981" />
                     <Text style={styles.autoLinkedText}>AUTO-LINKED</Text>
@@ -334,16 +337,13 @@ export default function ReportFormModal({
                 )}
               </View>
               <TextInput
-                style={[
-                  styles.input,
-                  initialTripId !== "" && styles.inputDisabled,
-                ]}
+                style={[styles.input, tripId !== "" && styles.inputDisabled]}
                 value={newBodyNumber}
                 onChangeText={setNewBodyNumber}
                 placeholder="e.g. 0406"
                 keyboardType="number-pad"
                 placeholderTextColor="#94A3B8"
-                editable={initialTripId === ""}
+                editable={tripId === ""}
               />
             </View>
 
@@ -505,20 +505,33 @@ export default function ReportFormModal({
           </View>
         </KeyboardAvoidingView>
       )}
-    </Modal>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screenContainer: { flex: 1 },
+  fullContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#FFFFFF",
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingTop: 55,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+    backgroundColor: "#FFFFFF",
+  },
+  headerTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A" },
+  closeButton: { padding: 8, marginLeft: -8 },
   cameraContainer: { flex: 1, backgroundColor: "#000" },
   camera: { flex: 1 },
-  cameraControls: {
-    flex: 1,
-    backgroundColor: "transparent",
-    flexDirection: "column",
-    justifyContent: "space-between",
-    padding: 24,
-  },
   cameraCloseBtn: {
     alignSelf: "flex-end",
     marginTop: 40,
@@ -534,10 +547,7 @@ const styles = StyleSheet.create({
     padding: 24,
     zIndex: 10,
   },
-  cameraBottomControls: {
-    alignItems: "center",
-    paddingBottom: 20,
-  },
+  cameraBottomControls: { alignItems: "center", paddingBottom: 20 },
   modeSelector: {
     flexDirection: "row",
     gap: 30,
@@ -553,9 +563,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     letterSpacing: 1,
   },
-  modeTextActive: {
-    color: "#FFFFFF",
-  },
+  modeTextActive: { color: "#FFFFFF" },
   cameraActionRow: {
     flexDirection: "row",
     justifyContent: "center",
@@ -573,52 +581,8 @@ const styles = StyleSheet.create({
     backgroundColor: "#FFFFFF",
     borderRadius: 100,
   },
-  captureBtnInnerVideo: {
-    backgroundColor: "#D32F2F",
-  },
-  captureBtnRecording: {
-    borderRadius: 8,
-    transform: [{ scale: 0.6 }],
-  },
-  photoCaptureBtn: {
-    backgroundColor: "rgba(0,0,0,0.6)",
-    padding: 20,
-    borderRadius: 100,
-    borderWidth: 2,
-    borderColor: "#FFFFFF",
-  },
-  videoCaptureBtn: {
-    backgroundColor: "#D32F2F",
-    padding: 24,
-    borderRadius: 100,
-    borderWidth: 4,
-    borderColor: "rgba(255,255,255,0.5)",
-  },
-  videoCaptureBtnActive: {
-    backgroundColor: "#B91C1C",
-    borderColor: "#FFFFFF",
-    transform: [{ scale: 1.1 }],
-  },
-
-  fullModalContainer: {
-    flex: 1,
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#FFFFFF",
-  },
-  fullModalHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingTop: 55,
-    paddingBottom: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: "#F1F5F9",
-    backgroundColor: "#FFFFFF",
-  },
-  closeButton: { padding: 8, marginLeft: -8 },
-  fullModalTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A" },
+  captureBtnInnerVideo: { backgroundColor: "#D32F2F" },
+  captureBtnRecording: { borderRadius: 8, transform: [{ scale: 0.6 }] },
   scrollContent: { padding: 24, paddingBottom: 40 },
   warningBanner: {
     flexDirection: "row",
