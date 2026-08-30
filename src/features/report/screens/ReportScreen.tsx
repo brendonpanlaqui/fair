@@ -1,7 +1,9 @@
+// src/features/report/screens/ReportScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
+import { useFocusEffect } from "@react-navigation/native"; // 🚨 IMPORT THIS
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,15 +16,13 @@ import {
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 import ReportDetailModal from "../components/ReportDetailModal";
-import ReportFormModal from "../components/ReportFormModal";
 import TicketCard from "../components/TicketCard";
 import { ReportRecord } from "../reportUtils";
 
 const ReportScreen = () => {
   const router = useRouter();
-  // grab the parameters passed in the URL (e.g., ?tripId=123&bodyNumber=0406)
   const params = useLocalSearchParams();
-  const { user, logout } = useAuth(); // the logged-in user
+  const { user, logout } = useAuth();
   const isGuest = !user || user.is_guest || user.first_name === "Guest";
 
   const [reports, setReports] = useState<ReportRecord[]>([]);
@@ -30,22 +30,13 @@ const ReportScreen = () => {
     null,
   );
 
-  // controls whether the "File a Complaint" form pop-up is visible
-  const [isFormVisible, setIsFormVisible] = useState(false);
-
-  // used to show loading spinners while waiting for Django
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // data sent from History routing
-  const [initialTripId, setInitialTripId] = useState("");
-  const [initialBodyNumber, setInitialBodyNumber] = useState("");
-
-  const isAnyModalOpen = isFormVisible || selectedReport !== null;
+  const isAnyModalOpen = selectedReport !== null;
 
   const fetchReports = async (isPullToRefresh = false) => {
-    // if guest, skip the API call
     if (isGuest) {
       setIsLoading(false);
       setIsRefreshing(false);
@@ -55,7 +46,6 @@ const ReportScreen = () => {
     try {
       if (!isPullToRefresh) setIsLoading(true);
       setError(null);
-      // request the user's report history from Django
       const response = await api.get<ReportRecord[]>("/reports/history/");
       setReports(response.data);
     } catch (err) {
@@ -69,30 +59,30 @@ const ReportScreen = () => {
     }
   };
 
-  useEffect(() => {
-    fetchReports();
-  }, [user]);
-
+  // 🚨 PASTE THIS MISSING FUNCTION RIGHT HERE
   const onRefresh = () => {
     setIsRefreshing(true);
     fetchReports(true);
   };
 
-  // it assumes the user wants to report that specific trip, so it opens the form automatically.
+  // 🚨 Refresh reports every time this screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchReports();
+    }, [user]),
+  );
+
+  // 🚨 Automatically route to the new screen if opened from History
   useEffect(() => {
     if (params.tripId && params.bodyNumber && user) {
-      setInitialTripId(params.tripId as string);
-      setInitialBodyNumber(params.bodyNumber as string);
-      setIsFormVisible(true);
+      router.push({
+        pathname: "/file-report",
+        params: { tripId: params.tripId, bodyNumber: params.bodyNumber },
+      });
+      // Clear params to prevent looping
+      router.setParams({ tripId: "", bodyNumber: "" });
     }
   }, [params, user]);
-
-  const closeForm = () => {
-    setIsFormVisible(false);
-    setInitialTripId("");
-    setInitialBodyNumber("");
-    router.setParams({ tripId: "", bodyNumber: "" });
-  };
 
   return (
     <View style={styles.container}>
@@ -104,7 +94,7 @@ const ReportScreen = () => {
         <Text style={styles.headerSubtitle}>Track and file complaints</Text>
       </View>
 
-      {/* (ALWAYS VISIBLE BUT DISABLED FOR GUESTS) */}
+      {/* FILE NEW REPORT BUTTON */}
       <View style={styles.actionWrapper}>
         <TouchableOpacity
           style={[
@@ -118,12 +108,8 @@ const ReportScreen = () => {
             },
           ]}
           activeOpacity={0.9}
-          disabled={isGuest} // if guest
-          onPress={() => {
-            setInitialTripId("");
-            setInitialBodyNumber("");
-            setIsFormVisible(true);
-          }}
+          disabled={isGuest}
+          onPress={() => router.push("/file-report")} // 🚨 ROUTE TO NEW SCREEN
         >
           <MaterialIcons
             name="add-circle"
@@ -138,7 +124,7 @@ const ReportScreen = () => {
         </TouchableOpacity>
       </View>
 
-      {/* (GUEST VS LOGGED IN) */}
+      {/* GUEST VS LOGGED IN STATES */}
       {isGuest ? (
         <View style={styles.guestContainer}>
           <View style={styles.guestIconWrapper}>
@@ -208,26 +194,15 @@ const ReportScreen = () => {
         />
       )}
 
-      {/* MODALS ABSTRACTION */}
       <ReportDetailModal
         report={selectedReport}
         onClose={() => setSelectedReport(null)}
-      />
-
-      <ReportFormModal
-        visible={isFormVisible}
-        onClose={closeForm}
-        onSubmitSuccess={() => {
-          fetchReports();
-          closeForm();
-        }}
-        initialTripId={initialTripId}
-        initialBodyNumber={initialBodyNumber}
       />
     </View>
   );
 };
 
+// ... keep all the same styles from your original ReportScreen.tsx below ...
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: "#F8FAFC" },
   redHeaderBackground: {

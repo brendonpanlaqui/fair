@@ -13,6 +13,7 @@ import "../src/features/trip/services/BackgroundLocationService";
 import { AuthProvider, useAuth } from "@/src/hooks/AuthContext";
 import { useColorScheme } from "@/src/hooks/use-color-scheme";
 import { useDriverNotifications } from "@/src/hooks/useDriverNotifications";
+import { useInitialPermissions } from "@/src/hooks/useInitialPermissions";
 
 export const unstable_settings = {
   anchor: "(tabs)",
@@ -26,6 +27,8 @@ const InitialLayout = () => {
 
   // run silently in the background while the app is open
   useDriverNotifications();
+
+  useInitialPermissions();
 
   useEffect(() => {
     if (loading) return;
