@@ -1,4 +1,3 @@
-// src/features/report/screens/ReportFormScreen.tsx
 import { MaterialIcons } from "@expo/vector-icons";
 import {
     CameraView,
@@ -6,13 +5,13 @@ import {
     useMicrophonePermissions,
 } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
+import * as NavigationBar from "expo-navigation-bar";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
-    KeyboardAvoidingView,
     Linking,
     Platform,
     ScrollView,
@@ -22,6 +21,7 @@ import {
     TouchableOpacity,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/AuthContext";
 import { api } from "../../../services/api";
 import { VIOLATION_OPTIONS } from "../reportUtils";
@@ -29,8 +29,8 @@ import { VIOLATION_OPTIONS } from "../reportUtils";
 export default function ReportFormScreen() {
   const router = useRouter();
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
-  // Grab parameters passed in the URL via router.push
   const { tripId = "", bodyNumber = "" } = useLocalSearchParams<{
     tripId: string;
     bodyNumber: string;
@@ -53,29 +53,32 @@ export default function ReportFormScreen() {
 
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [micPermission, requestMicPermission] = useMicrophonePermissions();
-  const [isPickerActive, setIsPickerActive] = useState(false);
 
   useEffect(() => {
     setNewBodyNumber(bodyNumber);
   }, [bodyNumber]);
 
+  // Force the Android System Navigation Bar (the hardware buttons) to blend in
+  useEffect(() => {
+    if (Platform.OS === "android") {
+      NavigationBar.setBackgroundColorAsync("#FFFFFF");
+      NavigationBar.setButtonStyleAsync("dark");
+    }
+  }, []);
+
   const handleOpenCamera = async () => {
     let camStatus = cameraPermission;
-    if (!camStatus?.granted) {
-      camStatus = await requestCameraPermission();
-    }
+    if (!camStatus?.granted) camStatus = await requestCameraPermission();
 
     let micStatus = micPermission;
-    if (!micStatus?.granted) {
-      micStatus = await requestMicPermission();
-    }
+    if (!micStatus?.granted) micStatus = await requestMicPermission();
 
     if (camStatus?.granted && micStatus?.granted) {
       setIsCameraActive(true);
     } else {
       Alert.alert(
         "Permission Required",
-        "Camera and microphone access are needed to record evidence. Please enable them in your device settings.",
+        "Camera and microphone access are needed to record evidence.",
         [
           { text: "Cancel", style: "cancel" },
           { text: "Open Settings", onPress: () => Linking.openSettings() },
@@ -118,34 +121,36 @@ export default function ReportFormScreen() {
       await ImagePicker.requestMediaLibraryPermissionsAsync();
 
     if (!permissionResult.granted) {
-      Alert.alert(
-        "Permission Required",
-        "Gallery access is needed. Please enable it in your device settings.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Open Settings", onPress: () => Linking.openSettings() },
-        ],
-      );
+      Alert.alert("Permission Required", "Gallery access is needed.", [
+        { text: "Cancel", style: "cancel" },
+        { text: "Open Settings", onPress: () => Linking.openSettings() },
+      ]);
       return;
     }
-
-    setIsPickerActive(true);
-    await new Promise((resolve) => setTimeout(resolve, 300));
 
     const result = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ["images", "videos"],
       allowsEditing: true,
       aspect: [3, 4],
-      videoMaxDuration: 15,
+      videoMaxDuration: 15, // 🚨 Forces Android to open the trim tool for long videos
       quality: 0.5,
     });
 
-    setIsPickerActive(false);
-
     if (!result.canceled) {
+      const asset = result.assets[0];
+
+      // 🚨 Intercepts and rejects if they somehow bypass the 15s trim tool
+      if (asset.type === "video" && asset.duration && asset.duration > 15500) {
+        Alert.alert(
+          "Video Too Long",
+          "Please select a video that is 15 seconds or shorter.",
+        );
+        return;
+      }
+
       setEvidenceMedia({
-        uri: result.assets[0].uri,
-        type: result.assets[0].type || "image",
+        uri: asset.uri,
+        type: asset.type || "image",
       });
     }
   };
@@ -177,13 +182,11 @@ export default function ReportFormScreen() {
         const filename = evidenceMedia.uri.split("/").pop() || "evidence.jpg";
         const isVideo =
           evidenceMedia.type === "video" || filename.endsWith(".mp4");
-        const mimeType = isVideo ? "video/mp4" : "image/jpeg";
-        const fieldName = isVideo ? "evidence_video" : "evidence_photo";
 
-        formData.append(fieldName, {
+        formData.append(isVideo ? "evidence_video" : "evidence_photo", {
           uri: evidenceMedia.uri,
           name: filename,
-          type: mimeType,
+          type: isVideo ? "video/mp4" : "image/jpeg",
         } as any);
       }
 
@@ -194,18 +197,11 @@ export default function ReportFormScreen() {
       Alert.alert(
         "Report Submitted",
         "Your ticket has been forwarded to the PTRO.",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(), // Navigates back to the report list
-          },
-        ],
+        [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error: any) {
-      console.warn("Submit Error:", error);
       const errorMessage =
-        error.response?.data?.error ||
-        "Could not submit report. Please try again.";
+        error.response?.data?.error || "Could not submit report.";
       Alert.alert("Report Failed", errorMessage);
     } finally {
       setIsSubmitting(false);
@@ -215,302 +211,311 @@ export default function ReportFormScreen() {
   const isFormValid = newComments.trim().length > 0;
 
   return (
-    <View
-      style={[
-        styles.screenContainer,
-        { backgroundColor: isCameraActive ? "#000" : "#FFF" },
-      ]}
-    >
+    <View style={styles.screenContainer}>
       <StatusBar style={isCameraActive ? "light" : "dark"} />
-      {/* --- CAMERA VIEW --- */}
-      {isCameraActive && (
-        <View style={styles.cameraContainer}>
-          <CameraView
-            style={styles.camera}
-            facing="back"
-            ref={cameraRef}
-            mode={cameraMode}
-            videoQuality="480p"
-          />
 
-          <View style={styles.cameraOverlay}>
-            <TouchableOpacity
-              style={styles.cameraCloseBtn}
-              onPress={() => setIsCameraActive(false)}
-            >
-              <MaterialIcons name="close" size={28} color="#FFFFFF" />
-            </TouchableOpacity>
-
-            <View style={styles.cameraBottomControls}>
-              {!isRecording && (
-                <View style={styles.modeSelector}>
-                  <TouchableOpacity onPress={() => setCameraMode("picture")}>
-                    <Text
-                      style={[
-                        styles.modeText,
-                        cameraMode === "picture" && styles.modeTextActive,
-                      ]}
-                    >
-                      PHOTO
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity onPress={() => setCameraMode("video")}>
-                    <Text
-                      style={[
-                        styles.modeText,
-                        cameraMode === "video" && styles.modeTextActive,
-                      ]}
-                    >
-                      VIDEO
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              <View style={styles.cameraActionRow}>
-                <TouchableOpacity
-                  style={styles.captureBtnOuter}
-                  onPress={
-                    cameraMode === "picture"
-                      ? takePhoto
-                      : isRecording
-                        ? stopVideo
-                        : startVideo
-                  }
-                >
-                  <View
-                    style={[
-                      styles.captureBtnInner,
-                      cameraMode === "video" && styles.captureBtnInnerVideo,
-                      isRecording && styles.captureBtnRecording,
-                    ]}
-                  />
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* --- FORM VIEW --- */}
-      {!isCameraActive && !isPickerActive && (
-        <KeyboardAvoidingView
-          style={styles.fullContainer}
-          behavior={Platform.OS === "ios" ? "padding" : undefined}
+      {/* 🚨 THE FORM 
+          Removed KeyboardAvoidingView. Android handles this natively now. 
+      */}
+      <View style={styles.fullContainer}>
+        <View
+          style={[styles.header, { paddingTop: Math.max(insets.top, 16) + 16 }]}
         >
-          <View style={styles.header}>
-            <TouchableOpacity
-              onPress={() => router.back()}
-              style={styles.closeButton}
-            >
-              <MaterialIcons name="arrow-back" size={28} color="#0F172A" />
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>File a Complaint</Text>
-            <View style={{ width: 40 }} />
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.closeButton}
+          >
+            <MaterialIcons name="arrow-back" size={28} color="#0F172A" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>File a Complaint</Text>
+          <View style={{ width: 40 }} />
+        </View>
+
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 }]}
+          keyboardShouldPersistTaps="handled"
+          automaticallyAdjustKeyboardInsets={true} // 🚨 Natively handles the keyboard without gaps
+        >
+          <View style={styles.warningBanner}>
+            <MaterialIcons
+              name="info-outline"
+              size={20}
+              color="#B91C1C"
+              style={{ marginTop: 2 }}
+            />
+            <Text style={styles.warningText}>
+              False reports may lead to account suspension. Please provide
+              accurate details.
+            </Text>
           </View>
 
-          <ScrollView
-            contentContainerStyle={styles.scrollContent}
-            keyboardShouldPersistTaps="handled"
-          >
-            <View style={styles.warningBanner}>
-              <MaterialIcons
-                name="info-outline"
-                size={20}
-                color="#B91C1C"
-                style={{ marginTop: 2 }}
-              />
-              <Text style={styles.warningText}>
-                False reports may lead to account suspension. Please provide
-                accurate details.
-              </Text>
-            </View>
-
-            <View style={styles.formGroup}>
-              <View style={styles.labelRow}>
-                <Text style={styles.inputLabel}>TRICYCLE BODY NUMBER</Text>
-                {tripId !== "" && (
-                  <View style={styles.linkedBadge}>
-                    <MaterialIcons name="verified" size={12} color="#10B981" />
-                    <Text style={styles.autoLinkedText}>AUTO-LINKED</Text>
-                  </View>
-                )}
-              </View>
-              <TextInput
-                style={[styles.input, tripId !== "" && styles.inputDisabled]}
-                value={newBodyNumber}
-                onChangeText={setNewBodyNumber}
-                placeholder="e.g. 0406"
-                keyboardType="number-pad"
-                placeholderTextColor="#94A3B8"
-                editable={tripId === ""}
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>VIOLATION TYPE</Text>
-              <View style={styles.chipContainer}>
-                {VIOLATION_OPTIONS.map((option: any) => (
-                  <TouchableOpacity
-                    key={option.id}
-                    style={[
-                      styles.chip,
-                      newViolation === option.backendValue && styles.chipActive,
-                    ]}
-                    onPress={() => setNewViolation(option.backendValue)}
-                    activeOpacity={0.7}
-                  >
-                    <Text
-                      style={[
-                        styles.chipText,
-                        newViolation === option.backendValue &&
-                          styles.chipTextActive,
-                      ]}
-                    >
-                      {option.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>INCIDENT DETAILS *</Text>
-              <TextInput
-                style={styles.textArea}
-                value={newComments}
-                onChangeText={setNewComments}
-                placeholder="Describe what happened clearly..."
-                placeholderTextColor="#94A3B8"
-                multiline={true}
-                numberOfLines={5}
-                textAlignVertical="top"
-              />
-            </View>
-
-            <View style={styles.formGroup}>
-              <Text style={styles.inputLabel}>EVIDENCE (OPTIONAL)</Text>
-              <View style={styles.evidenceDisclaimerBox}>
-                <MaterialIcons
-                  name="privacy-tip"
-                  size={14}
-                  color="#64748B"
-                  style={{ marginTop: 2 }}
-                />
-                <Text style={styles.evidenceDisclaimerText}>
-                  Videos are capped at 15 seconds for fast uploads. Try to
-                  clearly capture the tricycle body number or the fare matrix.
-                </Text>
-              </View>
-              {evidenceMedia ? (
-                <TouchableOpacity
-                  style={styles.evidenceAttachedCard}
-                  activeOpacity={0.7}
-                  onPress={() => setEvidenceMedia(null)}
-                >
-                  <View style={styles.evidenceIconContainer}>
-                    <MaterialIcons
-                      name={
-                        evidenceMedia.type === "video" ? "videocam" : "image"
-                      }
-                      size={28}
-                      color="#10B981"
-                    />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.evidenceTitle}>
-                      {evidenceMedia.type === "video"
-                        ? "Video Attached"
-                        : "Photo Attached"}
-                    </Text>
-                    <Text style={styles.evidenceSubtitle}>
-                      Tap here to remove or change
-                    </Text>
-                  </View>
-                  <MaterialIcons name="cancel" size={24} color="#64748B" />
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.mediaButtonsRow}>
-                  <TouchableOpacity
-                    style={styles.mediaActionCard}
-                    activeOpacity={0.7}
-                    onPress={handleOpenCamera}
-                  >
-                    <View style={styles.mediaActionIcon}>
-                      <MaterialIcons
-                        name="camera-alt"
-                        size={28}
-                        color="#D32F2F"
-                      />
-                    </View>
-                    <Text style={styles.mediaActionText}>Camera</Text>
-                    <Text style={styles.mediaActionSubtext}>
-                      Take a photo/video
-                    </Text>
-                  </TouchableOpacity>
-
-                  <TouchableOpacity
-                    style={styles.mediaActionCard}
-                    activeOpacity={0.7}
-                    onPress={pickMedia}
-                  >
-                    <View style={styles.mediaActionIcon}>
-                      <MaterialIcons
-                        name="photo-library"
-                        size={28}
-                        color="#D32F2F"
-                      />
-                    </View>
-                    <Text style={styles.mediaActionText}>Gallery</Text>
-                    <Text style={styles.mediaActionSubtext}>
-                      Upload from device
-                    </Text>
-                  </TouchableOpacity>
+          <View style={styles.formGroup}>
+            <View style={styles.labelRow}>
+              <Text style={styles.inputLabel}>TRICYCLE BODY NUMBER</Text>
+              {tripId !== "" && (
+                <View style={styles.linkedBadge}>
+                  <MaterialIcons name="verified" size={12} color="#10B981" />
+                  <Text style={styles.autoLinkedText}>AUTO-LINKED</Text>
                 </View>
               )}
             </View>
-          </ScrollView>
+            <TextInput
+              style={[styles.input, tripId !== "" && styles.inputDisabled]}
+              value={newBodyNumber}
+              onChangeText={setNewBodyNumber}
+              placeholder="e.g. 0406"
+              keyboardType="number-pad"
+              placeholderTextColor="#94A3B8"
+              editable={tripId === ""}
+            />
+          </View>
 
-          <View style={styles.formFooter}>
-            <TouchableOpacity
-              style={[
-                styles.submitButton,
-                !isFormValid && styles.submitButtonDisabled,
-              ]}
-              activeOpacity={0.9}
-              onPress={handleSubmitReport}
-              disabled={isSubmitting || !isFormValid}
-            >
-              {isSubmitting ? (
-                <ActivityIndicator color="#FFFFFF" />
-              ) : (
-                <>
-                  <MaterialIcons
-                    name="send"
-                    size={20}
-                    color={isFormValid ? "#FFFFFF" : "#94A3B8"}
-                    style={{ marginRight: 8 }}
-                  />
+          <View style={styles.formGroup}>
+            <Text style={styles.inputLabel}>VIOLATION TYPE</Text>
+            <View style={styles.chipContainer}>
+              {VIOLATION_OPTIONS.map((option: any) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.chip,
+                    newViolation === option.backendValue && styles.chipActive,
+                  ]}
+                  onPress={() => setNewViolation(option.backendValue)}
+                  activeOpacity={0.7}
+                >
                   <Text
                     style={[
-                      styles.submitButtonText,
-                      !isFormValid && { color: "#94A3B8" },
+                      styles.chipText,
+                      newViolation === option.backendValue &&
+                        styles.chipTextActive,
                     ]}
                   >
-                    {isFormValid ? "SUBMIT REPORT" : "FILL DETAILS TO SUBMIT"}
+                    {option.label}
                   </Text>
-                </>
-              )}
-            </TouchableOpacity>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </KeyboardAvoidingView>
-      )}
+
+          <View style={styles.formGroup}>
+            <Text style={styles.inputLabel}>INCIDENT DETAILS *</Text>
+            <TextInput
+              style={styles.textArea}
+              value={newComments}
+              onChangeText={setNewComments}
+              placeholder="Describe what happened clearly..."
+              placeholderTextColor="#94A3B8"
+              multiline={true}
+              numberOfLines={5}
+              textAlignVertical="top"
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.inputLabel}>EVIDENCE (OPTIONAL)</Text>
+            <View style={styles.evidenceDisclaimerBox}>
+              <MaterialIcons
+                name="privacy-tip"
+                size={14}
+                color="#64748B"
+                style={{ marginTop: 2 }}
+              />
+              <Text style={styles.evidenceDisclaimerText}>
+                Videos are capped at 15 seconds for fast uploads. Try to clearly
+                capture the tricycle body number or the fare matrix.
+              </Text>
+            </View>
+            {evidenceMedia ? (
+              <TouchableOpacity
+                style={styles.evidenceAttachedCard}
+                activeOpacity={0.7}
+                onPress={() => setEvidenceMedia(null)}
+              >
+                <View style={styles.evidenceIconContainer}>
+                  <MaterialIcons
+                    name={evidenceMedia.type === "video" ? "videocam" : "image"}
+                    size={28}
+                    color="#10B981"
+                  />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.evidenceTitle}>
+                    {evidenceMedia.type === "video"
+                      ? "Video Attached"
+                      : "Photo Attached"}
+                  </Text>
+                  <Text style={styles.evidenceSubtitle}>
+                    Tap here to remove or change
+                  </Text>
+                </View>
+                <MaterialIcons name="cancel" size={24} color="#64748B" />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.mediaButtonsRow}>
+                <TouchableOpacity
+                  style={styles.mediaActionCard}
+                  activeOpacity={0.7}
+                  onPress={handleOpenCamera}
+                >
+                  <View style={styles.mediaActionIcon}>
+                    <MaterialIcons
+                      name="camera-alt"
+                      size={28}
+                      color="#D32F2F"
+                    />
+                  </View>
+                  <Text style={styles.mediaActionText}>Camera</Text>
+                  <Text style={styles.mediaActionSubtext}>
+                    Take a photo/video
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.mediaActionCard}
+                  activeOpacity={0.7}
+                  onPress={pickMedia}
+                >
+                  <View style={styles.mediaActionIcon}>
+                    <MaterialIcons
+                      name="photo-library"
+                      size={28}
+                      color="#D32F2F"
+                    />
+                  </View>
+                  <Text style={styles.mediaActionText}>Gallery</Text>
+                  <Text style={styles.mediaActionSubtext}>
+                    Upload from device
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <View
+          style={[
+            styles.formFooter,
+            { paddingBottom: Math.max(insets.bottom, 24) },
+          ]}
+        >
+          <TouchableOpacity
+            style={[
+              styles.submitButton,
+              !isFormValid && styles.submitButtonDisabled,
+            ]}
+            activeOpacity={0.9}
+            onPress={handleSubmitReport}
+            disabled={isSubmitting || !isFormValid}
+          >
+            {isSubmitting ? (
+              <ActivityIndicator color="#FFFFFF" />
+            ) : (
+              <>
+                <MaterialIcons
+                  name="send"
+                  size={20}
+                  color={isFormValid ? "#FFFFFF" : "#94A3B8"}
+                  style={{ marginRight: 8 }}
+                />
+                <Text
+                  style={[
+                    styles.submitButtonText,
+                    !isFormValid && { color: "#94A3B8" },
+                  ]}
+                >
+                  {isFormValid ? "SUBMIT REPORT" : "FILL DETAILS TO SUBMIT"}
+                </Text>
+              </>
+            )}
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      {/* 🚨 THE CAMERA OVERLAY 
+          Uses display: none instead of conditional rendering. 
+          This stops the Android Window Manager from glitching out and leaving a black void when the camera closes. 
+      */}
+      <View
+        style={[
+          styles.cameraContainer,
+          { display: isCameraActive ? "flex" : "none" },
+        ]}
+      >
+        {isCameraActive && (
+          <>
+            <CameraView
+              style={styles.camera}
+              facing="back"
+              ref={cameraRef}
+              mode={cameraMode}
+              videoQuality="480p"
+            />
+            <View style={styles.cameraOverlay}>
+              <TouchableOpacity
+                style={styles.cameraCloseBtn}
+                onPress={() => setIsCameraActive(false)}
+              >
+                <MaterialIcons name="close" size={28} color="#FFFFFF" />
+              </TouchableOpacity>
+
+              <View style={styles.cameraBottomControls}>
+                {!isRecording && (
+                  <View style={styles.modeSelector}>
+                    <TouchableOpacity onPress={() => setCameraMode("picture")}>
+                      <Text
+                        style={[
+                          styles.modeText,
+                          cameraMode === "picture" && styles.modeTextActive,
+                        ]}
+                      >
+                        PHOTO
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => setCameraMode("video")}>
+                      <Text
+                        style={[
+                          styles.modeText,
+                          cameraMode === "video" && styles.modeTextActive,
+                        ]}
+                      >
+                        VIDEO
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <View style={styles.cameraActionRow}>
+                  <TouchableOpacity
+                    style={styles.captureBtnOuter}
+                    onPress={
+                      cameraMode === "picture"
+                        ? takePhoto
+                        : isRecording
+                          ? stopVideo
+                          : startVideo
+                    }
+                  >
+                    <View
+                      style={[
+                        styles.captureBtnInner,
+                        cameraMode === "video" && styles.captureBtnInnerVideo,
+                        isRecording && styles.captureBtnRecording,
+                      ]}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </>
+        )}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  screenContainer: { flex: 1 },
+  screenContainer: { flex: 1, backgroundColor: "#FFFFFF" },
   fullContainer: {
     flex: 1,
     width: "100%",
@@ -522,7 +527,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 55,
     paddingBottom: 15,
     borderBottomWidth: 1,
     borderBottomColor: "#F1F5F9",
@@ -530,7 +534,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 18, fontWeight: "800", color: "#0F172A" },
   closeButton: { padding: 8, marginLeft: -8 },
-  cameraContainer: { flex: 1, backgroundColor: "#000" },
+
+  cameraContainer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "#000",
+    zIndex: 9999,
+    elevation: 9999,
+  },
   camera: { flex: 1 },
   cameraCloseBtn: {
     alignSelf: "flex-end",
@@ -583,7 +593,8 @@ const styles = StyleSheet.create({
   },
   captureBtnInnerVideo: { backgroundColor: "#D32F2F" },
   captureBtnRecording: { borderRadius: 8, transform: [{ scale: 0.6 }] },
-  scrollContent: { padding: 24, paddingBottom: 40 },
+
+  scrollContent: { padding: 24 },
   warningBanner: {
     flexDirection: "row",
     backgroundColor: "#FFF1F2",
@@ -714,7 +725,8 @@ const styles = StyleSheet.create({
   evidenceTitle: { fontSize: 15, fontWeight: "800", color: "#065F46" },
   evidenceSubtitle: { fontSize: 12, color: "#059669", marginTop: 2 },
   formFooter: {
-    padding: 24,
+    paddingHorizontal: 24,
+    paddingTop: 16,
     borderTopWidth: 1,
     borderTopColor: "#F1F5F9",
     backgroundColor: "#FFFFFF",
