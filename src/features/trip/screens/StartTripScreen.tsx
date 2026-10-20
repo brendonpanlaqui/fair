@@ -304,6 +304,8 @@ const StartTripScreen: React.FC = () => {
         destination_lng: finalDest?.lng,
         fare: calculatedFare,
         distance: calculatedDistance,
+        destination_address: finalDest?.name || "Unknown Destination",
+        dest_name: finalDest?.name || "",
       };
 
       const response = await api.post("/trips/request/", payload);

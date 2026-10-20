@@ -39,7 +39,16 @@ export const useDriverNotifications = ({
                   try {
                     // the driver said NO
                     await api.post(`/trips/${data.trip_id}/decline/`);
+
+                    Alert.alert(
+                      "Trip Declined",
+                      "You have declined the passenger request.",
+                    );
                   } catch (error) {
+                    Alert.alert(
+                      "Error",
+                      "Failed to decline the trip. Please try again.",
+                    );
                     console.error("Failed to decline trip:", error);
                   }
                 },

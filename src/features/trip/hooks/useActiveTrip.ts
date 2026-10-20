@@ -291,6 +291,10 @@ export const useActiveTrip = () => {
         hour: "2-digit",
         minute: "2-digit",
       });
+      if (tripStatus === "Cancelled") {
+        router.replace("/");
+        return;
+      }
 
       // NAVIGATE TO RECEIPT
       router.replace({
