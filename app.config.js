@@ -9,7 +9,7 @@ module.exports = {
     },
     name: "fair",
     slug: "fair-app",
-    version: "1.0.1",
+    version: "1.0.2",
     orientation: "portrait",
     icon: "./assets/images/icon.png",
     scheme: "fair-app",
@@ -25,7 +25,7 @@ module.exports = {
       package: "com.brendonpanlaqui.fairapp",
       googleServicesFile:
         process.env.GOOGLE_SERVICES_JSON || "./google-services.json",
-      versionCode: 2,
+      versionCode: 3,
       adaptiveIcon: {
         backgroundColor: "#d32f2f",
         foregroundImage: "./assets/images/adaptive-icon.png",
