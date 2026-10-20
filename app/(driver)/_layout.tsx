@@ -9,6 +9,12 @@ export default function DriverLayout() {
           headerShown: false,
         }}
       />
+      <Stack.Screen
+        name="history"
+        options={{
+          headerShown: false,
+        }}
+      />
     </Stack>
   );
 }

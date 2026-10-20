@@ -1,8 +1,8 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import {
-    CameraView,
-    useCameraPermissions,
-    useMicrophonePermissions,
+  CameraView,
+  useCameraPermissions,
+  useMicrophonePermissions,
 } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as NavigationBar from "expo-navigation-bar";
@@ -10,16 +10,16 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Linking,
-    Platform,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "../../../hooks/AuthContext";
@@ -164,34 +164,58 @@ export default function ReportFormScreen() {
     setIsSubmitting(true);
     try {
       const formData = new FormData();
+
       formData.append(
         "report_id",
         `TKT-${Math.floor(10000 + Math.random() * 90000)}`,
       );
-      formData.append("user", user?.id?.toString() || "");
-      formData.append("violation_type", newViolation);
-      formData.append("passenger_comments", newComments);
+      formData.append("user", String(user?.id || ""));
+      formData.append("violation_type", String(newViolation));
+      formData.append("passenger_comments", String(newComments));
 
-      if (tripId) {
-        formData.append("trip", tripId);
+      const rawTripId = Array.isArray(tripId) ? tripId[0] : tripId;
+      const safeTripId =
+        rawTripId === "undefined" || rawTripId === "null"
+          ? ""
+          : String(rawTripId);
+      const rawBodyNum = Array.isArray(newBodyNumber)
+        ? newBodyNumber[0]
+        : newBodyNumber;
+
+      if (safeTripId) {
+        formData.append("trip", safeTripId);
       } else {
-        formData.append("manual_body_number", newBodyNumber);
+        formData.append("manual_body_number", String(rawBodyNum));
       }
 
       if (evidenceMedia) {
-        const filename = evidenceMedia.uri.split("/").pop() || "evidence.jpg";
+        let filename = evidenceMedia.uri.split("/").pop() || "evidence.jpg";
         const isVideo =
           evidenceMedia.type === "video" || filename.endsWith(".mp4");
 
+        if (isVideo && !filename.endsWith(".mp4")) {
+          filename += ".mp4";
+        }
+
+        // 🚨 NATIVE CRASH FIX: Clean the URI perfectly for the specific OS
+        const cleanUri =
+          Platform.OS === "ios"
+            ? evidenceMedia.uri.replace("file://", "")
+            : evidenceMedia.uri;
+
         formData.append(isVideo ? "evidence_video" : "evidence_photo", {
-          uri: evidenceMedia.uri,
+          uri: cleanUri,
           name: filename,
           type: isVideo ? "video/mp4" : "image/jpeg",
         } as any);
       }
 
+      // 🚨 NATIVE CRASH FIX: Use standard headers. Do not use transformRequest.
       await api.post("/reports/submit/", formData, {
-        headers: { "Content-Type": "multipart/form-data" },
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Accept: "application/json",
+        },
       });
 
       Alert.alert(
@@ -200,8 +224,19 @@ export default function ReportFormScreen() {
         [{ text: "OK", onPress: () => router.back() }],
       );
     } catch (error: any) {
-      const errorMessage =
-        error.response?.data?.error || "Could not submit report.";
+      console.error("Report submit error:", error?.response?.data || error);
+
+      let errorMessage =
+        "Could not submit report. Please check your connection.";
+      const errData = error.response?.data;
+
+      if (errData) {
+        if (errData.error) errorMessage = errData.error;
+        else if (errData.trip) errorMessage = `Trip Error: ${errData.trip[0]}`;
+        else if (errData.evidence_video)
+          errorMessage = `Video Error: ${errData.evidence_video[0]}`;
+      }
+
       Alert.alert("Report Failed", errorMessage);
     } finally {
       setIsSubmitting(false);

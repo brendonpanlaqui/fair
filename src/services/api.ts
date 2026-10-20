@@ -24,7 +24,6 @@ api.interceptors.request.use(
   async (config) => {
     const token = await SecureStore.getItemAsync("userToken");
 
-    // DEBUG LOG: Check your terminal! If this says "NULL", your login screen isn't saving the token!
     console.log(`[Axios] Sending Request to: ${config.url}`);
     console.log(`[Axios] Token Attached: ${token ? "YES ✅" : "NO ❌ (NULL)"}`);
 

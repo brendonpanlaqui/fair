@@ -1,5 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as Location from "expo-location";
 import * as Print from "expo-print";
 import { useRouter } from "expo-router";
 import * as Sharing from "expo-sharing";
@@ -61,6 +62,7 @@ const HistoryScreen = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
+  const [resolvedOrigin, setResolvedOrigin] = useState<string>("");
 
   const mapRef = useRef<MapView>(null);
 
@@ -91,6 +93,41 @@ const HistoryScreen = () => {
       0,
     );
   };
+
+  useEffect(() => {
+    if (selectedTrip) {
+      const originName = selectedTrip.origin_name || "Unknown";
+
+      if (
+        originName.toLowerCase().includes("current location") ||
+        originName.toLowerCase().includes("unknown")
+      ) {
+        setResolvedOrigin("Loading exact address...");
+        Location.reverseGeocodeAsync({
+          latitude: selectedTrip.origin_coords.latitude,
+          longitude: selectedTrip.origin_coords.longitude,
+        })
+          .then((res) => {
+            if (res && res.length > 0) {
+              const place = res[0];
+              // Filter out duplicate names (sometimes name and street return the same string)
+              const addressParts = [
+                place.name,
+                place.street,
+                place.city,
+              ].filter(Boolean);
+              const uniqueParts = [...new Set(addressParts)];
+              setResolvedOrigin(uniqueParts.join(", ") || "Unknown Address");
+            } else {
+              setResolvedOrigin(originName);
+            }
+          })
+          .catch(() => setResolvedOrigin(originName));
+      } else {
+        setResolvedOrigin(originName);
+      }
+    }
+  }, [selectedTrip]);
 
   const getDrivenRoute = (hash?: string | null) => {
     if (!hash) return null;
@@ -225,70 +262,314 @@ const HistoryScreen = () => {
       ).toFixed(1);
 
       const expectedFare = computedFare - discountApplied;
-      const actualPaid = actualFareCharged || expectedFare;
-      const extraPaid = actualPaid - expectedFare;
+
+      let actualPaid = 0;
+      let extraPaid = 0;
+      if (selectedTrip.status !== "Cancelled") {
+        actualPaid = actualFareCharged > 0 ? actualFareCharged : expectedFare;
+        extraPaid = actualPaid - expectedFare;
+      }
 
       const htmlContent = `
         <html>
           <head>
             <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no" />
             <style>
-              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #0F172A; }
-              .header { text-align: center; border-bottom: 2px solid #D32F2F; padding-bottom: 20px; margin-bottom: 30px; }
-              .title { font-size: 28px; font-weight: 900; color: #D32F2F; margin: 0; letter-spacing: -1px; }
-              .subtitle { font-size: 14px; color: #64748B; margin-top: 5px; font-weight: 600; }
-              .section { margin-bottom: 30px; }
-              .section-title { color: #94A3B8; font-size: 12px; font-weight: 900; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 12px; }
-              .row { display: flex; justify-content: space-between; margin-bottom: 12px; font-size: 14px; }
-              .label { font-weight: 600; color: #475569; }
-              .value { font-weight: 700; text-align: right; max-width: 60%; }
-              .thick-divider { border-bottom: 2px solid #E2E8F0; margin: 15px 0; }
-              .total-row { display: flex; justify-content: space-between; align-items: center; margin-top: 20px; }
-              .total-label { font-size: 18px; font-weight: 900; color: #0F172A; }
-              .total-value { font-size: 24px; font-weight: 900; color: #D32F2F; }
-              .discount { color: #10B981; }
-              .warning { color: #F59E0B; }
-              .tip { color: #3B82F6; }
-              .footer { text-align: center; margin-top: 50px; font-size: 12px; color: #94A3B8; font-weight: 500; }
+              :root { 
+                --red: #D32F2F; 
+                --slate-900: #0F172A; 
+                --slate-500: #64748B; 
+                --slate-200: #E2E8F0; 
+                --slate-50: #F8FAFC; 
+              }
+              body { 
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+                background-color: var(--slate-50); 
+                margin: 0; 
+                padding: 40px 20px; 
+                color: var(--slate-900); 
+              }
+              .receipt-card { 
+                max-width: 500px; 
+                margin: 0 auto; 
+                background: #FFFFFF; 
+                border-radius: 24px; 
+                padding: 40px; 
+                border: 1px solid var(--slate-200); 
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 8px 10px -6px rgba(0, 0, 0, 0.01); 
+              }
+              
+              /* Header */
+              .header { 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                border-bottom: 2px dashed var(--slate-200); 
+                padding-bottom: 24px; 
+                margin-bottom: 24px; 
+              }
+              .brand-title { 
+                font-size: 32px; 
+                font-weight: 900; 
+                color: var(--red); 
+                margin: 0; 
+                font-style: italic; 
+                letter-spacing: -1.5px; 
+              }
+              .brand-subtitle { 
+                font-size: 11px; 
+                color: var(--slate-500); 
+                font-weight: 800; 
+                letter-spacing: 1px; 
+                text-transform: uppercase; 
+                margin-top: 2px; 
+              }
+              .header-right { text-align: right; }
+              .trip-id { 
+                font-size: 13px; 
+                font-weight: 800; 
+                color: var(--slate-900); 
+                background: var(--slate-50); 
+                padding: 6px 12px; 
+                border-radius: 8px; 
+                border: 1px solid var(--slate-200); 
+                letter-spacing: 0.5px;
+              }
+              .trip-date { 
+                font-size: 12px; 
+                color: var(--slate-500); 
+                margin-top: 8px; 
+                font-weight: 600; 
+              }
+
+              /* Trip Meta (Grid) */
+              .meta-grid { 
+                display: grid; 
+                grid-template-columns: 1fr 1fr; 
+                gap: 20px; 
+                margin-bottom: 32px; 
+                background: var(--slate-50); 
+                padding: 24px; 
+                border-radius: 16px; 
+                border: 1px solid var(--slate-200); 
+              }
+              .meta-item { display: flex; flex-direction: column; gap: 6px; }
+              .meta-label { 
+                font-size: 11px; 
+                color: var(--slate-500); 
+                font-weight: 800; 
+                text-transform: uppercase; 
+                letter-spacing: 0.5px; 
+              }
+              .meta-value { 
+                font-size: 16px; 
+                font-weight: 900; 
+                color: var(--slate-900); 
+                letter-spacing: -0.5px;
+              }
+              
+              /* Route Timeline */
+              .section-title { 
+                font-size: 12px; 
+                font-weight: 900; 
+                color: var(--slate-500); 
+                text-transform: uppercase; 
+                margin-bottom: 16px; 
+                letter-spacing: 1px; 
+              }
+              .route-box { margin-bottom: 32px; position: relative; }
+              .route-point { 
+                display: flex; 
+                align-items: flex-start; 
+                margin-bottom: 24px; 
+                position: relative; 
+                z-index: 2; 
+              }
+              .route-point:last-child { margin-bottom: 0; }
+              .dot { 
+                width: 12px; 
+                height: 12px; 
+                border-radius: 50%; 
+                margin-top: 6px; 
+                margin-right: 16px; 
+                flex-shrink: 0; 
+              }
+              .dot-blue { background-color: #3B82F6; border: 3px solid #DBEAFE; }
+              .dot-red { background-color: var(--red); border: 3px solid #FEE2E2; }
+              .route-line { 
+                position: absolute; 
+                left: 7px; 
+                top: 24px; 
+                bottom: 24px; 
+                width: 2px; 
+                background-color: var(--slate-200); 
+                z-index: 1; 
+              }
+              .route-address { 
+                font-size: 15px; 
+                font-weight: 700; 
+                color: var(--slate-900); 
+                line-height: 1.4; 
+                margin-top: 2px;
+              }
+
+              /* Breakdown */
+              .breakdown { margin-bottom: 32px; }
+              .row { 
+                display: flex; 
+                justify-content: space-between; 
+                padding: 12px 0; 
+              }
+              .label { font-size: 14px; color: var(--slate-500); font-weight: 600; }
+              .value { font-size: 15px; font-weight: 800; color: var(--slate-900); }
+              .discount { color: #059669; background: #D1FAE5; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+              .discount-val { color: #059669; font-weight: 900; }
+              .warning { color: #B45309; background: #FEF3C7; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+              .warning-val { color: #B45309; font-weight: 900; }
+              .tip { color: #1D4ED8; background: #DBEAFE; padding: 4px 8px; border-radius: 6px; font-size: 12px; }
+              .tip-val { color: #1D4ED8; font-weight: 900; }
+              .divider { border-bottom: 1px solid var(--slate-200); margin: 8px 0; }
+
+              /* Total Box */
+              .total-box { 
+                background: var(--slate-900); 
+                color: #FFFFFF; 
+                padding: 24px 32px; 
+                border-radius: 20px; 
+                display: flex; 
+                justify-content: space-between; 
+                align-items: center; 
+                margin-bottom: 32px; 
+                box-shadow: 0 10px 15px -3px rgba(15, 23, 42, 0.2);
+              }
+              .total-label { 
+                font-size: 13px; 
+                font-weight: 800; 
+                opacity: 0.9; 
+                text-transform: uppercase; 
+                letter-spacing: 1px; 
+              }
+              .total-value { 
+                font-size: 36px; 
+                font-weight: 900; 
+                letter-spacing: -1.5px; 
+              }
+
+              /* Footer */
+              .footer { 
+                text-align: center; 
+                font-size: 13px; 
+                color: var(--slate-500); 
+                line-height: 1.6; 
+                border-top: 2px dashed var(--slate-200); 
+                padding-top: 32px; 
+              }
+              .footer strong { 
+                color: var(--slate-900); 
+                font-weight: 800; 
+                display: block;
+                margin-bottom: 4px;
+              }
             </style>
           </head>
           <body>
-            <div class="header">
-              <h1 class="title">FAIR APP E-RECEIPT</h1>
-              <p class="subtitle">Official Digital Receipt</p>
-            </div>
-            <div class="section">
-              <div class="section-title">Trip Details</div>
-              <div class="row"><span class="label">Trip ID</span> <span class="value">${selectedTrip.trip_id}</span></div>
-              <div class="row"><span class="label">Date & Time</span> <span class="value">${formatDate(selectedTrip.timestamp)}</span></div>
-              <div class="row"><span class="label">Tricycle Body #</span> <span class="value">${selectedTrip.body_number}</span></div>
-              <div class="row"><span class="label">Ride Mode</span> <span class="value">${selectedTrip.trip_mode}</span></div>
-              <div class="row"><span class="label">Status</span> <span class="value">${selectedTrip.status}</span></div>
-            </div>
-            <div class="section">
-              <div class="section-title">Route Information</div>
-              <div class="row"><span class="label">Pick-up</span> <span class="value">${selectedTrip.origin_name}</span></div>
-              <div class="row"><span class="label">Drop-off</span> <span class="value">${selectedTrip.destination_name}</span></div>
-              <div class="row"><span class="label">Total Distance</span> <span class="value">${selectedTrip.total_distance_km.toFixed(1)} km</span></div>
-            </div>
-            <div class="section">
-              <div class="section-title">Fare Breakdown</div>
-              <div class="row"><span class="label">Base Fare (1st km)</span> <span class="value">PHP 35.00</span></div>
-              <div class="row"><span class="label">Distance Fare (${excessDistance} km)</span> <span class="value">PHP ${distanceFare}</span></div>
-              <div class="thick-divider"></div>
-              <div class="row"><span class="label">Original Computed Fare</span> <span class="value">PHP ${computedFare.toFixed(2)}</span></div>
-              ${discountApplied > 0 ? `<div class="row discount"><span class="label discount">Legal Discount (20%)</span> <span class="value discount">- PHP ${discountApplied.toFixed(2)}</span></div>` : ""}
-              ${
-                extraPaid > 0
-                  ? `<div class="row ${selectedTrip.is_tip ? "tip" : "warning"}"><span class="label ${selectedTrip.is_tip ? "tip" : "warning"}">${selectedTrip.is_tip ? "Voluntary Tip" : "Overcharge"}</span> <span class="value ${selectedTrip.is_tip ? "tip" : "warning"}">+ PHP ${extraPaid.toFixed(2)}</span></div>`
-                  : ""
-              }
-              <div class="thick-divider"></div>
-              <div class="total-row"><span class="total-label">ACTUAL AMOUNT PAID</span> <span class="total-value">PHP ${actualPaid.toFixed(2)}</span></div>
-            </div>
-            <div class="footer">
-              <p>Thank you for commuting safely with Fair App.</p>
-              <p>Angeles City Public Transportation Regulatory Office</p>
+            <div class="receipt-card">
+              <div class="header">
+                <div>
+                  <h1 class="brand-title">fair</h1>
+                  <div class="brand-subtitle">Official Receipt</div>
+                </div>
+                <div class="header-right">
+                  <div class="trip-id">${selectedTrip.trip_id}</div>
+                  <div class="trip-date">${formatDate(selectedTrip.timestamp)}</div>
+                </div>
+              </div>
+
+              <div class="meta-grid">
+                <div class="meta-item">
+                  <span class="meta-label">Tricycle Body #</span>
+                  <span class="meta-value">${selectedTrip.body_number}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Status</span>
+                  <span class="meta-value" style="color: ${selectedTrip.status === "Cancelled" ? "#94A3B8" : "#10B981"}">${selectedTrip.status}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Ride Mode</span>
+                  <span class="meta-value">${selectedTrip.trip_mode}</span>
+                </div>
+                <div class="meta-item">
+                  <span class="meta-label">Total Distance</span>
+                  <span class="meta-value">${selectedTrip.total_distance_km.toFixed(1)} km</span>
+                </div>
+              </div>
+
+              <div class="route-box">
+                <div class="route-line"></div>
+                <div class="route-point">
+                  <div class="dot dot-blue"></div>
+                  <div>
+                    <div class="meta-label">Pick-up</div>
+                    <div class="route-address">${resolvedOrigin}</div>
+                  </div>
+                </div>
+                <div class="route-point">
+                  <div class="dot dot-red"></div>
+                  <div>
+                    <div class="meta-label">Drop-off</div>
+                    <div class="route-address">${selectedTrip.destination_name}</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="breakdown">
+                <div class="section-title">Fare Breakdown</div>
+                <div class="row">
+                  <span class="label">Base Fare (1st km)</span>
+                  <span class="value">PHP 35.00</span>
+                </div>
+                <div class="row">
+                  <span class="label">Distance Fare (${excessDistance} km)</span>
+                  <span class="value">PHP ${distanceFare}</span>
+                </div>
+                
+                <div class="divider"></div>
+                
+                <div class="row">
+                  <span class="label">Original Computed Fare</span>
+                  <span class="value">PHP ${computedFare.toFixed(2)}</span>
+                </div>
+                
+                ${
+                  discountApplied > 0
+                    ? `
+                <div class="row">
+                  <span class="label discount">Legal Discount (20%)</span>
+                  <span class="value discount-val">- PHP ${discountApplied.toFixed(2)}</span>
+                </div>`
+                    : ""
+                }
+                
+                ${
+                  extraPaid > 0
+                    ? `
+                <div class="row">
+                  <span class="label ${selectedTrip.is_tip ? "tip" : "warning"}">${selectedTrip.is_tip ? "Voluntary Tip" : "Overcharge"}</span>
+                  <span class="value ${selectedTrip.is_tip ? "tip-val" : "warning-val"}">+ PHP ${extraPaid.toFixed(2)}</span>
+                </div>`
+                    : ""
+                }
+              </div>
+
+              <div class="total-box">
+                <div class="total-label">Amount Paid</div>
+                <div class="total-value">PHP ${actualPaid.toFixed(2)}</div>
+              </div>
+
+              <div class="footer">
+                <strong>Angeles City Public Transportation Regulatory Office</strong>
+                Thank you for commuting safely with Fair App.
+              </div>
             </div>
           </body>
         </html>
@@ -455,8 +736,14 @@ const HistoryScreen = () => {
     const actual = Number(selectedTrip.actual_fare_charged) || 0;
 
     expectedFare = computedFareDisplay - discountDisplay;
-    actualPaid = actual || expectedFare;
-    extraPaid = actualPaid - expectedFare;
+
+    if (selectedTrip.status === "Cancelled") {
+      actualPaid = 0;
+      extraPaid = 0;
+    } else {
+      actualPaid = actual > 0 ? actual : expectedFare;
+      extraPaid = actualPaid - expectedFare;
+    }
   }
 
   return (
@@ -691,7 +978,7 @@ const HistoryScreen = () => {
                     <View style={styles.addressTextWrapper}>
                       <Text style={styles.addressLabel}>PICK-UP</Text>
                       <Text style={styles.addressValue} numberOfLines={1}>
-                        {selectedTrip.origin_name}
+                        {resolvedOrigin}
                       </Text>
                     </View>
                   </View>

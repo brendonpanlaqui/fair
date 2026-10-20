@@ -9,7 +9,7 @@ import {
   MaterialCommunityIcons,
   MaterialIcons,
 } from "@expo/vector-icons";
-import { useFocusEffect } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
@@ -31,6 +31,7 @@ const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 
 export default function DriverDashboard() {
   const { logout, user } = useAuth();
+  const router = useRouter();
 
   const [isOnline, setIsOnline] = useState(true);
   const { currentLocation, drivenTrace } = useLocationTracking(true);
@@ -152,6 +153,25 @@ export default function DriverDashboard() {
 
   const tricycleBodyNumber = user?.active_tricycle_body_number || "NO-TRICYCLE";
 
+  const handleToggleOnline = async () => {
+    if (activeTrip) return; // Prevent toggling if they have a passenger
+
+    const newStatus = !isOnline;
+    setIsOnline(newStatus); // Update UI instantly
+
+    try {
+      await api.post("/driver/status/toggle/", { is_online: newStatus });
+    } catch (error) {
+      console.warn("Failed to sync status to server", error);
+      // Revert the toggle if the server failed
+      setIsOnline(!newStatus);
+      Alert.alert(
+        "Connection Error",
+        "Could not change status. Check your internet.",
+      );
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top", "bottom"]}>
       <StatusBar style="dark" translucent backgroundColor="transparent" />
@@ -170,7 +190,7 @@ export default function DriverDashboard() {
 
         <TouchableOpacity
           style={styles.headerRightContainer}
-          onPress={() => !activeTrip && setIsOnline(!isOnline)}
+          onPress={handleToggleOnline}
           disabled={!!activeTrip}
         >
           <Text
@@ -390,9 +410,23 @@ export default function DriverDashboard() {
         )}
       </View>
 
-      {/* FOOTER LOGOUT (Only when Idle) */}
+      {/* FOOTER ACTIONS (Only when Idle) */}
       {!activeTrip && !isLoadingTrip && (
         <View style={styles.footer}>
+          <TouchableOpacity
+            style={styles.historyButton}
+            activeOpacity={0.8}
+            onPress={() => router.push("/(driver)/history")}
+          >
+            <MaterialCommunityIcons
+              name="history"
+              size={24}
+              color="#0F172A"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.historyButtonText}>HISTORY</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.logoutButton}
             activeOpacity={0.8}
@@ -699,8 +733,29 @@ const styles = StyleSheet.create({
   },
 
   // --- FOOTER ---
-  footer: { paddingHorizontal: 24, paddingBottom: 40 },
+  footer: {
+    paddingHorizontal: 24,
+    paddingBottom: 40,
+    flexDirection: "row", // Puts buttons side-by-side
+    gap: 12, // Spacing between buttons
+  },
+  historyButton: {
+    flex: 1, // Takes up 50% of the row
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#F1F5F9",
+    height: 56,
+    borderRadius: 16,
+  },
+  historyButtonText: {
+    color: "#0F172A",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 1,
+  },
   logoutButton: {
+    flex: 1, // Takes up 50% of the row
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
