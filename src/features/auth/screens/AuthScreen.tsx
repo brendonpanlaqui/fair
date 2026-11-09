@@ -70,14 +70,14 @@ const AuthScreen = () => {
 
     // basic email format validation
     if (!email.includes("@") || !email.includes(".")) {
-      newErrors.email = "Please enter a valid email format";
+      newErrors.email = "Please enter a valid email address.";
       isValid = false;
     }
 
     if (isLogin) {
       // basic validation for login
       if (!password) {
-        newErrors.password = "Password is required";
+        newErrors.password = "Please enter your password.";
         isValid = false;
       }
     } else {
@@ -94,16 +94,16 @@ const AuthScreen = () => {
 
       // required fields for registration
       if (!firstName.trim()) {
-        newErrors.firstName = "Required";
+        newErrors.firstName = "First name is required.";
         isValid = false;
       }
       if (!lastName.trim()) {
-        newErrors.lastName = "Required";
+        newErrors.lastName = "Last name is required.";
         isValid = false;
       }
       // check if passwords match
       if (password !== confirmPassword) {
-        newErrors.confirmPassword = "Passwords do not match";
+        newErrors.confirmPassword = "Make sure your passwords match.";
         isValid = false;
       }
     }
@@ -184,7 +184,7 @@ const AuthScreen = () => {
       const errorMessage =
         backendError ||
         error.response?.data?.email?.[0] ||
-        "Authentication failed.";
+        "We couldn't log you in. Please check your internet or try again later.";
 
       // display error on the appropriate field
       isLogin

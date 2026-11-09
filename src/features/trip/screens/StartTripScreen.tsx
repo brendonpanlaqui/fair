@@ -323,19 +323,20 @@ const StartTripScreen: React.FC = () => {
       if (error.response?.status === 404) {
         if (serverErrorMessage === "Driver is not available or offline.") {
           Alert.alert(
-            "Driver Offline",
-            "This tricycle is registered, but the driver is currently offline or their profile is not properly linked in the system.",
+            "Driver Unavailable",
+            "This vehicle is registered, but the driver isn't active right now. Please try again later!",
           );
         } else {
           Alert.alert(
-            "⚠️ Unregistered Tricycle",
-            "This tricycle body number is not registered.",
+            "⚠️ Tricycle Not Found",
+            "This vehicle is not registered in our system. For your safety, please check the number or try another ride",
           );
         }
       } else {
         Alert.alert(
           "Error",
-          serverErrorMessage || "Could not request trip. Please try again.",
+          serverErrorMessage ||
+            "Sorry, we can't request your trip right now. Please check your connection and try again.",
         );
       }
     } finally {

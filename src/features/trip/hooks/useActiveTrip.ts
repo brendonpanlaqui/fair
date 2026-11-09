@@ -128,15 +128,15 @@ export const useActiveTrip = () => {
   // 1. Extract the Real Trip ID (with a fallback just for testing)
   const tripId =
     (params.tripId as string) ||
-    `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
+    `TEST-${Math.floor(100000 + Math.random() * 900000)}`;
 
   // 2. Add this new state
   const [isDriverFinished, setIsDriverFinished] = useState(false);
 
   // 3. Add the Polling Loop
   useEffect(() => {
-    // Don't poll if we are using a fake testing ID
-    if (!tripId || tripId.startsWith("TRP-")) return;
+    // 🚨 FIX: Now it blocks "TEST-" instead of "TRP-", allowing real trips to poll!
+    if (!tripId || tripId.startsWith("TEST-")) return;
 
     const interval = setInterval(async () => {
       try {
@@ -216,7 +216,6 @@ export const useActiveTrip = () => {
 
       const base = 35;
       const succeeding = Math.max(0, resolvedFare - base);
-      const generatedTripId = `TRP-${Math.floor(100000 + Math.random() * 900000)}`;
 
       let tripStatus = "Cancelled";
       if (isForcedCancel) {
@@ -300,7 +299,7 @@ export const useActiveTrip = () => {
       router.replace({
         pathname: "/trip-receipt",
         params: {
-          tripId: generatedTripId,
+          tripId: tripId,
           totalFare: resolvedFare,
           actualFare: finalFareCharged,
           baseFare: base,
@@ -383,15 +382,32 @@ export const useActiveTrip = () => {
   };
 
   const handleCancelTrip = () => {
+    // 🚨 LOOPHOLE FIX: Calculate how far they have already traveled
+    const distanceTraveled =
+      drivenTrace && drivenTrace.length > 1
+        ? calculateTraceDistanceKm(drivenTrace)
+        : 0;
+
+    // If they have moved more than 100 meters (0.1 km), block the cancellation!
+    if (distanceTraveled > 0.1) {
+      Alert.alert(
+        "Cannot Cancel Trip",
+        "This ride is already in progress. If you need to stop early, please ask the driver to drop you off here.",
+        [{ text: "OK", style: "default" }],
+      );
+      return; // Stop execution, trip remains active
+    }
+
+    // If it's a fresh trip (< 100m), allow the cancellation
     Alert.alert(
       "Cancel Active Trip?",
-      "Are you sure you want to cancel this ride? Your driver will be notified immediately.",
+      "Do you want to cancel this ride? Your driver will be notified immediately.",
       [
-        { text: "Keep Riding", style: "cancel" },
+        { text: "Don't Cancel", style: "cancel" },
         {
-          text: "Cancel Trip",
+          text: "Yes, Cancel",
           style: "destructive",
-          onPress: () => commitTrip(0, true), // This sets isForcedCancel = true, updating status to 'Cancelled'
+          onPress: () => commitTrip(0, true), // Sets isForcedCancel = true
         },
       ],
     );

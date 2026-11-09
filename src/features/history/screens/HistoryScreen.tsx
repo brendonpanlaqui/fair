@@ -27,7 +27,6 @@ const GOOGLE_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY as string;
 const API_BASE_URL =
   process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.x:8000/api";
 
-// matches what my Django backend (TripHistorySerializer) sends.
 interface TripRecord {
   trip_id: string;
   body_number: string;
@@ -50,7 +49,7 @@ interface TripRecord {
 const HistoryScreen = () => {
   const router = useRouter();
   const { user, logout } = useAuth();
-  const insets = useSafeAreaInsets(); // 🚀 dynamically gets the notch height
+  const insets = useSafeAreaInsets();
   const isGuest = !user || user.is_guest || user.first_name === "Guest";
 
   const [filter, setFilter] = useState<"All" | "Completed" | "Cancelled">(
@@ -62,7 +61,11 @@ const HistoryScreen = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isOffline, setIsOffline] = useState(false);
-  const [resolvedOrigin, setResolvedOrigin] = useState<string>("");
+
+  // 🚨 UPDATED 1: Replaced `resolvedOrigin` with a dictionary for all cards
+  const [resolvedAddresses, setResolvedAddresses] = useState<
+    Record<string, string>
+  >({});
 
   const mapRef = useRef<MapView>(null);
 
@@ -94,40 +97,56 @@ const HistoryScreen = () => {
     );
   };
 
+  // 🚨 UPDATED 2: Background Resolver for ALL list cards
   useEffect(() => {
-    if (selectedTrip) {
-      const originName = selectedTrip.origin_name || "Unknown";
+    let isMounted = true;
 
-      if (
-        originName.toLowerCase().includes("current location") ||
-        originName.toLowerCase().includes("unknown")
-      ) {
-        setResolvedOrigin("Loading exact address...");
-        Location.reverseGeocodeAsync({
-          latitude: selectedTrip.origin_coords.latitude,
-          longitude: selectedTrip.origin_coords.longitude,
-        })
-          .then((res) => {
-            if (res && res.length > 0) {
+    const resolveAddressesInBackground = async () => {
+      for (const trip of trips) {
+        if (!isMounted) break;
+
+        const originName = trip.origin_name || "Unknown";
+        const needsResolution =
+          originName.toLowerCase().includes("current location") ||
+          originName.toLowerCase().includes("unknown");
+
+        if (needsResolution && !resolvedAddresses[trip.trip_id]) {
+          try {
+            const res = await Location.reverseGeocodeAsync({
+              latitude: trip.origin_coords.latitude,
+              longitude: trip.origin_coords.longitude,
+            });
+
+            if (res && res.length > 0 && isMounted) {
               const place = res[0];
-              // Filter out duplicate names (sometimes name and street return the same string)
               const addressParts = [
                 place.name,
                 place.street,
                 place.city,
               ].filter(Boolean);
               const uniqueParts = [...new Set(addressParts)];
-              setResolvedOrigin(uniqueParts.join(", ") || "Unknown Address");
-            } else {
-              setResolvedOrigin(originName);
+              const finalAddress = uniqueParts.join(", ") || "Unknown Address";
+
+              setResolvedAddresses((prev) => ({
+                ...prev,
+                [trip.trip_id]: finalAddress,
+              }));
             }
-          })
-          .catch(() => setResolvedOrigin(originName));
-      } else {
-        setResolvedOrigin(originName);
+          } catch (e) {
+            // Silently ignore network failures for background tasks
+          }
+        }
       }
+    };
+
+    if (trips.length > 0) {
+      resolveAddressesInBackground();
     }
-  }, [selectedTrip]);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [trips]);
 
   const getDrivenRoute = (hash?: string | null) => {
     if (!hash) return null;
@@ -269,6 +288,12 @@ const HistoryScreen = () => {
         actualPaid = actualFareCharged > 0 ? actualFareCharged : expectedFare;
         extraPaid = actualPaid - expectedFare;
       }
+
+      // 🚨 UPDATED 3: Grab the resolved string for the PDF
+      const finalOriginName =
+        resolvedAddresses[selectedTrip.trip_id] ||
+        selectedTrip.origin_name ||
+        "Unknown Origin";
 
       const htmlContent = `
         <html>
@@ -510,7 +535,7 @@ const HistoryScreen = () => {
                   <div class="dot dot-blue"></div>
                   <div>
                     <div class="meta-label">Pick-up</div>
-                    <div class="route-address">${resolvedOrigin}</div>
+                    <div class="route-address">${finalOriginName}</div>
                   </div>
                 </div>
                 <div class="route-point">
@@ -638,7 +663,8 @@ const HistoryScreen = () => {
         <View style={styles.routeContainer}>
           <MaterialIcons name="trip-origin" size={14} color="#3B82F6" />
           <Text style={styles.routeText} numberOfLines={1}>
-            {item.origin_name}
+            {/* 🚨 UPDATED 4: Using the background resolved dictionary */}
+            {resolvedAddresses[item.trip_id] || item.origin_name}
           </Text>
         </View>
         <View style={styles.routeLine} />
@@ -667,9 +693,10 @@ const HistoryScreen = () => {
           ]}
         >
           ₱
-          {(
-            Number(item.actual_fare_charged) ||
-            Number(item.computed_fare) - Number(item.discount_applied)
+          {(item.status === "Cancelled"
+            ? 0
+            : Number(item.actual_fare_charged) ||
+              Number(item.computed_fare) - Number(item.discount_applied)
           ).toFixed(2)}
         </Text>
       </View>
@@ -910,7 +937,7 @@ const HistoryScreen = () => {
                 <View
                   style={[
                     styles.estimatedBadge,
-                    { top: Math.max(insets.top + 10, 20) }, // 🚀 SAFELY PUSHED DOWN
+                    { top: Math.max(insets.top + 10, 20) },
                   ]}
                 >
                   <MaterialIcons
@@ -926,7 +953,7 @@ const HistoryScreen = () => {
               <TouchableOpacity
                 style={[
                   styles.mapBackButton,
-                  { top: Math.max(insets.top + 50, 60) }, // 🚀 SAFELY PUSHED DOWN
+                  { top: Math.max(insets.top + 50, 60) },
                 ]}
                 onPress={() => setSelectedTrip(null)}
               >
@@ -977,8 +1004,11 @@ const HistoryScreen = () => {
                     <View style={styles.addressDotBlue} />
                     <View style={styles.addressTextWrapper}>
                       <Text style={styles.addressLabel}>PICK-UP</Text>
+                      {/* 🚨 UPDATED 5: Used background resolved dictionary in modal */}
                       <Text style={styles.addressValue} numberOfLines={1}>
-                        {resolvedOrigin}
+                        {resolvedAddresses[selectedTrip.trip_id] ||
+                          selectedTrip.origin_name ||
+                          "Unknown"}
                       </Text>
                     </View>
                   </View>
@@ -1025,7 +1055,8 @@ const HistoryScreen = () => {
                     </Text>
                   </View>
 
-                  {discountDisplay > 0 && (
+                  {/* 🚨 FIXED: Used ternary operators for boolean expression rendering */}
+                  {discountDisplay > 0 ? (
                     <View style={styles.fareRow}>
                       <Text style={styles.fareLabelDiscount}>
                         Legal Discount (20%)
@@ -1034,9 +1065,9 @@ const HistoryScreen = () => {
                         - ₱ {discountDisplay.toFixed(2)}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
 
-                  {extraPaid > 0 && (
+                  {extraPaid > 0 ? (
                     <View style={styles.fareRow}>
                       <Text
                         style={
@@ -1057,16 +1088,16 @@ const HistoryScreen = () => {
                         + ₱ {extraPaid.toFixed(2)}
                       </Text>
                     </View>
-                  )}
+                  ) : null}
+                </View>
 
-                  <View style={styles.receiptThickDivider} />
+                <View style={styles.receiptThickDivider} />
 
-                  <View style={styles.fareRow}>
-                    <Text style={styles.totalLabel}>ACTUAL AMOUNT PAID</Text>
-                    <Text style={styles.totalValue}>
-                      ₱ {actualPaid.toFixed(2)}
-                    </Text>
-                  </View>
+                <View style={styles.fareRow}>
+                  <Text style={styles.totalLabel}>ACTUAL AMOUNT PAID</Text>
+                  <Text style={styles.totalValue}>
+                    ₱ {actualPaid.toFixed(2)}
+                  </Text>
                 </View>
 
                 <View style={styles.receiptActions}>
@@ -1075,7 +1106,7 @@ const HistoryScreen = () => {
                     onPress={() => {
                       setSelectedTrip(null);
                       router.push({
-                        pathname: "/report",
+                        pathname: "/file-report",
                         params: {
                           tripId: selectedTrip.trip_id,
                           bodyNumber: selectedTrip.body_number,
@@ -1400,7 +1431,7 @@ const styles = StyleSheet.create({
     marginTop: -24,
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
-    paddingTop: 16, // Instead of full padding, padding just for the drag handle
+    paddingTop: 16,
     elevation: 20,
     shadowColor: "#0F172A",
     shadowOffset: { width: 0, height: -10 },
@@ -1421,7 +1452,7 @@ const styles = StyleSheet.create({
   },
   receiptScrollContent: {
     paddingHorizontal: 24,
-    paddingBottom: 40, // Keeps the buttons off the very bottom of screen
+    paddingBottom: 40,
     paddingTop: 8,
   },
 
