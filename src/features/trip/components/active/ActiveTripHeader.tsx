@@ -122,15 +122,6 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                 activeOpacity={0.8}
                 onPress={() => handleCall("911")}
               >
-                <View
-                  style={[styles.actionIconBg, { backgroundColor: "#FEF2F2" }]}
-                >
-                  <MaterialIcons
-                    name="medical-services"
-                    size={24}
-                    color="#DC2626"
-                  />
-                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>
                     {"National Emergency (911)"}
@@ -150,11 +141,6 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                 activeOpacity={0.8}
                 onPress={() => handleCall("09603071131")}
               >
-                <View
-                  style={[styles.actionIconBg, { backgroundColor: "#FFF7ED" }]}
-                >
-                  <MaterialIcons name="traffic" size={24} color="#EA580C" />
-                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>{"PNP - Traffic Unit"}</Text>
                   <Text style={styles.actionSubtext}>
@@ -172,11 +158,6 @@ export const ActiveTripHeader = ({ bodyNumber, fixedFare, onBack }: Props) => {
                 activeOpacity={0.8}
                 onPress={() => handleCall("09931696052")}
               >
-                <View
-                  style={[styles.actionIconBg, { backgroundColor: "#F8FAFC" }]}
-                >
-                  <MaterialIcons name="gavel" size={24} color="#0F172A" />
-                </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.actionTitle}>{"PTRO Angeles City"}</Text>
                   <Text style={styles.actionSubtext}>

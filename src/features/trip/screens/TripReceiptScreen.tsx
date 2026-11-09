@@ -1,3 +1,4 @@
+import { useAuth } from "@/src/hooks/AuthContext";
 import { MaterialIcons } from "@expo/vector-icons";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -14,6 +15,8 @@ import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
 const TripReceiptScreen = () => {
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { user } = useAuth();
+  const isGuest = !user || user.is_guest || user.first_name === "Guest";
 
   // base parameters for fare calculation
   const baseFare = params.baseFare ? Number(params.baseFare) : 35.0;
@@ -73,7 +76,7 @@ const TripReceiptScreen = () => {
   // navigates to the report screen if the user wants to dispute the fare
   const handleReportDriver = () => {
     router.push({
-      pathname: "/report",
+      pathname: "/file-report",
       params: { tripId, bodyNumber, violation: "Overcharging" },
     });
   };
@@ -300,19 +303,28 @@ const TripReceiptScreen = () => {
           <Text style={styles.primaryBtnText}>Done</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.reportBtn}
-          activeOpacity={0.8}
-          onPress={handleReportDriver}
-        >
-          <MaterialIcons
-            name="gavel"
-            size={18}
-            color="#D32F2F"
-            style={{ marginRight: 8 }}
-          />
-          <Text style={styles.reportBtnText}>Dispute this Fare</Text>
-        </TouchableOpacity>
+        {!isGuest ? (
+          <TouchableOpacity
+            style={styles.reportBtn}
+            activeOpacity={0.8}
+            onPress={handleReportDriver}
+          >
+            <MaterialIcons
+              name="gavel"
+              size={18}
+              color="#D32F2F"
+              style={{ marginRight: 8 }}
+            />
+            <Text style={styles.reportBtnText}>Dispute this Fare</Text>
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.guestWarningBox}>
+            <MaterialIcons name="info" size={16} color="#94A3B8" />
+            <Text style={styles.guestWarningText}>
+              Sign in to file dispute reports.
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -611,6 +623,18 @@ const styles = StyleSheet.create({
     borderColor: "#FFE4E6",
   },
   reportBtnText: { color: "#D32F2F", fontSize: 15, fontWeight: "bold" },
+  guestWarningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: 8,
+    gap: 6,
+  },
+  guestWarningText: {
+    color: "#94A3B8",
+    fontSize: 13,
+    fontWeight: "600",
+  },
 });
 
 export default TripReceiptScreen;

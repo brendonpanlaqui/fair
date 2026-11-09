@@ -16,7 +16,11 @@ Notifications.setNotificationHandler({
 // Add an options object to accept callbacks from the component
 export const useDriverNotifications = ({
   onTripApproved,
-}: { onTripApproved?: () => void } = {}) => {
+  onTripCancelled,
+}: {
+  onTripApproved?: () => void;
+  onTripCancelled?: () => void;
+} = {}) => {
   const router = useRouter();
 
   useEffect(() => {
@@ -30,20 +34,17 @@ export const useDriverNotifications = ({
         if (data?.type === "TRIP_REQUEST") {
           Alert.alert(
             "New Passenger Request",
-            bodyText || "A commuter wants to link to your tricycle.",
+            bodyText || "A passenger wants to book a ride with you.",
             [
               {
-                text: "Decline",
+                text: "Reject",
                 style: "cancel",
                 onPress: async () => {
                   try {
                     // the driver said NO
                     await api.post(`/trips/${data.trip_id}/decline/`);
 
-                    Alert.alert(
-                      "Trip Declined",
-                      "You have declined the passenger request.",
-                    );
+                    Alert.alert("Trip Rejected", "Ride request cancelled.");
                   } catch (error) {
                     Alert.alert(
                       "Error",
@@ -54,7 +55,7 @@ export const useDriverNotifications = ({
                 },
               },
               {
-                text: "Approve",
+                text: "Accept",
                 style: "default",
                 onPress: async () => {
                   try {
@@ -67,8 +68,8 @@ export const useDriverNotifications = ({
                     }
 
                     Alert.alert(
-                      "Trip Linked!",
-                      "The passenger has been notified. Drive safely!",
+                      "Ride Accepted!",
+                      "The passenger has been notified. Biyahe na and drive safely!",
                     );
                   } catch (error) {
                     Alert.alert(
@@ -81,11 +82,21 @@ export const useDriverNotifications = ({
               },
             ],
           );
+        } else if (data?.type === "TRIP_CANCELLED") {
+          Alert.alert(
+            "Trip Cancelled ⚠️",
+            bodyText || "The passenger has cancelled the current trip.",
+            [{ text: "OK", style: "default" }],
+          );
+
+          if (onTripCancelled) {
+            onTripCancelled();
+          }
         }
       },
     );
 
     // clean up the listener when the component unmounts
     return () => subscription.remove();
-  }, [onTripApproved]); // Add the callback to the dependency array
+  }, [onTripApproved, onTripCancelled]); // Add the callback to the dependency array
 };

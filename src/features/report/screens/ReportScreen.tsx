@@ -3,7 +3,7 @@ import { MaterialIcons } from "@expo/vector-icons";
 import { useFocusEffect } from "@react-navigation/native"; // 🚨 IMPORT THIS
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -51,7 +51,7 @@ const ReportScreen = () => {
     } catch (err) {
       console.warn("API Error:", err);
       setError(
-        "Could not connect to the LGU server. Please check your connection.",
+        "System unavailable. Please check your internet connection and try again.",
       );
     } finally {
       setIsLoading(false);
@@ -71,18 +71,6 @@ const ReportScreen = () => {
       fetchReports();
     }, [user]),
   );
-
-  // 🚨 Automatically route to the new screen if opened from History
-  useEffect(() => {
-    if (params.tripId && params.bodyNumber && user) {
-      router.push({
-        pathname: "/file-report",
-        params: { tripId: params.tripId, bodyNumber: params.bodyNumber },
-      });
-      // Clear params to prevent looping
-      router.setParams({ tripId: "", bodyNumber: "" });
-    }
-  }, [params, user]);
 
   return (
     <View style={styles.container}>

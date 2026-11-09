@@ -1,6 +1,15 @@
 import { MaterialIcons } from "@expo/vector-icons";
-import React from "react";
-import { Modal, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import React, { useRef } from "react";
+import {
+  Modal,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
 import {
   ReportRecord,
   formatDate,
@@ -17,7 +26,26 @@ export default function ReportDetailModal({
   report,
   onClose,
 }: ReportDetailModalProps) {
-  // opens when a user taps a specific ticket card from the list
+  // 🚨 1. Ref to track if we are currently dismissing to prevent double-firing
+  const isClosing = useRef(false);
+
+  // 🚨 2. The native scroll handler
+  const handleScroll = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const offsetY = event.nativeEvent.contentOffset.y;
+
+    // If the user drags the scrollview down past the top edge (negative Y)
+    // by more than 60 pixels, trigger the close!
+    if (offsetY < -60 && !isClosing.current) {
+      isClosing.current = true;
+      onClose();
+
+      // Reset the lock after a short delay in case it reopens
+      setTimeout(() => {
+        isClosing.current = false;
+      }, 500);
+    }
+  };
+
   return (
     <Modal
       visible={report !== null}
@@ -26,109 +54,129 @@ export default function ReportDetailModal({
       onRequestClose={onClose}
     >
       <View style={styles.modalOverlay}>
+        {/* We keep a touchable background so tapping outside also closes it */}
+        <TouchableOpacity
+          style={StyleSheet.absoluteFillObject}
+          activeOpacity={1}
+          onPress={onClose}
+        />
+
         {report && (
-          <View style={styles.modalContent}>
-            <View style={styles.modalDragHandle} />
-
-            <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Ticket Details</Text>
-              <TouchableOpacity onPress={onClose}>
-                <MaterialIcons name="close" size={24} color="#64748B" />
-              </TouchableOpacity>
-            </View>
-
-            <View
-              style={[
-                styles.statusBanner,
-                {
-                  backgroundColor: `${getStatusColor(report.status)}15`,
-                  borderColor: getStatusColor(report.status),
-                },
-              ]}
+          <View style={styles.modalContentWrapper}>
+            {/* 🚨 3. Replace the inner View with a ScrollView */}
+            <ScrollView
+              style={styles.modalScrollView}
+              contentContainerStyle={styles.modalContentContainer}
+              showsVerticalScrollIndicator={false}
+              onScroll={handleScroll}
+              scrollEventThrottle={16} // Fires frequently for smooth tracking
+              bounces={true} // Crucial for iOS over-scroll
+              overScrollMode="always" // Crucial for Android over-scroll
             >
-              <Text
+              <View style={styles.modalDragHandle} />
+
+              <View style={styles.modalHeaderRow}>
+                <Text style={styles.modalTitle}>Ticket Details</Text>
+                <TouchableOpacity onPress={onClose}>
+                  <MaterialIcons name="close" size={24} color="#64748B" />
+                </TouchableOpacity>
+              </View>
+
+              <View
                 style={[
-                  styles.statusBannerText,
-                  { color: getStatusColor(report.status) },
+                  styles.statusBanner,
+                  {
+                    backgroundColor: `${getStatusColor(report.status)}15`,
+                    borderColor: getStatusColor(report.status),
+                  },
                 ]}
               >
-                STATUS: {report.status.toUpperCase()}
-              </Text>
-            </View>
+                <Text
+                  style={[
+                    styles.statusBannerText,
+                    { color: getStatusColor(report.status) },
+                  ]}
+                >
+                  STATUS: {report.status.toUpperCase()}
+                </Text>
+              </View>
 
-            <View style={styles.detailRowUnderline}>
-              <Text style={styles.detailLabel}>EVIDENCE LEVEL</Text>
-              {/* if linked to specific trip, otherwise manual report*/}
-              {report.trip ? (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <MaterialIcons
-                    name="verified-user"
-                    size={16}
-                    color="#10B981"
-                  />
-                  <Text style={styles.verifiedText}>VERIFIED APP TRIP</Text>
-                </View>
-              ) : (
-                <View style={{ flexDirection: "row", alignItems: "center" }}>
-                  <MaterialIcons
-                    name="report-problem"
-                    size={16}
-                    color="#F59E0B"
-                  />
-                  <Text style={styles.manualText}>
-                    UNVERIFIED (AWAITING REPORTS)
+              <View style={styles.detailRowUnderline}>
+                <Text style={styles.detailLabel}>EVIDENCE LEVEL</Text>
+                {report.trip ? (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialIcons
+                      name="verified-user"
+                      size={16}
+                      color="#10B981"
+                    />
+                    <Text style={styles.verifiedText}>VERIFIED APP TRIP</Text>
+                  </View>
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center" }}>
+                    <MaterialIcons
+                      name="report-problem"
+                      size={16}
+                      color="#F59E0B"
+                    />
+                    <Text style={styles.manualText}>
+                      UNVERIFIED (AWAITING REPORTS)
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>TICKET ID</Text>
+                <Text style={styles.detailValue}>{report.report_id}</Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>DATE FILED</Text>
+                <Text style={styles.detailValue}>
+                  {formatDate(report.filed_at)}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>TRICYCLE</Text>
+                <Text style={styles.detailValue}>
+                  Body #{report.body_number}
+                </Text>
+              </View>
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>VIOLATION</Text>
+                <Text style={styles.detailValueRed}>
+                  {getViolationLabel(report.violation_type)}
+                </Text>
+              </View>
+
+              <View style={styles.commentBox}>
+                <Text style={styles.detailLabel}>YOUR REPORT</Text>
+                <Text style={styles.commentBoxText}>
+                  "{report.passenger_comments}"
+                </Text>
+              </View>
+
+              {report.admin_response ? (
+                <View style={styles.adminBox}>
+                  <View style={styles.adminBoxHeader}>
+                    <MaterialIcons
+                      name="admin-panel-settings"
+                      size={16}
+                      color="#059669"
+                      style={{ marginRight: 6 }}
+                    />
+                    <Text style={styles.adminBoxTitle}>ADMIN RESOLUTION</Text>
+                  </View>
+                  <Text style={styles.adminBoxText}>
+                    {report.admin_response}
                   </Text>
                 </View>
+              ) : (
+                <Text style={styles.pendingText}>
+                  Waiting for admin review...
+                </Text>
               )}
-            </View>
-
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>TICKET ID</Text>
-              <Text style={styles.detailValue}>{report.report_id}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>DATE FILED</Text>
-              <Text style={styles.detailValue}>
-                {formatDate(report.filed_at)}
-              </Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>TRICYCLE</Text>
-              <Text style={styles.detailValue}>Body #{report.body_number}</Text>
-            </View>
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>VIOLATION</Text>
-              <Text style={styles.detailValueRed}>
-                {getViolationLabel(report.violation_type)}
-              </Text>
-            </View>
-
-            <View style={styles.commentBox}>
-              <Text style={styles.detailLabel}>YOUR REPORT</Text>
-              <Text style={styles.commentBoxText}>
-                "{report.passenger_comments}"
-              </Text>
-            </View>
-
-            {/* only shows when admin provide response */}
-            {report.admin_response ? (
-              <View style={styles.adminBox}>
-                <View style={styles.adminBoxHeader}>
-                  <MaterialIcons
-                    name="admin-panel-settings"
-                    size={16}
-                    color="#059669"
-                    style={{ marginRight: 6 }}
-                  />
-                  <Text style={styles.adminBoxTitle}>ADMIN RESOLUTION</Text>
-                </View>
-                <Text style={styles.adminBoxText}>{report.admin_response}</Text>
-              </View>
-            ) : (
-              <Text style={styles.pendingText}>
-                Waiting for admin review...
-              </Text>
-            )}
+            </ScrollView>
           </View>
         )}
       </View>
@@ -142,13 +190,19 @@ const styles = StyleSheet.create({
     justifyContent: "flex-end",
     backgroundColor: "rgba(15, 23, 42, 0.6)",
   },
-  modalContent: {
+  modalContentWrapper: {
     backgroundColor: "#FFFFFF",
     borderTopLeftRadius: 28,
     borderTopRightRadius: 28,
+    maxHeight: "85%",
+    width: "100%",
+  },
+  modalScrollView: {
+    width: "100%",
+  },
+  modalContentContainer: {
     padding: 24,
     paddingBottom: 40,
-    maxHeight: "85%",
   },
   modalDragHandle: {
     width: 40,

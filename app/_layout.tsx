@@ -12,7 +12,6 @@ import "../src/features/trip/services/BackgroundLocationService";
 
 import { AuthProvider, useAuth } from "@/src/hooks/AuthContext";
 import { useColorScheme } from "@/src/hooks/use-color-scheme";
-import { useDriverNotifications } from "@/src/hooks/useDriverNotifications";
 import { useInitialPermissions } from "@/src/hooks/useInitialPermissions";
 
 export const unstable_settings = {
@@ -26,7 +25,7 @@ const InitialLayout = () => {
   const segments = useSegments();
 
   // run silently in the background while the app is open
-  useDriverNotifications();
+  // useDriverNotifications();
 
   useInitialPermissions();
 
@@ -74,7 +73,13 @@ const InitialLayout = () => {
 
   return (
     <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-      <Stack>
+      <Stack
+        screenOptions={{
+          headerShown: false,
+          animation: "fade_from_bottom",
+          fullScreenGestureEnabled: true,
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(trip)" options={{ headerShown: false }} />

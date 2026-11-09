@@ -108,14 +108,35 @@ export default function DriverDashboard() {
     }
   }, [currentLocation, isMapCentered]);
 
-  useDriverNotifications({ onTripApproved: fetchCurrentTrip });
+  useDriverNotifications({
+    onTripApproved: fetchCurrentTrip,
+    onTripCancelled: fetchCurrentTrip,
+  });
 
   const handleEndTrip = async (forceDropoff = false) => {
     if (!activeTrip) return;
     if (!currentLocation) {
       Alert.alert(
         "Location Error",
-        "Waiting for GPS signal. Cannot verify location.",
+        "Getting your location... Please wait for a better GPS signal before dropping off.",
+      );
+      return;
+    }
+
+    const distanceTraveled = calculateTraceDistanceKm(drivenTrace);
+
+    if (distanceTraveled < 0.05 && !forceDropoff) {
+      Alert.alert(
+        "Trip Too Short",
+        "It looks like you haven't moved yet. If the passenger changed their mind, please cancel the trip instead. Drop off anyway?",
+        [
+          { text: "Keep Driving", style: "cancel" },
+          {
+            text: "Drop Off Anyway",
+            style: "destructive",
+            onPress: () => handleEndTrip(true), // allows them to bypass if GPS is just glitching
+          },
+        ],
       );
       return;
     }
@@ -132,7 +153,7 @@ export default function DriverDashboard() {
     } catch (error: any) {
       // Catch the soft-geofence warning
       if (error.response?.data?.requires_confirmation) {
-        Alert.alert("Far from Destination", error.response.data.error, [
+        Alert.alert("Not at destination yet", error.response.data.error, [
           { text: "Cancel", style: "cancel" },
           {
             text: "Drop Off Anyway",
