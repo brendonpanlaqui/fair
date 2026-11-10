@@ -172,6 +172,44 @@ export default function DriverDashboard() {
     }
   };
 
+  const handleDenyDiscount = () => {
+    if (!activeTrip) return;
+
+    Alert.alert(
+      "Deny 20% Discount?",
+      `Only revoke this discount if the passenger cannot present a valid physical ${activeTrip.commuter_type || "Discount"} ID.`,
+      [
+        { text: "Keep Discount", style: "cancel" },
+        {
+          text: "No ID / Revoke",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const res = await api.post(
+                `/trips/${activeTrip.trip_id}/deny_discount/`,
+              );
+              setActiveTrip((prev: any) => ({
+                ...prev,
+                fare: res.data.new_fare,
+                discount_applied: 0,
+                is_discounted: false,
+              }));
+              Alert.alert(
+                "Discount Revoked",
+                `Fare updated to regular ordinance rate: ₱${Number(res.data.new_fare).toFixed(2)}`,
+              );
+            } catch (error: any) {
+              Alert.alert(
+                "Error",
+                error.response?.data?.error || "Could not revoke discount.",
+              );
+            }
+          },
+        },
+      ],
+    );
+  };
+
   const tricycleBodyNumber = user?.active_tricycle_body_number || "NO-TRICYCLE";
 
   const handleToggleOnline = async () => {
@@ -326,11 +364,36 @@ export default function DriverDashboard() {
                         style={{ marginRight: 4 }}
                       />
                       <Text style={styles.passengerSubtext}>
-                        Verified Passenger
+                        {activeTrip.is_discounted
+                          ? `${activeTrip.commuter_type} (20% Discount Applied)`
+                          : "Regular Fare Passenger"}
                       </Text>
                     </View>
                   </View>
                 </View>
+
+                {/* 🚨 NEW: Discount Verification & Revoke Banner */}
+                {activeTrip.is_discounted ? (
+                  <View style={styles.discountVerifyBox}>
+                    <View style={{ flex: 1, marginRight: 12 }}>
+                      <Text style={styles.discountVerifyTitle}>
+                        VERIFY PHYSICAL{" "}
+                        {activeTrip.commuter_type?.toUpperCase()} ID
+                      </Text>
+                      <Text style={styles.discountVerifySub}>
+                        If passenger has no valid ID, tap Revoke to charge
+                        regular fare.
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.revokeBtn}
+                      activeOpacity={0.8}
+                      onPress={handleDenyDiscount}
+                    >
+                      <Text style={styles.revokeBtnText}>REVOKE</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
 
                 <View style={styles.divider} />
 
@@ -791,5 +854,40 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "800",
     letterSpacing: 1,
+  },
+  discountVerifyBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#FFFBEB",
+    borderWidth: 1,
+    borderColor: "#FDE68A",
+    borderRadius: 16,
+    padding: 12,
+    marginTop: 16,
+  },
+  discountVerifyTitle: {
+    fontSize: 12,
+    fontWeight: "900",
+    color: "#B45309",
+    letterSpacing: 0.5,
+  },
+  discountVerifySub: {
+    fontSize: 11,
+    color: "#92400E",
+    fontWeight: "600",
+    marginTop: 2,
+    lineHeight: 15,
+  },
+  revokeBtn: {
+    backgroundColor: "#DC2626",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  revokeBtnText: {
+    color: "#FFFFFF",
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.5,
   },
 });

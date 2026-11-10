@@ -132,16 +132,36 @@ export const useActiveTrip = () => {
 
   // 2. Add this new state
   const [isDriverFinished, setIsDriverFinished] = useState(false);
+  const [isDiscountRevoked, setIsDiscountRevoked] = useState(false); // 🚨 Track if driver denied discount
 
   // 3. Add the Polling Loop
   useEffect(() => {
-    // 🚨 FIX: Now it blocks "TEST-" instead of "TRP-", allowing real trips to poll!
     if (!tripId || tripId.startsWith("TEST-")) return;
 
     const interval = setInterval(async () => {
       try {
         const response = await api.get(`/trips/${tripId}/status/`);
-        if (response.data.status === "Completed") {
+
+        // 🚨 Detect if driver revoked the 20% discount
+        if (
+          isDiscountVerified &&
+          !isDiscountRevoked &&
+          response.data.discount_applied !== undefined &&
+          Number(response.data.discount_applied) === 0 &&
+          response.data.computed_fare
+        ) {
+          setIsDiscountRevoked(true);
+          setDynamicFare(Number(response.data.computed_fare));
+          Alert.alert(
+            "Discount Revoked",
+            "The driver revoked your 20% discount because a valid physical ID was not presented. Your fare has been updated to the regular ordinance rate.",
+          );
+        }
+
+        if (
+          response.data.status === "Completed" ||
+          response.data.status === "Completed (Forced)"
+        ) {
           clearInterval(interval);
           prepareArrival(); // Stop tracking GPS and calculate prorated fare
           setIsDriverFinished(true); // Signal the UI to show the overlay
@@ -152,7 +172,7 @@ export const useActiveTrip = () => {
     }, 5000); // Check every 5 seconds
 
     return () => clearInterval(interval);
-  }, [tripId]);
+  }, [tripId, isDiscountVerified, isDiscountRevoked]);
 
   // Safety & Deviation State
   const [isDeviationWarningVisible, setIsDeviationWarningVisible] =
@@ -185,7 +205,7 @@ export const useActiveTrip = () => {
         const proratedFare = calculateDirectFare(
           actualDistanceKm,
           activeMatrix,
-          isDiscountVerified,
+          isDiscountVerified && !isDiscountRevoked,
         );
 
         // only apply if the prorated fare is actually cheaper
@@ -217,6 +237,11 @@ export const useActiveTrip = () => {
       const base = 35;
       const succeeding = Math.max(0, resolvedFare - base);
 
+      const appliedDiscount =
+        isDiscountVerified && !isDiscountRevoked
+          ? Number((resolvedFare / 0.8 - resolvedFare).toFixed(2))
+          : 0.0;
+
       let tripStatus = "Cancelled";
       if (isForcedCancel) {
         tripStatus = "Cancelled";
@@ -236,7 +261,7 @@ export const useActiveTrip = () => {
         total_distance_km: resolvedDistance,
         computed_fare: resolvedFare,
         actual_fare_charged: tripStatus === "Completed" ? finalFareCharged : 0,
-        discount_applied: 0.0,
+        discount_applied: appliedDiscount,
         status: tripStatus,
         origin_lat: drivenTrace[0]?.latitude || mapCenter.latitude,
         origin_lng: drivenTrace[0]?.longitude || mapCenter.longitude,
@@ -309,7 +334,8 @@ export const useActiveTrip = () => {
           date: dateStr,
           time: timeStr,
           bodyNumber: bodyNumber,
-          discountType: "Regular",
+          discountType:
+            isDiscountVerified && !isDiscountRevoked ? "Discounted" : "Regular",
           originLat: drivenTrace[0]?.latitude || mapCenter.latitude,
           originLng: drivenTrace[0]?.longitude || mapCenter.longitude,
           destLat: destLat,
@@ -470,7 +496,7 @@ export const useActiveTrip = () => {
           proratedFare = calculateDirectFare(
             actualDistanceKm,
             activeMatrix,
-            isDiscountVerified,
+            isDiscountVerified && !isDiscountRevoked,
           );
         }
 
@@ -536,5 +562,6 @@ export const useActiveTrip = () => {
     stopTracking,
     isNearDestination,
     handleCommuterForceEnd,
+    isDiscountRevoked,
   };
 };

@@ -62,7 +62,6 @@ export const useDriverNotifications = ({
                     // the driver said YES
                     await api.post(`/trips/${data.trip_id}/approve/`);
 
-                    // 👉 TRIGGER THE DASHBOARD UPDATE HERE
                     if (onTripApproved) {
                       onTripApproved();
                     }
