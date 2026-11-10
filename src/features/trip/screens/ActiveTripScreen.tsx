@@ -41,6 +41,8 @@ const ActiveTripScreen = () => {
     const enteredFareNum = Number(askedFare);
     const isSubmitDisabled = askedFare.length === 0;
 
+    const isDiscountActive = isDiscountVerified && !tripData.isDiscountRevoked;
+
     return (
       <KeyboardAvoidingView
         style={styles.arrivedOverlay}
@@ -61,7 +63,7 @@ const ActiveTripScreen = () => {
               >{`${tripData.fixedFare.toFixed(2)}`}</Text>
             </View>
 
-            {isDiscountVerified && (
+            {isDiscountActive && (
               <View style={styles.discountBadge}>
                 <MaterialIcons
                   name="check-circle"
@@ -71,6 +73,25 @@ const ActiveTripScreen = () => {
                 />
                 <Text style={styles.discountBadgeText}>
                   {userType.toUpperCase()} 20% DISCOUNT APPLIED
+                </Text>
+              </View>
+            )}
+
+            {isDiscountVerified && tripData.isDiscountRevoked && (
+              <View
+                style={[
+                  styles.discountBadge,
+                  { backgroundColor: "#FEF2F2", borderColor: "#FECACA" },
+                ]}
+              >
+                <MaterialIcons
+                  name="info"
+                  size={14}
+                  color="#DC2626"
+                  style={{ marginRight: 4 }}
+                />
+                <Text style={[styles.discountBadgeText, { color: "#DC2626" }]}>
+                  DISCOUNT REVOKED BY DRIVER (NO ID)
                 </Text>
               </View>
             )}

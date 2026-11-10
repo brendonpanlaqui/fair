@@ -223,7 +223,7 @@ const HistoryScreen = () => {
         setIsOffline(true);
       } else {
         setError(
-          "Could not connect to the LGU server. Please check your connection.",
+          "System unavailable. Please check your internet connection and try again.",
         );
       }
     } finally {
@@ -762,7 +762,8 @@ const HistoryScreen = () => {
     discountDisplay = Number(selectedTrip.discount_applied) || 0;
     const actual = Number(selectedTrip.actual_fare_charged) || 0;
 
-    expectedFare = computedFareDisplay - discountDisplay;
+    expectedFare =
+      discountDisplay > 0 ? computedFareDisplay : computedFareDisplay;
 
     if (selectedTrip.status === "Cancelled") {
       actualPaid = 0;
